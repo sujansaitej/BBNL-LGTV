@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+
+    <!-- Favicon -->
+    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+
+    <!-- IMPORTANT: WebOS TV viewport fix -->
+    <meta name="viewport" 
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+
+    <!-- Theme color -->
+    <meta name="theme-color" content="#000000" />
+
+    <!-- App Description -->
+    <meta name="description" content="WebOS React Application" />
+
+    <!-- Apple Icon -->
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
+
+    <!-- PWA manifest (not required but OK to keep) -->
+    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+
+    <!-- Prevent WebOS Text Scaling Issue -->
+    <style>
+      html, body {
+        -webkit-text-size-adjust: 100%;
+        margin: 0;
+        padding: 0;
+        background-color: #000;
+        overflow: hidden; /* Prevent unwanted scroll on TV */
+      }
+
+      /* Prevent WebOS focusing outline destroying layout */
+      *:focus {
+        outline: none !important;
+      }
+    </style>
+
+    <title>React WebOS App</title>
+  </head>
+
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+  </body>
+</html>
