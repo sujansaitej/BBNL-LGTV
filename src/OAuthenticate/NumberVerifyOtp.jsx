@@ -165,7 +165,6 @@ const PhoneAuthApp = () => {
               Phone
             </span>
           </div>
-          
           {/* Divider */}
           <div style={{
             width: '80px',
