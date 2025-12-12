@@ -1,335 +1,403 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
+import { Box, Paper, Typography, Button, TextField, LinearProgress, } from "@mui/material";
 
 const PhoneAuthApp = () => {
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [countryCode, setCountryCode] = useState('+91');
-  const [focusedElement, setFocusedElement] = useState('input');
-  const [isCountryCodeOpen, setIsCountryCodeOpen] = useState(false);
+  const [step, setStep] = useState(1);
+  const [phone, setPhone] = useState("");
+  const [otp, setOtp] = useState("");
+  const [generatedOtp, setGeneratedOtp] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
-  const countryCodes = ['+91', '+1', '+44', '+s86', '+81', '+61', '+49', '+33'];
+  // OTP Timer
+  const [timer, setTimer] = useState(30);
+  const [isTimerRunning, setIsTimerRunning] = useState(false);
 
   useEffect(() => {
-    const handleKeyDown = (e) => {
-      const key = e.keyCode || e.which;
+    if (step === 2) {
+      setTimer(30);
+      setIsTimerRunning(true);
+    }
+  }, [step]);
 
-      if (key === 461 || key === 27) {
-        e.preventDefault();
-        if (isCountryCodeOpen) {
-          setIsCountryCodeOpen(false);
-        } else if (phoneNumber.length > 0) {
-          setPhoneNumber(phoneNumber.slice(0, -1));
-        }
-        return;
-      }
+  useEffect(() => {
+    let interval;
+    if (isTimerRunning && timer > 0) {
+      interval = setInterval(() => setTimer((prev) => prev - 1), 1000);
+    }
+    if (timer === 0) setIsTimerRunning(false);
 
-      if (key === 13) {
-        e.preventDefault();
-        if (focusedElement === 'countryCode') {
-          setIsCountryCodeOpen(!isCountryCodeOpen);
-        } else if (focusedElement === 'button' && phoneNumber.length === 10) {
-          handleGetOTP();
-        }
-        return;
-      }
+    return () => clearInterval(interval);
+  }, [timer, isTimerRunning]);
 
-      if (key === 38) {
-        e.preventDefault();
-        if (isCountryCodeOpen) {
-          const currentIndex = countryCodes.indexOf(countryCode);
-          if (currentIndex > 0) {
-            setCountryCode(countryCodes[currentIndex - 1]);
-          }
-        } else if (focusedElement === 'button') {
-          setFocusedElement('input');
-        }
-        return;
-      }
-
-      if (key === 40) {
-        e.preventDefault();
-        if (isCountryCodeOpen) {
-          const currentIndex = countryCodes.indexOf(countryCode);
-          if (currentIndex < countryCodes.length - 1) {
-            setCountryCode(countryCodes[currentIndex + 1]);
-          }
-        } else if (focusedElement === 'input' && phoneNumber.length === 10) {
-          setFocusedElement('button');
-        }
-        return;
-      }
-
-      if (key === 37) {
-        e.preventDefault();
-        if (focusedElement === 'input') {
-          setFocusedElement('countryCode');
-        }
-        return;
-      }
-
-      if (key === 39) {
-        e.preventDefault();
-        if (focusedElement === 'countryCode') {
-          setFocusedElement('input');
-        }
-        return;
-      }
-
-      if (key >= 48 && key <= 57 && focusedElement === 'input') {
-        e.preventDefault();
-        const digit = String.fromCharCode(key);
-        if (phoneNumber.length < 10) {
-          setPhoneNumber(phoneNumber + digit);
-        }
-        return;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [phoneNumber, focusedElement, countryCode, isCountryCodeOpen]);
-
-  const handleGetOTP = () => {
-    if (phoneNumber.length === 10) {
-      alert(`Sending OTP to ${countryCode} ${phoneNumber}`);
+  const handlePhoneChange = (e) => {
+    const value = e.target.value.replace(/\D/g, "");
+    if (value.length <= 10) {
+      setPhone(value);
+      setError("");
     }
   };
 
-  const isButtonEnabled = phoneNumber.length === 10;
+  const handleOtpChange = (e) => {
+    const value = e.target.value.replace(/\D/g, "");
+    if (value.length <= 4) {
+      setOtp(value);
+      setError("");
+    }
+  };
+
+
+  const handleGetOtp = async () => {
+    if (phone.length !== 10) {
+      setError("Please enter a valid 10-digit phone number");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch(
+        "http://124.40.244.211/netmon/cabletvapis/login",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/text",
+            devmac: "68:1D:EF:14:6C:21",
+            Authorization:
+              "Basic Zm9maWxhYkBnbWFpbC5jb206MTIzNDUtNTQzMjE=",
+            devslno: "FOFI20191129000336",
+          },
+          body: JSON.stringify({
+            userid: "testuser1",
+            mobile: `+91${phone}`,
+            ip_address: "192.168.101.110",
+            mac_address: "68:1D:EF:14:6C:21",
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (data.status.err_code === 0) {
+        if (data.body?.[0]?.otpcode) {
+          setGeneratedOtp(data.body[0].otpcode);
+        }
+        setSuccess(data.status.err_msg);
+        setStep(2);
+      } else {
+        setError(data.status.err_msg || "Failed to send OTP");
+      }
+    } catch (err) {
+      setError("Network error. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = () => {
+    if (otp.length !== 4) {
+      setError("Please enter the 4-digit OTP");
+      return;
+    }
+
+    if (parseInt(otp) === generatedOtp) {
+      setSuccess("Authentication successful!");
+      setError("");
+
+      setTimeout(() => alert("Login successful!"), 500);
+    } else {
+      setError("Invalid OTP");
+      setOtp("");
+    }
+  };
+
+  const handleBack = () => {
+    setStep(1);
+    setOtp("");
+    setError("");
+    setSuccess("");
+  };
 
   return (
-    <div style={{
-      width: '100vw',
-      height: '100vh',
-      backgroundColor: '#000000',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '20px',
-      boxSizing: 'border-box',
-      fontFamily: 'Arial, Helvetica, sans-serif'
-    }}>
-      <div style={{
-        backgroundColor: '#111827',
-        borderRadius: '24px',
-        padding: '40px',
-        maxWidth: '600px',
-        width: '100%',
-        border: '2px solid',
-        boxShadow: '0 20px 40px rgba(59, 130, 246, 0.3)'
-      }}>
-        
-        {/* Title */}
-        <h1 style={{
-          fontSize: '40px',
-          fontWeight: 'bold',
-          color: '#ffffff',
-          textAlign: 'center',
-          margin: '0 0 10px 0'
-        }}>
+    <Box
+      sx={{
+        width: "100vw",
+        height: "100vh",
+        bgcolor: "#000",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        p: 3,
+      }}
+    >
+      <Paper
+        elevation={10}
+        sx={{
+          bgcolor: "#111827",
+          borderRadius: "24px",
+          p: 5,
+          width: "100%",
+          maxWidth: "600px",
+          border: "2px solid #1e40af",
+        }}
+      >
+        <Typography
+          variant="h3"
+          align="center"
+          color="#fff"
+          mb={1}
+          fontWeight="bold"
+        >
           Welcome Back
-        </h1>
-        
-        {/* Subtitle */}
-        <p style={{
-          color: '#9ca3af',
-          textAlign: 'center',
-          fontSize: '18px',
-          margin: '0 0 40px 0'
-        }}>
-          Sign in to continue to your profile
-        </p>
+        </Typography>
 
-        {/* Step Indicator */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          marginBottom: '40px',
-          gap: '15px'
-        }}>
-          {/* Step 1 - Phone */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: '50%',
-              backgroundColor: '#2563eb',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '20px'
-            }}>
-              📱
-            </div>
-            <span style={{ color: '#ffffff', fontSize: '16px', fontWeight: '600' }}>
-              Phone
-            </span>
-          </div>
-          {/* Divider */}
-          <div style={{
-            width: '80px',
-            height: '3px',
-            backgroundColor: '#374151',
-            borderRadius: '2px'
-          }}></div>
-          
-          {/* Step 2 - Verify */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', opacity: 0.5 }}>
-            <div style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: '50%',
-              backgroundColor: '#374151',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '20px'
-            }}>
-              ✓
-            </div>
-            <span style={{ color: '#9ca3af', fontSize: '16px', fontWeight: '600' }}>
-              Verify
-            </span>
-          </div>
-        </div>
+        <Typography align="center" color="#9ca3af" mb={5} fontSize="18px">
+          {step === 1
+            ? "Sign in to continue to your profile"
+            : "Enter the OTP sent to your phone"}
+        </Typography>
 
-        {/* Label */}
-        <label style={{
-          display: 'block',
-          color: '#ffffff',
-          fontSize: '16px',
-          fontWeight: '600',
-          marginBottom: '12px'
-        }}>
-          Phone Number
-        </label>
-
-        {/* Input Group */}
-        <div style={{
-          display: 'flex',
-          gap: '10px',
-          marginBottom: '20px'
-        }}>
-          {/* Country Code */}
-          <div style={{ position: 'relative' }}>
-            <button
-              onClick={() => setIsCountryCodeOpen(!isCountryCodeOpen)}
-              style={{
-                height: '60px',
-                padding: '0 20px',
-                borderRadius: '30px',
-                backgroundColor: focusedElement === 'countryCode' ? '#374151' : '#1f2937',
-                color: '#ffffff',
-                fontSize: '16px',
-                fontWeight: '600',
-                border: focusedElement === 'countryCode' ? '3px solid #3b82f6' : 'none',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}
-            >
-              <span>{countryCode}</span>
-              <span style={{ fontSize: '12px' }}>▼</span>
-            </button>
-
-            {/* Dropdown */}
-            {isCountryCodeOpen && (
-              <div style={{
-                position: 'absolute',
-                top: '100%',
-                marginTop: '8px',
-                left: 0,
-                backgroundColor: '#1f2937',
-                borderRadius: '16px',
-                padding: '8px',
-                zIndex: 10,
-                minWidth: '100px',
-                border: '2px solid #3b82f6',
-                boxShadow: '0 10px 20px rgba(0, 0, 0, 0.5)'
-              }}>
-                {countryCodes.map((code) => (
-                  <div
-                    key={code}
-                    onClick={() => {
-                      setCountryCode(code);
-                      setIsCountryCodeOpen(false);
-                    }}
-                    style={{
-                      padding: '10px 15px',
-                      borderRadius: '10px',
-                      cursor: 'pointer',
-                      color: '#ffffff',
-                      fontSize: '16px',
-                      backgroundColor: code === countryCode ? '#2563eb' : 'transparent'
-                    }}
-                  >
-                    {code}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Phone Input */}
-          <div style={{
-            flex: 1,
-            height: '60px',
-            padding: '0 20px',
-            borderRadius: '30px',
-            backgroundColor: focusedElement === 'input' ? '#374151' : '#1f2937',
-            border: focusedElement === 'input' ? '3px solid #3b82f6' : 'none',
-            display: 'flex',
-            alignItems: 'center'
-          }}>
-            <input
-              type="text"
-              value={phoneNumber}
-              readOnly
-              placeholder="Enter 10 Digit Number"
-              style={{
-                width: '100%',
-                backgroundColor: 'transparent',
-                color: '#ffffff',
-                fontSize: '16px',
-                border: 'none',
-                outline: 'none'
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Character Count */}
-        <div style={{
-          textAlign: 'right',
-          color: '#6b7280',
-          fontSize: '14px',
-          marginBottom: '20px'
-        }}>
-          {phoneNumber.length}/10
-        </div>
-
-        {/* Get OTP Button */}
-        <button
-          onClick={handleGetOTP}
-          disabled={!isButtonEnabled}
-          style={{
-            width: '100%',
-            height: '60px',
-            borderRadius: '30px',
-            fontWeight: '600',
-            fontSize: '16px',
-            border: focusedElement === 'button' && isButtonEnabled ? '3px solid #3b82f6' : 'none',
-            cursor: isButtonEnabled ? 'pointer' : 'not-allowed',
-            backgroundColor: isButtonEnabled ? (focusedElement === 'button' ? '#1d4ed8' : '#2563eb') : '#374151',
-            color: isButtonEnabled ? '#ffffff' : '#6b7280',
-            boxShadow: isButtonEnabled ? '0 10px 20px rgba(59, 130, 246, 0.3)' : 'none'
+        {/* -----------------------------------------------------------------
+            🔥 UPDATED DIVIDER WITH LINEAR PROGRESS BAR 
+        ----------------------------------------------------------------- */}
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "center",
+            gap: 3,
+            alignItems: "center",
+            mb: 5,
           }}
         >
-          Get OTP
-        </button>
-      </div>
-    </div>
+          {/* Step 1 */}
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+            <Box
+              sx={{
+                width: 40,
+                height: 40,
+                bgcolor: step === 1 ? "#2563eb" : "#10b981",
+                borderRadius: "50%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              {step === 1 ? "📱" : "✓"}
+            </Box>
+            <Typography color="#fff">Phone</Typography>
+          </Box>
+
+          {/* Divider with LinearProgress */}
+          <Box sx={{ width: 120 }}>
+            {step === 2 ? (
+              <LinearProgress
+                variant="determinate"
+                value={(30 - timer) * (100 / 30)}
+                sx={{ height: 6, borderRadius: 2, bgcolor: "#374151" }}
+              />
+            ) : (
+              <Box
+                sx={{
+                  width: "100%",
+                  height: 3,
+                  borderRadius: 2,
+                  bgcolor: "#374151",
+                }}
+              />
+            )}
+          </Box>
+
+          {/* Step 2 */}
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 1.5,
+              opacity: step === 1 ? 0.5 : 1,
+            }}
+          >
+            <Box
+              sx={{
+                width: 40,
+                height: 40,
+                bgcolor: step === 2 ? "#2563eb" : "#374151",
+                borderRadius: "50%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              ✓
+            </Box>
+            <Typography color={step === 2 ? "#fff" : "#9ca3af"}>
+              Verify
+            </Typography>
+          </Box>
+        </Box>
+
+        {/* ERROR */}
+        {error && (
+          <Box
+            sx={{
+              bgcolor: "#7f1d1d",
+              p: 2,
+              borderRadius: "12px",
+              mb: 3,
+              border: "1px solid #dc2626",
+            }}
+          >
+            <Typography color="#fca5a5">⚠️ {error}</Typography>
+          </Box>
+        )}
+
+        {/* SUCCESS */}
+        {success && (
+          <Box
+            sx={{
+              bgcolor: "#14532d",
+              p: 2,
+              borderRadius: "12px",
+              mb: 3,
+              border: "1px solid #16a34a",
+            }}
+          >
+            <Typography color="#86efac">✓ {success}</Typography>
+          </Box>
+        )}
+
+        {/* -------------------- PHONE STEP -------------------- */}
+        {step === 1 ? (
+          <>
+            <Typography color="#fff" fontWeight={600} mb={1}>
+              Phone Number
+            </Typography>
+
+            <Box sx={{ display: "flex", gap: 2, mb: 2 }}>
+              <Button
+                variant="contained"
+                sx={{
+                  height: 60,
+                  borderRadius: "30px",
+                  px: 3,
+                  bgcolor: "#1f2937",
+                  color: "#fff",
+                }}
+              >
+                +91 ▼
+              </Button>
+
+              <TextField
+                fullWidth
+                placeholder="Enter 10 Digit Number"
+                value={phone}
+                onChange={handlePhoneChange}
+                InputProps={{
+                  sx: {
+                    bgcolor: "#1f2937",
+                    borderRadius: "30px",
+                    height: 60,
+                    color: "#fff",
+                    px: 2,
+                    "& fieldset": { border: "none" },
+                  },
+                }}
+              />
+            </Box>
+
+            <Typography align="right" color="#6b7280" mb={2}>
+              {phone.length}/10
+            </Typography>
+
+            <Button
+              fullWidth
+              variant="contained"
+              onClick={handleGetOtp}
+              disabled={loading || phone.length !== 10}
+              sx={{
+                height: 60,
+                borderRadius: "30px",
+                bgcolor: phone.length === 10 ? "#2563eb" : "#374151",
+                color: "#fff",
+              }}
+            >
+              {loading ? "Sending..." : "Get OTP"}
+            </Button>
+          </>
+        ) : (
+          <>
+            {/* -------------------- OTP STEP -------------------- */}
+            <Typography color="#fff" fontWeight={600} mb={1}>
+              Enter OTP
+            </Typography>
+
+            <TextField
+              fullWidth
+              placeholder="Enter 4 Digit OTP"
+              value={otp}
+              onChange={handleOtpChange}
+              InputProps={{
+                sx: {
+                  bgcolor: "#1f2937",
+                  borderRadius: "30px",
+                  height: 60,
+                  color: "#fff",
+                  textAlign: "center",
+                  "& fieldset": { border: "none" },
+                },
+              }}
+              sx={{ mb: 2 }}
+            />
+
+            <Typography align="right" fontSize="14px" color="#6b7280">
+              {isTimerRunning ? `Resend OTP in ${timer}s` : "Didn't receive OTP?"}
+            </Typography>
+
+            {!isTimerRunning && (
+              <Button
+                fullWidth
+                variant="outlined"
+                onClick={handleGetOtp}
+                sx={{
+                  mt: 2,
+                  borderRadius: "30px",
+                  borderColor: "#2563eb",
+                  color: "#fff",
+                }}
+              >
+                Resend OTP
+              </Button>
+            )}
+
+            <Button
+              fullWidth
+              variant="contained"
+              onClick={handleVerifyOtp}
+              disabled={otp.length !== 4}
+              sx={{
+                mt: 3,
+                height: 60,
+                borderRadius: "30px",
+                bgcolor: otp.length === 4 ? "#2563eb" : "#374151",
+                color: "#fff",
+              }}
+            >
+              Verify OTP
+            </Button>
+
+            <Button
+              fullWidth
+              variant="text"
+              onClick={handleBack}
+              sx={{ mt: 2, color: "#9ca3af" }}
+            >
+              ← Back to Phone Number
+            </Button>
+          </>
+        )}
+      </Paper>
+    </Box>
   );
 };
 
