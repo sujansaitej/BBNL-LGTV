@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from "react";
-import { Box, Paper, Typography, Button, TextField, LinearProgress, } from "@mui/material";
+import { Box, Paper, Typography, Button, TextField, LinearProgress, Dialog } from "@mui/material";
+import NetworkErrorNotification from "../Atomic-ErrorThrow-Componenets/NetworkError";
+import axios from "axios";
 
 const PhoneAuthApp = () => {
   const [step, setStep] = useState(1);
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
-  const [generatedOtp, setGeneratedOtp] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [networkError, setNetworkError] = useState(false);
 
   // OTP Timer
   const [timer, setTimer] = useState(30);
@@ -47,7 +49,18 @@ const PhoneAuthApp = () => {
     }
   };
 
+  // Check if error is network-related
+  const isNetworkError = (err) => {
+    return (
+      !navigator.onLine ||
+      err.code === 'ERR_NETWORK' ||
+      err.message === 'Network Error' ||
+      err.code === 'ECONNABORTED' ||
+      !err.response
+    );
+  };
 
+  // Step 1: Validate phone and get OTP using /login API
   const handleGetOtp = async () => {
     if (phone.length !== 10) {
       setError("Please enter a valid 10-digit phone number");
@@ -56,61 +69,108 @@ const PhoneAuthApp = () => {
 
     setLoading(true);
     setError("");
+    setSuccess("");
+    setNetworkError(false);
 
     try {
-      const response = await fetch(
+      const response = await axios.post(
         "http://124.40.244.211/netmon/cabletvapis/login",
         {
-          method: "POST",
+          userid: "testiser1",
+          mobile: phone,
+          ip_address: "192.168.101.110",
+          mac_address: "68:1D:EF:14:6C:21",
+        },
+        {
           headers: {
-            "Content-Type": "application/text",
+            "Content-Type": "application/json",
             devmac: "68:1D:EF:14:6C:21",
-            Authorization:
-              "Basic Zm9maWxhYkBnbWFpbC5jb206MTIzNDUtNTQzMjE=",
+            Authorization: "Basic Zm9maWxhYkBnbWFpbC5jb206MTIzNDUtNTQzMjE=",
             devslno: "FOFI20191129000336",
           },
-          body: JSON.stringify({
-            userid: "testuser1",
-            mobile: `+91${phone}`,
-            ip_address: "192.168.101.110",
-            mac_address: "68:1D:EF:14:6C:21",
-          }),
+          timeout: 10000, // 10 second timeout
         }
       );
 
-      const data = await response.json();
+      const data = response.data;
 
       if (data.status.err_code === 0) {
-        if (data.body?.[0]?.otpcode) {
-          setGeneratedOtp(data.body[0].otpcode);
-        }
-        setSuccess(data.status.err_msg);
+        setSuccess(data.status.err_msg || "OTP sent successfully");
         setStep(2);
       } else {
         setError(data.status.err_msg || "Failed to send OTP");
       }
     } catch (err) {
-      setError("Network error. Please try again.");
+      if (isNetworkError(err)) {
+        setNetworkError(true);
+      } else {
+        setError("Something went wrong. Please try again.");
+      }
+      console.error("Login API Error:", err);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleVerifyOtp = () => {
+  // Step 2: Verify OTP using /loginOtp API
+  const handleVerifyOtp = async () => {
     if (otp.length !== 4) {
       setError("Please enter the 4-digit OTP");
       return;
     }
 
-    if (parseInt(otp) === generatedOtp) {
-      setSuccess("Authentication successful!");
-      setError("");
+    setLoading(true);
+    setError("");
+    setSuccess("");
+    setNetworkError(false);
 
-      setTimeout(() => alert("Login successful!"), 500);
-    } else {
-      setError("Invalid OTP");
-      setOtp("");
+    try {
+      const response = await axios.post(
+        "http://124.40.244.211/netmon/cabletvapis/loginOtp",
+        {
+          userid: "testiser1",
+          mobile: phone,
+          ip_address: "192.168.101.110",
+          mac_address: "68:1D:EF:14:6C:21",
+          otpcode: otp,
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            devmac: "68:1D:EF:14:6C:21",
+            Authorization: "Basic Zm9maWxhYkBnbWFpbC5jb206MTIzNDUtNTQzMjE=",
+            devslno: "FOFI20191129000336",
+          },
+          timeout: 10000,
+        }
+      );
+
+      const data = response.data;
+
+      if (data.status.err_code === 0) {
+        setSuccess("Authentication successful!");
+        setError("");
+        setTimeout(() => alert("Login successful!"), 500);
+      } else {
+        setError(data.status.err_msg || "Invalid OTP");
+        setOtp("");
+      }
+    } catch (err) {
+      if (isNetworkError(err)) {
+        setNetworkError(true);
+      } else {
+        setError("Something went wrong. Please try again.");
+      }
+      console.error("Verify OTP Error:", err);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const handleRetry = () => {
+    setNetworkError(false);
+    setError("");
+    setSuccess("");
   };
 
   const handleBack = () => {
@@ -119,6 +179,11 @@ const PhoneAuthApp = () => {
     setError("");
     setSuccess("");
   };
+
+  // Show network error screen if network error detected
+  if (networkError) {
+    return <NetworkErrorNotification onRetry={handleRetry} />;
+  }
 
   return (
     <Box
@@ -159,9 +224,7 @@ const PhoneAuthApp = () => {
             : "Enter the OTP sent to your phone"}
         </Typography>
 
-        {/* -----------------------------------------------------------------
-            🔥 UPDATED DIVIDER WITH LINEAR PROGRESS BAR 
-        ----------------------------------------------------------------- */}
+        {/* Progress Indicator */}
         <Box
           sx={{
             display: "flex",
@@ -285,7 +348,7 @@ const PhoneAuthApp = () => {
                   color: "#fff",
                 }}
               >
-                +91 ▼
+                +91▼
               </Button>
 
               <TextField
@@ -320,6 +383,9 @@ const PhoneAuthApp = () => {
                 borderRadius: "30px",
                 bgcolor: phone.length === 10 ? "#2563eb" : "#374151",
                 color: "#fff",
+                "&:hover": {
+                  bgcolor: phone.length === 10 ? "#1d4ed8" : "#374151",
+                },
               }}
             >
               {loading ? "Sending..." : "Get OTP"}
@@ -344,14 +410,19 @@ const PhoneAuthApp = () => {
                   height: 60,
                   color: "#fff",
                   textAlign: "center",
+                  fontSize: "24px",
+                  letterSpacing: "8px",
                   "& fieldset": { border: "none" },
+                  "& input": { textAlign: "center" },
                 },
               }}
               sx={{ mb: 2 }}
             />
 
-            <Typography align="right" fontSize="14px" color="#6b7280">
-              {isTimerRunning ? `Resend OTP in ${timer}s` : "Didn't receive OTP?"}
+            <Typography align="right" fontSize="14px" color="#6b7280" mb={2}>
+              {isTimerRunning
+                ? `Resend OTP in ${timer}s`
+                : "Didn't receive OTP?"}
             </Typography>
 
             {!isTimerRunning && (
@@ -360,10 +431,15 @@ const PhoneAuthApp = () => {
                 variant="outlined"
                 onClick={handleGetOtp}
                 sx={{
-                  mt: 2,
+                  mb: 2,
+                  height: 50,
                   borderRadius: "30px",
                   borderColor: "#2563eb",
-                  color: "#fff",
+                  color: "#2563eb",
+                  "&:hover": {
+                    borderColor: "#1d4ed8",
+                    bgcolor: "rgba(37, 99, 235, 0.1)",
+                  },
                 }}
               >
                 Resend OTP
@@ -374,23 +450,25 @@ const PhoneAuthApp = () => {
               fullWidth
               variant="contained"
               onClick={handleVerifyOtp}
-              disabled={otp.length !== 4}
+              disabled={loading || otp.length !== 4}
               sx={{
-                mt: 3,
                 height: 60,
                 borderRadius: "30px",
                 bgcolor: otp.length === 4 ? "#2563eb" : "#374151",
                 color: "#fff",
+                "&:hover": {
+                  bgcolor: otp.length === 4 ? "#1d4ed8" : "#374151",
+                },
               }}
             >
-              Verify OTP
+              {loading ? "Verifying..." : "Verify OTP"}
             </Button>
 
             <Button
               fullWidth
               variant="text"
               onClick={handleBack}
-              sx={{ mt: 2, color: "#9ca3af" }}
+              sx={{ mt: 2, color: "#9ca3af", "&:hover": { color: "#fff" } }}
             >
               ← Back to Phone Number
             </Button>

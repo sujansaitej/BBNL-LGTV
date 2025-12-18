@@ -1,12 +1,12 @@
 import './App.css';
-// import NumberVerifyOtp from "./OAuthenticate/NumberVerifyOtp";
-import ProfileSelector from './OAuthenticate/Profile';
+import PhoneNumberOtp from "./OAuthenticate/LoginOtp";
+ import ProfileSelector from './OAuthenticate/Profile';
 
 
 function App() {
   return (
     <>
-          {/* <NumberVerifyOtp/> */}
+          <PhoneNumberOtp/>
           <ProfileSelector/>
     
     </>

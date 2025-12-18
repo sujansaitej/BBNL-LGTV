@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Box, Typography, Avatar, Button, TextField, Switch, Container 
-} from '@mui/material';
+import { Box, Typography, Avatar, Button, TextField, Switch, Container } from '@mui/material';
 
 export default function ProfileSelector() {
   const [profiles, setProfiles] = useState([]);
