@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from "react";
-import { Box, Paper, Typography, Button, TextField, LinearProgress, Dialog } from "@mui/material";
+import { Box, Paper, Typography, Button, TextField, LinearProgress } from "@mui/material";
+import { useNavigate } from "react-router-dom";
 import NetworkErrorNotification from "../Atomic-ErrorThrow-Componenets/NetworkError";
 import axios from "axios";
 
-const PhoneAuthApp = () => {
+const PhoneAuthApp = ({ onLoginSuccess }) => {
+  const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
@@ -11,8 +13,7 @@ const PhoneAuthApp = () => {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [networkError, setNetworkError] = useState(false);
-
-  // OTP Timer
+  
   const [timer, setTimer] = useState(30);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
 
@@ -49,7 +50,6 @@ const PhoneAuthApp = () => {
     }
   };
 
-  // Check if error is network-related
   const isNetworkError = (err) => {
     return (
       !navigator.onLine ||
@@ -60,7 +60,6 @@ const PhoneAuthApp = () => {
     );
   };
 
-  // Step 1: Validate phone and get OTP using /login API
   const handleGetOtp = async () => {
     if (phone.length !== 10) {
       setError("Please enter a valid 10-digit phone number");
@@ -78,17 +77,14 @@ const PhoneAuthApp = () => {
         {
           userid: "testiser1",
           mobile: phone,
-          ip_address: "192.168.101.110",
-          mac_address: "68:1D:EF:14:6C:21",
         },
         {
           headers: {
             "Content-Type": "application/json",
-            devmac: "68:1D:EF:14:6C:21",
             Authorization: "Basic Zm9maWxhYkBnbWFpbC5jb206MTIzNDUtNTQzMjE=",
             devslno: "FOFI20191129000336",
           },
-          timeout: 10000, // 10 second timeout
+          timeout: 10000,
         }
       );
 
@@ -112,7 +108,6 @@ const PhoneAuthApp = () => {
     }
   };
 
-  // Step 2: Verify OTP using /loginOtp API
   const handleVerifyOtp = async () => {
     if (otp.length !== 4) {
       setError("Please enter the 4-digit OTP");
@@ -130,14 +125,11 @@ const PhoneAuthApp = () => {
         {
           userid: "testiser1",
           mobile: phone,
-          ip_address: "192.168.101.110",
-          mac_address: "68:1D:EF:14:6C:21",
           otpcode: otp,
         },
         {
           headers: {
             "Content-Type": "application/json",
-            devmac: "68:1D:EF:14:6C:21",
             Authorization: "Basic Zm9maWxhYkBnbWFpbC5jb206MTIzNDUtNTQzMjE=",
             devslno: "FOFI20191129000336",
           },
@@ -149,8 +141,16 @@ const PhoneAuthApp = () => {
 
       if (data.status.err_code === 0) {
         setSuccess("Authentication successful!");
-        setError("");
-        setTimeout(() => alert("Login successful!"), 500);
+        localStorage.setItem('userPhone', phone);
+        localStorage.setItem('userId', data.userid || 'testiser1');
+        
+        if (onLoginSuccess) {
+          onLoginSuccess();  // This updates App.js authentication state
+        }
+        
+        setTimeout(() => {
+          navigate('/home');  // Navigate to home after successful OTP
+        }, 500);
       } else {
         setError(data.status.err_msg || "Invalid OTP");
         setOtp("");
@@ -180,7 +180,6 @@ const PhoneAuthApp = () => {
     setSuccess("");
   };
 
-  // Show network error screen if network error detected
   if (networkError) {
     return <NetworkErrorNotification onRetry={handleRetry} />;
   }
@@ -224,7 +223,6 @@ const PhoneAuthApp = () => {
             : "Enter the OTP sent to your phone"}
         </Typography>
 
-        {/* Progress Indicator */}
         <Box
           sx={{
             display: "flex",
@@ -234,7 +232,6 @@ const PhoneAuthApp = () => {
             mb: 5,
           }}
         >
-          {/* Step 1 */}
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
             <Box
               sx={{
@@ -252,7 +249,6 @@ const PhoneAuthApp = () => {
             <Typography color="#fff">Phone</Typography>
           </Box>
 
-          {/* Divider with LinearProgress */}
           <Box sx={{ width: 120 }}>
             {step === 2 ? (
               <LinearProgress
@@ -272,7 +268,6 @@ const PhoneAuthApp = () => {
             )}
           </Box>
 
-          {/* Step 2 */}
           <Box
             sx={{
               display: "flex",
@@ -300,7 +295,6 @@ const PhoneAuthApp = () => {
           </Box>
         </Box>
 
-        {/* ERROR */}
         {error && (
           <Box
             sx={{
@@ -315,7 +309,6 @@ const PhoneAuthApp = () => {
           </Box>
         )}
 
-        {/* SUCCESS */}
         {success && (
           <Box
             sx={{
@@ -330,7 +323,6 @@ const PhoneAuthApp = () => {
           </Box>
         )}
 
-        {/* -------------------- PHONE STEP -------------------- */}
         {step === 1 ? (
           <>
             <Typography color="#fff" fontWeight={600} mb={1}>
@@ -348,7 +340,7 @@ const PhoneAuthApp = () => {
                   color: "#fff",
                 }}
               >
-                +91▼
+                +91
               </Button>
 
               <TextField
@@ -393,7 +385,6 @@ const PhoneAuthApp = () => {
           </>
         ) : (
           <>
-            {/* -------------------- OTP STEP -------------------- */}
             <Typography color="#fff" fontWeight={600} mb={1}>
               Enter OTP
             </Typography>
