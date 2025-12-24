@@ -1,0 +1,12 @@
+{
+  "id": "com.lg.bbnl",
+  "version": "2.0.0",
+  "vendor": "LG-BBNL",
+  "type": "web",
+  "main": "index.html",
+  "title": "LG BBNL UI",
+  "icon": "icon.png",
+  "largeIcon": "icon.png",
+  "uiRevision": 2,
+  "requiredPermissions": []
+}
