@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Box, Typography, ButtonBase, Button } from "@mui/material";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
+
+import { fetchCategories, fetchChannels } from "../Api/modules-api/ChannelApi";
 
 const LiveChannels = () => {
   const navigate = useNavigate();
@@ -23,6 +24,7 @@ const LiveChannels = () => {
     willCallAPI: !!mobile,
   });
 
+
   const payload = {
     userid,
     mobile,
@@ -32,61 +34,32 @@ const LiveChannels = () => {
 
   console.log(" Request payload:", payload);
 
+
   const headers = {
     "Content-Type": "application/json",
     Authorization: "Basic Zm9maWxhYkBnbWFpbC5jb206MTIzNDUtNTQzMjE=",
     devslno: "FOFI20191129000336",
   };
 
+
   // ================= FETCH CATEGORIES =================
-  const fetchCategories = async () => {
+  const handleFetchCategories = async () => {
     try {
-      const res = await axios.post(
-        "http://124.40.244.211/netmon/cabletvapis/chnl_categlist",
-        payload,
-        { headers }
-      );
-
-      const apiCategories = res?.data?.body?.[0]?.categories || [];
-
-      const formatted = apiCategories.map((c) => ({
-        title: c.grtitle,
-        grid: c.grid,
-      }));
-
+      const formatted = await fetchCategories(payload, headers);
       setCategories(formatted);
     } catch (err) {
-      console.error("Category API Error:", err?.response?.data || err.message);
       setError("Failed to load categories");
     }
   };
 
   // ================= FETCH CHANNELS =================
-  const fetchChannels = async () => {
+  const handleFetchChannels = async () => {
     try {
-      const res = await axios.post(
-        "http://124.40.244.211/netmon/cabletvapis/chnl_data",
-        payload,
-        { headers }
-      );
-
-      console.log("[LiveChannels] chnl_data response:", res.data);
-
-      if (res?.data?.status?.err_code !== 0) {
-        const errMsg = res?.data?.status?.err_msg || "Failed to load channels";
-        console.error("[LiveChannels] API returned error:", errMsg);
-        setError(`${errMsg} - Please ensure you've logged in with a valid mobile number.`);
-        return;
-      }
-
-      const apiChannels = res?.data?.body || [];
-
+      const apiChannels = await fetchChannels(payload, headers, setError);
       setChannels(apiChannels);
       setFilteredChannels(apiChannels);
     } catch (err) {
-      console.error("[LiveChannels] Channel API Error:", err?.response?.data || err.message);
-      const errMsg = err?.response?.data?.status?.err_msg || "Failed to load channels";
-      setError(`${errMsg} - Network error or invalid credentials.`);
+      setError("Failed to load channels - Network error or invalid credentials.");
     }
   };
 
@@ -96,8 +69,8 @@ const LiveChannels = () => {
       console.error("[LiveChannels] No mobile number found in localStorage. Please log in first.");
       return;
     }
-    fetchCategories();
-    fetchChannels();
+    handleFetchCategories();
+    handleFetchChannels();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mobile]);
 

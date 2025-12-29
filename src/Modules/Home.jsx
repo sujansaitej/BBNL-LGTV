@@ -2,8 +2,8 @@ import React, { useState } from "react";
 import { Box, Container, Drawer } from "@mui/material";
 
 import Header from "../Atomic-Common-Componenets/Headerbar";
-import OttApps from "../Atomic-Module-Componenets/Home-Modules/OttAps";
-import LiveChannels from "../Atomic-Module-Componenets/Home-Modules/livechanels";
+import OttViews from "../Atomic-Module-Componenets/Home-Modules/OttViews";
+import ChannelsView from "../Atomic-Module-Componenets/Home-Modules/ChannelsView";
 import HomeAds from "../Atomic-Module-Componenets/Home-Modules/HomeAds";
 import SidebarGlass from "./HomeSidebar";
 
@@ -29,8 +29,8 @@ const Home = () => {
       </Drawer>
       <Container sx={{ mt: 3, pb: 6 }}>
         <HomeAds />
-        <OttApps />
-        <LiveChannels />
+        <OttViews />
+        <ChannelsView />
       </Container>
     </Box>
   );

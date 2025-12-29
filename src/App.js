@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import PhoneNumberOtp from "./OAuthenticate/LoginOtp";
 import Home from './Modules/Home'; 
 import LiveChannels from './Modules/LiveChannels';
-import Player from './Modules/Player';
+import LivePlayer from './Modules/LivePlayer';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -57,7 +57,7 @@ function App() {
           path="/player"
           element={
             isAuthenticated ? (
-              <Player />
+              <LivePlayer />
             ) : (
               <Navigate to="/login" replace />
             )
