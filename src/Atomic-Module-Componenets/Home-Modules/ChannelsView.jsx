@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
+import  { useEffect, useState } from "react";
 import { Box, Typography, Card, CardActionArea, CardContent, Avatar } from "@mui/material";
 import { useNavigate } from "react-router-dom";
-import { fetchChannelsApi } from "../../Api/modules-api/ChannelApi";
+import { fetchChannels } from "../../Api/modules-api/ChannelApi";
 
 const getUserInfo = () => {
 	return {
@@ -49,38 +49,45 @@ const avatarStyle = {
 	borderRadius: 2,
 };
 
+const fallbackChannels = [
+	{ chnl_name: "Udhaya TV", logo: "" },
+	{ chnl_name: "Colors Super", logo: "" },
+	{ chnl_name: "Zee Kannada", logo: "" },
+	{ chnl_name: "Gemini TV", logo: "" },
+];
+
 const ChannelsView = () => {
 	const [channels, setChannels] = useState([]);
-	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState("");
 	const [selected, setSelected] = useState(-1);
 	const navigate = useNavigate();
 
 	useEffect(() => {
-		const fetchChannels = async () => {
-			setLoading(true);
+		const loadChannels = async () => {
 			setError("");
 			try {
-				const apiChannels = await fetchChannelsApi(getUserInfo(), headers);
+				const apiChannels = await fetchChannels(getUserInfo(), headers);
 				setChannels(apiChannels || []);
 			} catch (err) {
 				setError(err.message || "Failed to load channels");
-			} finally {
-				setLoading(false);
 			}
 		};
-		fetchChannels();
+		loadChannels();
 	}, []);
 
 	const handleCardClick = (idx) => {
 		setSelected(idx);
+		setTimeout(() => navigate("/live-channels"), 80);
 	};
 
 	const handleViewAll = () => {
 		navigate("/live-channels");
 	};
 
-	const visibleChannels = channels.slice(0, CHANNEL_CARD_LIMIT);
+	const visibleChannels = (channels.length ? channels : fallbackChannels).slice(
+		0,
+		CHANNEL_CARD_LIMIT
+	);
 
 	return (
 		<Box sx={{ mb: 6 }}>
