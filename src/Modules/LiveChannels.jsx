@@ -1,6 +1,12 @@
-import { useEffect, useState } from "react";
-import { Box, Typography, ButtonBase, Button } from "@mui/material";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { Subject } from "rxjs";
+import { debounceTime, distinctUntilChanged } from "rxjs/operators";
+
+import { Box, Typography, ButtonBase, Button, TextField, InputAdornment, IconButton } from "@mui/material";
+import SearchIcon from "@mui/icons-material/Search";
+import ClearIcon from "@mui/icons-material/Clear";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 
 import { fetchCategories, fetchChannels } from "../Api/modules-api/ChannelApi";
 
@@ -11,18 +17,14 @@ const LiveChannels = () => {
   const [filteredChannels, setFilteredChannels] = useState([]);
   const [activeFilter, setActiveFilter] = useState("All Channels");
   const [error, setError] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  
+  // RxJS Subject for search
+  const searchSubject = useRef(new Subject());
 
   // Get userid + mobile from localStorage
   const userid = localStorage.getItem("userId") || "testiser1";
   const mobile = localStorage.getItem("userPhone") || "";
-
-  console.log("[LiveChannels] localStorage check:", {
-    userId: localStorage.getItem("userId"),
-    userPhone: localStorage.getItem("userPhone"),
-    isAuthenticated: localStorage.getItem("isAuthenticated"),
-    actualMobileValue: mobile,
-    willCallAPI: !!mobile,
-  });
 
 
   const payload = {
@@ -32,13 +34,70 @@ const LiveChannels = () => {
     mac_address: "68:1D:EF:14:6C:21",
   };
 
-  console.log(" Request payload:", payload);
-
-
   const headers = {
     "Content-Type": "application/json",
     Authorization: "Basic Zm9maWxhYkBnbWFpbC5jb206MTIzNDUtNTQzMjE=",
     devslno: "FOFI20191129000336",
+  };
+
+  // ================= RXJS SEARCH SETUP =================
+  useEffect(() => {
+    const subscription = searchSubject.current
+      .pipe(
+        debounceTime(300), // Wait 300ms after user stops typing
+        distinctUntilChanged() // Only emit if value changed
+      )
+      .subscribe((searchValue) => {
+        performSearch(searchValue);
+      });
+
+    return () => subscription.unsubscribe();
+  }, [channels, activeFilter]);
+
+  // ================= SEARCH FUNCTION =================
+  const performSearch = (searchValue) => {
+    const term = searchValue.toLowerCase().trim();
+    
+    if (!term) {
+      // If search is empty, apply current filter
+      applyFilter(activeFilter);
+      return;
+    }
+
+    // Filter based on active category first
+    let baseChannels = channels;
+    if (activeFilter !== "All Channels") {
+      if (activeFilter === "Subscribed Channels") {
+        baseChannels = channels.filter((c) => c.subscribed === "yes");
+      } else {
+        const selectedCategory = categories.find(cat => cat.title === activeFilter);
+        if (selectedCategory) {
+          baseChannels = channels.filter((c) => c.grid === selectedCategory.grid);
+        }
+      }
+    }
+
+    // Search in channelno and chtitle
+    const results = baseChannels.filter((channel) => {
+      const channelNo = (channel.channelno || "").toString().toLowerCase();
+      const channelTitle = (channel.chtitle || "").toLowerCase();
+      return channelNo.includes(term) || channelTitle.includes(term);
+    });
+
+    setFilteredChannels(results);
+  };
+
+  // Handle search input change
+  const handleSearchChange = (event) => {
+    const value = event.target.value;
+    setSearchTerm(value);
+    searchSubject.current.next(value);
+  };
+
+  // Clear search
+  const handleClearSearch = () => {
+    setSearchTerm("");
+    searchSubject.current.next("");
   };
 
 
@@ -66,7 +125,6 @@ const LiveChannels = () => {
   useEffect(() => {
     if (!mobile) {
       setError("NO_LOGIN");
-      console.error("[LiveChannels] No mobile number found in localStorage. Please log in first.");
       return;
     }
     handleFetchCategories();
@@ -74,68 +132,28 @@ const LiveChannels = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mobile]);
 
-  // Show login required message
-  if (error === "NO_LOGIN") {
-    return (
-      <Box
-        sx={{
-          background: "#000",
-          minHeight: "100vh",
-          color: "#fff",
-          p: 4,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <Typography sx={{ fontSize: 28, fontWeight: 700, mb: 2 }}>
-          Login Required
-        </Typography>
-        <Typography sx={{ fontSize: 16, mb: 1, color: "#999" }}>
-          Please log in with your phone number to view TV channels.
-        </Typography>
-        
-        {/* Debug info - remove in production */}
-        <Box sx={{ fontSize: 12, color: "#666", mb: 3, textAlign: "center" }}>
-          <div>localStorage.userPhone: {localStorage.getItem("userPhone") || "(empty)"}</div>
-          <div>localStorage.userId: {localStorage.getItem("userId") || "(empty)"}</div>
-        </Box>
-        
-        <Button
-          variant="contained"
-          onClick={() => navigate("/login")}
-          sx={{
-            px: 4,
-            py: 1.5,
-            fontSize: 16,
-            background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-            "&:hover": {
-              background: "linear-gradient(135deg, #764ba2 0%, #667eea 100%)",
-            },
-          }}
-        >
-          Go to Login
-        </Button>
-      </Box>
-    );
-  }
-
   // ================= FILTER HANDLER =================
-  const handleFilter = (cat) => {
-    setActiveFilter(cat.title);
-
-    if (cat.title === "All Channels") {
+  const applyFilter = (filterTitle) => {
+    if (filterTitle === "All Channels") {
       setFilteredChannels(channels);
       return;
     }
 
-    if (cat.title === "Subscribed Channels") {
+    if (filterTitle === "Subscribed Channels") {
       setFilteredChannels(channels.filter((c) => c.subscribed === "yes"));
       return;
     }
 
-    setFilteredChannels(channels.filter((c) => c.grid === cat.grid));
+    const selectedCategory = categories.find(cat => cat.title === filterTitle);
+    if (selectedCategory) {
+      setFilteredChannels(channels.filter((c) => c.grid === selectedCategory.grid));
+    }
+  };
+
+  const handleFilter = (cat) => {
+    setActiveFilter(cat.title);
+    setSearchTerm(""); // Clear search when changing category
+    applyFilter(cat.title);
   };
 
   // ================= CHANNEL CARD =================
@@ -195,13 +213,116 @@ const LiveChannels = () => {
     </Box>
   );
 
-  return (
-    <Box sx={{ background: "#000", minHeight: "100vh", color: "#fff", p: 4 }}>
-      <Typography sx={{ fontSize: 22, fontWeight: 700, mb: 2 }}>
-        TV Channels
-      </Typography>
+  // Show login required message
+  if (error === "NO_LOGIN") {
+    return (
+      <Box
+        sx={{
+          background: "#000",
+          minHeight: "100vh",
+          color: "#fff",
+          p: 4,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Typography sx={{ fontSize: 28, fontWeight: 700, mb: 2 }}>
+          Login Required
+        </Typography>
+        <Typography sx={{ fontSize: 16, mb: 1, color: "#999" }}>
+          Please log in with your phone number to view TV channels.
+        </Typography>
+        <Button
+          variant="contained"
+          onClick={() => navigate("/login")}
+          sx={{
+            px: 4,
+            py: 1.5,
+            fontSize: 16,
+            background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+            "&:hover": {
+              background: "linear-gradient(135deg, #764ba2 0%, #667eea 100%)",
+            },
+          }}
+        >
+          Go to Login
+        </Button>
+      </Box>
+    );
+  }
 
-      {/* ERROR BOX - only for API errors, not for NO_LOGIN */}
+  return (
+    <Box sx={{ background: "#000", minHeight: "100vh", color: "#fff", p: 3 }}>
+      {/* ================= HEADER WITH BACK BUTTON AND TITLE ================= */}
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 3 }}>
+        {/* Back Button */}
+        <IconButton
+          onClick={() => navigate(-1)}
+          sx={{
+            color: "#fff",
+            border: "1px solid rgba(255,255,255,0.3)",
+            borderRadius: "8px",
+            "&:hover": {
+              background: "rgba(255,255,255,0.1)",
+            },
+          }}
+        >
+          <ArrowBackIcon />
+        </IconButton>
+
+        {/* Title on Right */}
+        <Typography sx={{ fontSize: 24, fontWeight: 700 }}>
+          TV Channels
+        </Typography>
+
+        {/* Search Bar */}
+        <TextField
+          value={searchTerm}
+          onChange={handleSearchChange}
+          placeholder="Search Channels"
+          variant="outlined"
+          size="small"
+          sx={{
+            width: 300,
+            "& .MuiOutlinedInput-root": {
+              color: "#fff",
+              background: "rgba(255,255,255,0.05)",
+              borderRadius: "20px",
+              "& fieldset": {
+                borderColor: "rgba(255,255,255,0.2)",
+              },
+              "&:hover fieldset": {
+                borderColor: "rgba(255,255,255,0.3)",
+              },
+              "&.Mui-focused fieldset": {
+                borderColor: "#667eea",
+              },
+            },
+            "& .MuiInputBase-input::placeholder": {
+              color: "rgba(255,255,255,0.5)",
+              opacity: 1,
+            },
+          }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon sx={{ color: "rgba(255,255,255,0.5)" }} />
+              </InputAdornment>
+            ),
+            endAdornment: searchTerm && (
+              <InputAdornment position="end">
+                <IconButton onClick={handleClearSearch} size="small" sx={{ color: "#fff" }}>
+                  <ClearIcon fontSize="small" />
+                </IconButton>
+              </InputAdornment>
+            ),
+          }}
+        />
+      </Box>
+
+      {/* ================= ERROR BOX ================= */}
       {error && error !== "NO_LOGIN" && (
         <Box
           sx={{
@@ -217,21 +338,30 @@ const LiveChannels = () => {
         </Box>
       )}
 
-      {/* FILTERS */}
-      <Box sx={{ display: "flex", gap: 2, mb: 5, flexWrap: "wrap" }}>
+      {/* ================= CATEGORY FILTERS ================= */}
+      <Box sx={{ display: "flex", gap: 1.5, mb: 4, flexWrap: "wrap", overflowX: "auto", pb: 1 }}>
         {categories.map((cat, i) => (
           <ButtonBase
             key={i}
             onClick={() => handleFilter(cat)}
             sx={{
-              px: 2.5,
-              py: 0.7,
-              borderRadius: 20,
-              border: "1px solid #fff",
+              px: 3,
+              py: 1,
+              borderRadius: "20px",
+              border: activeFilter === cat.title ? "none" : "1px solid rgba(255,255,255,0.2)",
               color: "#fff",
               fontSize: 13,
-              background:
-                activeFilter === cat.title ? "rgba(255,255,255,0.2)" : "none",
+              fontWeight: 500,
+              background: activeFilter === cat.title 
+                ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" 
+                : "rgba(255,255,255,0.05)",
+              transition: "all 0.3s ease",
+              "&:hover": {
+                background: activeFilter === cat.title
+                  ? "linear-gradient(135deg, #764ba2 0%, #667eea 100%)"
+                  : "rgba(255,255,255,0.1)",
+                transform: "translateY(-2px)",
+              },
             }}
           >
             {cat.title}
@@ -239,13 +369,12 @@ const LiveChannels = () => {
         ))}
       </Box>
 
-      {/* CHANNEL GRID */}
+      {/* ================= CHANNEL GRID ================= */}
       <Box
         sx={{
           display: "grid",
-          gridTemplateColumns: "repeat(5, 1fr)",
-          columnGap: 5,
-          rowGap: 6,
+          gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+          gap: 3,
         }}
       >
         {filteredChannels.length === 0 ? (
@@ -260,11 +389,15 @@ const LiveChannels = () => {
               name={ch.chtitle}
               subscribed={ch.subscribed}
               onClick={() => {
-                if (ch.streamlink) {
-                  navigate("/player", { state: { streamlink: ch.streamlink, title: ch.chtitle } });
+                // Try to find any stream URL
+                let streamUrl = ch.streamlink || ch.stream_link || ch.streamurl || ch.stream_url || 
+                                ch.url || ch.link || ch.videourl || ch.video_url || 
+                                ch.hlsurl || ch.hls_url || ch.manifest || ch.manifesturl;
+                
+                if (streamUrl) {
+                  navigate("/player", { state: { streamlink: streamUrl, title: ch.chtitle, channelData: ch } });
                 } else {
-                  console.warn("No streamlink available for channel", ch);
-                  setError("No stream available for this channel.");
+                  setError(`No stream URL found for channel: ${ch.chtitle}`);
                 }
               }}
             />
