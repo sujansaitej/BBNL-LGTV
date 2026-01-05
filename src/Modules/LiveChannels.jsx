@@ -8,6 +8,7 @@ import ClearIcon from "@mui/icons-material/Clear";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 
 import { fetchCategories, fetchChannels } from "../Api/modules-api/ChannelApi";
+import { fetchDeviceInfo } from "../Api/utils/deviceInfo";
 
 const LiveChannels = () => {
   const navigate = useNavigate();
@@ -17,26 +18,57 @@ const LiveChannels = () => {
   const [activeFilter, setActiveFilter] = useState("All Channels");
   const [error, setError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+
+  const [deviceInfo, setDeviceInfo] = useState({
+    ipAddress: null,
+    macAddress: null,
+    deviceId: null,
+    isWebOS: false,
+  });
+  const [deviceReady, setDeviceReady] = useState(false);
   
   // RxJS Subject for search
   const searchSubject = useRef(new Subject());
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadDevice = async () => {
+      try {
+        const info = await fetchDeviceInfo();
+        if (!cancelled && info) {
+          setDeviceInfo(info);
+        }
+      } catch (err) {
+        console.warn("Device info fetch failed", err);
+      } finally {
+        if (!cancelled) setDeviceReady(true);
+      }
+    };
+
+    loadDevice();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Get userid + mobile from localStorage
   const userid = localStorage.getItem("userId") || "testiser1";
   const mobile = localStorage.getItem("userPhone") || "";
 
-
-  const payload = {
+  const payloadBase = {
     userid,
     mobile,
-    ip_address: "192.168.101.110",
-    mac_address: "68:1D:EF:14:6C:21",
+    ip_address: deviceInfo.ipAddress || undefined,
+    mac_address: deviceInfo.macAddress || undefined,
   };
 
   const headers = {
     "Content-Type": "application/json",
     Authorization: "Basic Zm9maWxhYkBnbWFpbC5jb206MTIzNDUtNTQzMjE=",
     devslno: "FOFI20191129000336",
+    ...(deviceInfo.macAddress ? { devmac: deviceInfo.macAddress } : {}),
+    ...(deviceInfo.deviceId ? { devid: deviceInfo.deviceId } : {}),
   };
 
   // ================= RXJS SEARCH SETUP =================
@@ -103,7 +135,7 @@ const LiveChannels = () => {
   // ================= FETCH CATEGORIES =================
   const handleFetchCategories = async () => {
     try {
-      const formatted = await fetchCategories(payload, headers);
+      const formatted = await fetchCategories(payloadBase, headers);
       setCategories(formatted);
     } catch (err) {
       setError("Failed to load categories");
@@ -113,7 +145,7 @@ const LiveChannels = () => {
   // ================= FETCH CHANNELS =================
   const handleFetchChannels = async () => {
     try {
-      const apiChannels = await fetchChannels(payload, headers, setError);
+      const apiChannels = await fetchChannels(payloadBase, headers, setError);
       setChannels(apiChannels);
       setFilteredChannels(apiChannels);
     } catch (err) {
@@ -122,6 +154,8 @@ const LiveChannels = () => {
   };
 
   useEffect(() => {
+    if (!deviceReady) return;
+
     if (!mobile) {
       setError("NO_LOGIN");
       return;
@@ -129,7 +163,7 @@ const LiveChannels = () => {
     handleFetchCategories();
     handleFetchChannels();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mobile]);
+  }, [mobile, deviceReady]);
 
   // ================= FILTER HANDLER =================
   const applyFilter = (filterTitle) => {
