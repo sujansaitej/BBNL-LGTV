@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Box, Typography, Card, CardActionArea, CardContent, Avatar } from "@mui/material";
 import { useNavigate } from "react-router-dom";
-import { fetchChannelsApi } from "../../Api/modules-api/ChannelApi";
+import { fetchChannels } from "../../Api/modules-api/ChannelApi";
 
 const getUserInfo = () => {
 	return {
@@ -57,11 +57,11 @@ const ChannelsView = () => {
 	const navigate = useNavigate();
 
 	useEffect(() => {
-		const fetchChannels = async () => {
+		const fetchChannel = async () => {
 			setLoading(true);
 			setError("");
 			try {
-				const apiChannels = await fetchChannelsApi(getUserInfo(), headers);
+				const apiChannels = await fetchChannels(getUserInfo(), headers);
 				setChannels(apiChannels || []);
 			} catch (err) {
 				setError(err.message || "Failed to load channels");
@@ -69,7 +69,7 @@ const ChannelsView = () => {
 				setLoading(false);
 			}
 		};
-		fetchChannels();
+		fetchChannel();
 	}, []);
 
 	const handleCardClick = (idx) => {

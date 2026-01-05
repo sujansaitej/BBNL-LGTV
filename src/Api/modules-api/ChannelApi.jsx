@@ -27,5 +27,7 @@ export const fetchChannels = async (payload, headers, setError) => {
 		if (setError) setError(`${errMsg} - Please ensure you've logged in with a valid mobile number.`);
 		return [];
 	}
-	return res?.data?.body || [];
+	
+	const channels = res?.data?.body || [];
+	return channels;
 };
