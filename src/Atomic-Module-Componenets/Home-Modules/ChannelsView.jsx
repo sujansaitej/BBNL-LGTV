@@ -63,7 +63,12 @@ const ChannelsView = () => {
 	const navigate = useNavigate();
 
 	useEffect(() => {
+<<<<<<< HEAD
 		const loadChannels = async () => {
+=======
+		const fetchChannel = async () => {
+			setLoading(true);
+>>>>>>> c1e98e75d8de15ccead6c11cea66ae9b840207b0
 			setError("");
 			try {
 				const apiChannels = await fetchChannels(getUserInfo(), headers);
@@ -72,7 +77,11 @@ const ChannelsView = () => {
 				setError(err.message || "Failed to load channels");
 			}
 		};
+<<<<<<< HEAD
 		loadChannels();
+=======
+		fetchChannel();
+>>>>>>> c1e98e75d8de15ccead6c11cea66ae9b840207b0
 	}, []);
 
 	const handleCardClick = (idx) => {

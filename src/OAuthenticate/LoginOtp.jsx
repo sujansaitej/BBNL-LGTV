@@ -3,6 +3,7 @@ import { Box, Paper, Typography, Button, TextField, LinearProgress } from "@mui/
 import { useNavigate } from "react-router-dom";
 import NetworkErrorNotification from "../Atomic-ErrorThrow-Componenets/NetworkError";
 import axios from "axios";
+import { fetchDeviceInfo } from "../Api/utils/deviceInfo";
 
 const PhoneAuthApp = ({ onLoginSuccess }) => {
   const navigate = useNavigate();
@@ -16,6 +17,13 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
   
   const [timer, setTimer] = useState(30);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
+
+  const [deviceInfo, setDeviceInfo] = useState({
+    isWebOS: false,
+    ipAddress: null,
+    macAddress: null,
+    deviceId: null,
+  });
 
   useEffect(() => {
     if (step === 2) {
@@ -33,6 +41,26 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
 
     return () => clearInterval(interval);
   }, [timer, isTimerRunning]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadDevice = async () => {
+      try {
+        const info = await fetchDeviceInfo();
+        if (!cancelled && info) {
+          setDeviceInfo(info);
+        }
+      } catch (err) {
+        console.warn("Device info fetch failed", err);
+      }
+    };
+
+    loadDevice();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handlePhoneChange = (e) => {
     const value = e.target.value.replace(/\D/g, "");
@@ -82,6 +110,21 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
     );
   };
 
+  const buildDevicePayload = () => {
+    const meta = {};
+    if (deviceInfo?.ipAddress) meta.ip_address = deviceInfo.ipAddress;
+    if (deviceInfo?.macAddress) meta.mac_address = deviceInfo.macAddress;
+    if (deviceInfo?.deviceId) meta.device_id = deviceInfo.deviceId;
+    return meta;
+  };
+
+  const buildDeviceHeaders = () => {
+    const meta = {};
+    if (deviceInfo?.macAddress) meta.devmac = deviceInfo.macAddress;
+    if (deviceInfo?.deviceId) meta.devid = deviceInfo.deviceId;
+    return meta;
+  };
+
   const handleGetOtp = async () => {
     if (phone.length !== 10) {
       setError("Please enter a valid 10-digit phone number");
@@ -94,18 +137,24 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
     setNetworkError(false);
 
     try {
+      const payload = {
+        userid: "testiser1",
+        mobile: phone,
+        ...buildDevicePayload(),
+      };
+
+      const headers = {
+        "Content-Type": "application/json",
+        Authorization: "Basic Zm9maWxhYkBnbWFpbC5jb206MTIzNDUtNTQzMjE=",
+        devslno: "FOFI20191129000336",
+        ...buildDeviceHeaders(),
+      };
+
       const response = await axios.post(
         "http://124.40.244.211/netmon/cabletvapis/login",
+        payload,
         {
-          userid: "testiser1",
-          mobile: phone,
-        },
-        {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: "Basic Zm9maWxhYkBnbWFpbC5jb206MTIzNDUtNTQzMjE=",
-            devslno: "FOFI20191129000336",
-          },
+          headers,
           timeout: 10000,
         }
       );
@@ -142,19 +191,25 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
     setNetworkError(false);
 
     try {
+      const payload = {
+        userid: "testiser1",
+        mobile: phone,
+        otpcode: otp,
+        ...buildDevicePayload(),
+      };
+
+      const headers = {
+        "Content-Type": "application/json",
+        Authorization: "Basic Zm9maWxhYkBnbWFpbC5jb206MTIzNDUtNTQzMjE=",
+        devslno: "FOFI20191129000336",
+        ...buildDeviceHeaders(),
+      };
+
       const response = await axios.post(
         "http://124.40.244.211/netmon/cabletvapis/loginOtp",
+        payload,
         {
-          userid: "testiser1",
-          mobile: phone,
-          otpcode: otp,
-        },
-        {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: "Basic Zm9maWxhYkBnbWFpbC5jb206MTIzNDUtNTQzMjE=",
-            devslno: "FOFI20191129000336",
-          },
+          headers,
           timeout: 10000,
         }
       );

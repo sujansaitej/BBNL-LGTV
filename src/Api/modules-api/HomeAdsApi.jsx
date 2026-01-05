@@ -1,4 +1,5 @@
 import axios from "axios";
+import { fetchDeviceInfo } from "../utils/deviceInfo";
 
 const api = axios.create({
   baseURL: "https://bbnlnetmon.bbnl.in/prod/cabletvapis",
@@ -75,6 +76,19 @@ export const fetchIptvAds = async ({
     throw new Error("Missing required field: mobile");
   }
 
+  let resolvedIp = ip_address;
+  let resolvedMac = mac_address;
+
+  if (!resolvedIp || !resolvedMac) {
+    try {
+      const info = await fetchDeviceInfo();
+      resolvedIp = resolvedIp || info?.ipAddress || null;
+      resolvedMac = resolvedMac || info?.macAddress || null;
+    } catch (err) {
+      console.warn("[IPTV Ads API] Device info unavailable", err);
+    }
+  }
+
   const payload = {
     userid: userid || "testiser1",
     mobile,
@@ -84,15 +98,20 @@ export const fetchIptvAds = async ({
     displaytype: displaytype || "",
   };
 
-  // Include network identifiers only if provided
-  if (ip_address) payload.ip_address = ip_address;
-  if (mac_address) payload.mac_address = mac_address;
+  // Include network identifiers only if available (webOS) to avoid simulator errors
+  if (resolvedIp) payload.ip_address = resolvedIp;
+  if (resolvedMac) payload.mac_address = resolvedMac;
 
 //   console.log("[IPTV Ads API] Payload being sent:", payload);
+
+  const resolvedHeaders = {
+    ...(resolvedMac ? { devmac: resolvedMac } : {}),
+  };
 
   const config = { 
     signal, 
     withCredentials: true,
+    headers: resolvedHeaders,
   };
 
   const doRequest = preferForm ? postForm : postJson;
