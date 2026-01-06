@@ -6,12 +6,19 @@ import PhoneNumberOtp from "./OAuthenticate/LoginOtp";
 import Home from './Modules/Home'; 
 import LiveChannels from './Modules/LiveChannels';
 import LivePlayer from './Modules/LivePlayer';
+import { initializeWebOSEnvironment, preventWebOSDefaults } from './utils/webos';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
     localStorage.removeItem('isAuthenticated');
+    
+    // Initialize webOS TV environment
+    const cleanup = initializeWebOSEnvironment();
+    preventWebOSDefaults();
+    
+    return cleanup;
   }, []);
 
   const handleLoginSuccess = () => {
