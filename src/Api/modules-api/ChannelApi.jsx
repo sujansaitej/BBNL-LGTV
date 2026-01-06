@@ -1,12 +1,27 @@
 
 import axios from "axios";
+import { API_ENDPOINTS, DEFAULT_HEADERS } from "../config";
+
+// Helper to build complete device headers
+const buildDeviceHeaders = (deviceInfo) => {
+  const meta = {
+    Authorization: DEFAULT_HEADERS.Authorization,
+  };
+  if (deviceInfo?.ipAddress) meta.devip = deviceInfo.ipAddress;
+  if (deviceInfo?.macAddress) meta.devmac = deviceInfo.macAddress;
+  if (deviceInfo?.serialNumber) meta.devslno = deviceInfo.serialNumber;
+  if (deviceInfo?.deviceId) meta.devid = deviceInfo.deviceId;
+  if (deviceInfo?.modelName) meta.devmodel = deviceInfo.modelName;
+  return meta;
+};
 
 // Fetch channel categories
-export const fetchCategories = async (payload, headers) => {
+export const fetchCategories = async (payload, headers, deviceInfo = {}) => {
+	const completeHeaders = { ...buildDeviceHeaders(deviceInfo), ...headers };
 	const res = await axios.post(
-		"http://124.40.244.211/netmon/cabletvapis/chnl_categlist",
+		API_ENDPOINTS.CHANNEL_CATEGORIES,
 		payload,
-		{ headers }
+		{ headers: completeHeaders }
 	);
 	const apiCategories = res?.data?.body?.[0]?.categories || [];
 	return apiCategories.map((c) => ({
@@ -16,11 +31,12 @@ export const fetchCategories = async (payload, headers) => {
 };
 
 // Fetch channels
-export const fetchChannels = async (payload, headers, setError) => {
+export const fetchChannels = async (payload, headers, setError, deviceInfo = {}) => {
+	const completeHeaders = { ...buildDeviceHeaders(deviceInfo), ...headers };
 	const res = await axios.post(
-		"http://124.40.244.211/netmon/cabletvapis/chnl_data",
+		API_ENDPOINTS.CHANNEL_DATA,
 		payload,
-		{ headers }
+		{ headers: completeHeaders }
 	);
 	if (res?.data?.status?.err_code !== 0) {
 		const errMsg = res?.data?.status?.err_msg || "Failed to load channels";

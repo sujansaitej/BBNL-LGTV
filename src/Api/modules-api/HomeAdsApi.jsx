@@ -1,18 +1,24 @@
 import axios from "axios";
 import { fetchDeviceInfo } from "../utils/deviceInfo";
+import { API_BASE_URL_PROD, DEFAULT_HEADERS } from "../config";
 
 const api = axios.create({
-  baseURL: "https://bbnlnetmon.bbnl.in/prod/cabletvapis",
+  baseURL: API_BASE_URL_PROD,
   timeout: 10000,
 });
 
 // Add request interceptor to include the same auth headers as LoginOtp
 api.interceptors.request.use(
-  (config) => {
-    // Add authentication headers exactly as used in LoginOtp.jsx
-    config.headers["devmac"] = "68:1D:EF:14:6C:21";
-    config.headers["Authorization"] = "Basic Zm9maWxhYkBnbWFpbC5jb206MTIzNDUtNTQzMjE=";
-    config.headers["devslno"] = "FOFI20191129000336";
+  async (config) => {
+    // Fetch device info and add all device headers
+    const deviceInfo = await fetchDeviceInfo();
+    
+    config.headers["Authorization"] = DEFAULT_HEADERS.Authorization;
+    if (deviceInfo?.ipAddress) config.headers["devip"] = deviceInfo.ipAddress;
+    if (deviceInfo?.macAddress) config.headers["devmac"] = deviceInfo.macAddress;
+    if (deviceInfo?.serialNumber) config.headers["devslno"] = deviceInfo.serialNumber;
+    if (deviceInfo?.deviceId) config.headers["devid"] = deviceInfo.deviceId;
+    if (deviceInfo?.modelName) config.headers["devmodel"] = deviceInfo.modelName;
 
     console.log("[IPTV Ads API] Request:", {
       url: config.baseURL + config.url,

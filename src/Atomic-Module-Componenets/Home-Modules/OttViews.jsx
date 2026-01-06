@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { Box, Typography, Card, CardActionArea, CardContent, Avatar } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import { fetchDeviceInfo } from "../../Api/utils/deviceInfo";
+import { API_ENDPOINTS, DEFAULT_HEADERS, DEFAULT_USER } from "../../Api/config";
+import { useRemoteNavigation } from "../../Atomic-Common-Componenets/useRemoteNavigation";
 
 const getUserInfo = () => ({
   userid: localStorage.getItem("userId") || "testiser1",
@@ -42,13 +45,52 @@ const OttViews = () => {
   const [selected, setSelected] = useState(-1);
   const navigate = useNavigate();
 
+  const visibleApps = apps.slice(0, OTT_CARD_LIMIT);
+
+  // Remote navigation for OTT app cards
+  const { getItemProps } = useRemoteNavigation(
+    visibleApps.length,
+    {
+      orientation: "horizontal",
+      onSelect: (index) => {
+        setSelected(index);
+        setTimeout(() => {
+          // Navigate to app or handle app launch
+          console.log("Selected app:", visibleApps[index]);
+        }, 80);
+      },
+    }
+  );
+
   useEffect(() => {
     const fetchApps = async () => {
       try {
+        // Fetch device info
+        const deviceInfo = await fetchDeviceInfo();
+        
+        const payload = {
+          userid: localStorage.getItem("userId") || DEFAULT_USER.userid,
+          mobile: localStorage.getItem("userPhone") || "7800000001",
+        };
+        
+        // Include device info in payload if available
+        if (deviceInfo?.ipAddress) payload.ip_address = deviceInfo.ipAddress;
+        if (deviceInfo?.macAddress) payload.mac_address = deviceInfo.macAddress;
+        
+        // Build device headers
+        const headers = {
+          ...DEFAULT_HEADERS,
+        };
+        if (deviceInfo?.ipAddress) headers.devip = deviceInfo.ipAddress;
+        if (deviceInfo?.macAddress) headers.devmac = deviceInfo.macAddress;
+        if (deviceInfo?.serialNumber) headers.devslno = deviceInfo.serialNumber;
+        if (deviceInfo?.deviceId) headers.devid = deviceInfo.deviceId;
+        if (deviceInfo?.modelName) headers.devmodel = deviceInfo.modelName;
+        
         const res = await axios.post(
-          "http://124.40.244.211/netmon/cabletvapis/allowedapps",
-          getUserInfo(),
-          { headers: { "Content-Type": "application/json" } }
+          API_ENDPOINTS.ALLOWED_APPS,
+          payload,
+          { headers }
         );
 
         if (res?.data?.status?.err_code === 0) setApps(res.data.apps || []);
@@ -63,8 +105,6 @@ const OttViews = () => {
     fetchApps();
   }, []);
 
-  const visibleApps = apps.slice(0, OTT_CARD_LIMIT);
-
   return (
     <Box sx={{ mb: 6 }}>
       <Typography sx={{ fontSize: 22, fontWeight: 700, mb: 3 }}>
@@ -78,11 +118,21 @@ const OttViews = () => {
           gap: "26px",
         }}
       >
-        {visibleApps.map((app, idx) => (
-          <Card
-            key={idx}
-            sx={cardStyle}
-            onClick={() => setSelected(idx)}
+        {visibleApps.map((app, idx) => {
+          const cardProps = getItemProps(idx);
+          const isFocused = cardProps["data-focused"];
+          return (
+            <Card
+              key={idx}
+              {...cardProps}
+              onClick={() => setSelected(idx)}
+              sx={{
+                ...cardStyle,
+                border: isFocused ? "3px solid #667eea" : "2px solid rgba(255,255,255,.2)",
+                transform: isFocused ? "scale(1.08)" : "scale(1)",
+                boxShadow: isFocused ? "0 8px 24px rgba(102, 126, 234, 0.4)" : "none",
+                zIndex: isFocused ? 10 : 1,
+              }}
           >
             <CardActionArea
               sx={{
@@ -102,7 +152,8 @@ const OttViews = () => {
               </CardContent>
             </CardActionArea>
           </Card>
-        ))}
+          );
+        })}
 
         <Card sx={cardStyle} onClick={() => navigate("/movies-ott")}>
           <CardActionArea

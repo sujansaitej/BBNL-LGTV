@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Box, Typography, CircularProgress, IconButton } from "@mui/material";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { fetchIptvAds } from "../../Api/modules-api/HomeAdsApi";
+import { useRemoteNavigation } from "../../Atomic-Common-Componenets/useRemoteNavigation";
 
 const HomeAds = ({
   userid = localStorage.getItem("userId") || "testiser1",
@@ -18,6 +19,20 @@ const HomeAds = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [active, setActive] = useState(0);
+
+  // Remote navigation for carousel buttons (Previous, Next)
+  const { getItemProps } = useRemoteNavigation(2, {
+    orientation: "horizontal",
+    onSelect: (index) => {
+      if (index === 0) {
+        // Previous button
+        setActive((p) => (p === 0 ? ads.length - 1 : p - 1));
+      } else if (index === 1) {
+        // Next button
+        setActive((p) => (p + 1) % ads.length);
+      }
+    },
+  });
 
   useEffect(() => {
     const controller = new AbortController();
@@ -111,26 +126,30 @@ const HomeAds = ({
       {ads.length > 1 && (
         <>
           <IconButton
+            {...getItemProps(0)}
             onClick={() => setActive((p) => (p === 0 ? ads.length - 1 : p - 1))}
             sx={{
               position: "absolute",
               left: 18,
               top: "50%",
-              transform: "translateY(-50%)",
-              background: "rgba(0,0,0,.6)",
+              transform: getItemProps(0)["data-focused"] ? "translateY(-50%) scale(1.2)" : "translateY(-50%)",
+              background: getItemProps(0)["data-focused"] ? "rgba(102, 126, 234, 0.8)" : "rgba(0,0,0,.6)",
+              border: getItemProps(0)["data-focused"] ? "2px solid #667eea" : "none",
             }}
           >
             <ChevronLeft color="#fff" />
           </IconButton>
 
           <IconButton
+            {...getItemProps(1)}
             onClick={() => setActive((p) => (p + 1) % ads.length)}
             sx={{
               position: "absolute",
               right: 18,
               top: "50%",
-              transform: "translateY(-50%)",
-              background: "rgba(0,0,0,.6)",
+              transform: getItemProps(1)["data-focused"] ? "translateY(-50%) scale(1.2)" : "translateY(-50%)",
+              background: getItemProps(1)["data-focused"] ? "rgba(102, 126, 234, 0.8)" : "rgba(0,0,0,.6)",
+              border: getItemProps(1)["data-focused"] ? "2px solid #667eea" : "none",
             }}
           >
             <ChevronRight color="#fff" />

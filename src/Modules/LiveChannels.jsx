@@ -9,6 +9,8 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 
 import { fetchCategories, fetchChannels } from "../Api/modules-api/ChannelApi";
 import { fetchDeviceInfo } from "../Api/utils/deviceInfo";
+import { useGridNavigation, useInputFocusHandler, useRemoteNavigation } from "../Atomic-Common-Componenets/useRemoteNavigation";
+import { DEFAULT_HEADERS, DEFAULT_USER } from "../Api/config";
 
 const LiveChannels = () => {
   const navigate = useNavigate();
@@ -18,6 +20,7 @@ const LiveChannels = () => {
   const [activeFilter, setActiveFilter] = useState("All Channels");
   const [error, setError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
 
   const [deviceInfo, setDeviceInfo] = useState({
     ipAddress: null,
@@ -29,6 +32,39 @@ const LiveChannels = () => {
   
   // RxJS Subject for search
   const searchSubject = useRef(new Subject());
+
+  // Calculate columns based on grid
+  const columnsCount = 5; // Adjust based on your grid layout
+
+  // Use grid navigation for channel cards
+  const { focusedIndex, getItemProps: getChannelProps } = useGridNavigation(
+    filteredChannels.length,
+    columnsCount,
+    {
+      enabled: !isSearchFocused,
+      onSelect: (index) => {
+        const ch = filteredChannels[index];
+        if (ch) {
+          handleChannelSelect(ch);
+        }
+      },
+    }
+  );
+
+  // Use horizontal navigation for category filters
+  const { getItemProps: getCategoryProps } = useRemoteNavigation(
+    categories.length,
+    {
+      orientation: "horizontal",
+      enabled: !isSearchFocused,
+      onSelect: (index) => {
+        handleFilter(categories[index]);
+      },
+    }
+  );
+
+  // Handle input focus to prevent scroll issues
+  useInputFocusHandler();
 
   useEffect(() => {
     let cancelled = false;
@@ -53,7 +89,7 @@ const LiveChannels = () => {
   }, []);
 
   // Get userid + mobile from localStorage
-  const userid = localStorage.getItem("userId") || "testiser1";
+  const userid = localStorage.getItem("userId") || DEFAULT_USER.userid;
   const mobile = localStorage.getItem("userPhone") || "";
 
   const payloadBase = {
@@ -64,11 +100,12 @@ const LiveChannels = () => {
   };
 
   const headers = {
-    "Content-Type": "application/json",
-    Authorization: "Basic Zm9maWxhYkBnbWFpbC5jb206MTIzNDUtNTQzMjE=",
-    devslno: "FOFI20191129000336",
+    ...DEFAULT_HEADERS,
+    ...(deviceInfo.ipAddress ? { devip: deviceInfo.ipAddress } : {}),
     ...(deviceInfo.macAddress ? { devmac: deviceInfo.macAddress } : {}),
+    ...(deviceInfo.serialNumber ? { devslno: deviceInfo.serialNumber } : {}),
     ...(deviceInfo.deviceId ? { devid: deviceInfo.deviceId } : {}),
+    ...(deviceInfo.modelName ? { devmodel: deviceInfo.modelName } : {}),
   };
 
   // ================= RXJS SEARCH SETUP =================
@@ -135,7 +172,7 @@ const LiveChannels = () => {
   // ================= FETCH CATEGORIES =================
   const handleFetchCategories = async () => {
     try {
-      const formatted = await fetchCategories(payloadBase, headers);
+      const formatted = await fetchCategories(payloadBase, headers, deviceInfo);
       setCategories(formatted);
     } catch (err) {
       setError("Failed to load categories");
@@ -145,7 +182,7 @@ const LiveChannels = () => {
   // ================= FETCH CHANNELS =================
   const handleFetchChannels = async () => {
     try {
-      const apiChannels = await fetchChannels(payloadBase, headers, setError);
+      const apiChannels = await fetchChannels(payloadBase, headers, setError, deviceInfo);
       setChannels(apiChannels);
       setFilteredChannels(apiChannels);
     } catch (err) {
@@ -189,8 +226,22 @@ const LiveChannels = () => {
     applyFilter(cat.title);
   };
 
+  // Handle channel selection
+  const handleChannelSelect = (ch) => {
+    // Try to find any stream URL
+    let streamUrl = ch.streamlink || ch.stream_link || ch.streamurl || ch.stream_url || 
+                    ch.url || ch.link || ch.videourl || ch.video_url || 
+                    ch.hlsurl || ch.hls_url || ch.manifest || ch.manifesturl;
+    
+    if (streamUrl) {
+      navigate("/player", { state: { streamlink: streamUrl, title: ch.chtitle, channelData: ch } });
+    } else {
+      setError(`No stream URL found for channel: ${ch.chtitle}`);
+    }
+  };
+
   // ================= CHANNEL CARD =================
-  const ChannelBox = ({ logo, name, subscribed, onClick }) => (
+  const ChannelBox = ({ logo, name, subscribed, onClick, focused }) => (
     <Box>
       <Box
         sx={{
@@ -203,6 +254,11 @@ const LiveChannels = () => {
           justifyContent: "center",
           position: "relative",
           cursor: onClick ? "pointer" : "default",
+          border: focused ? "4px solid #667eea" : "4px solid transparent",
+          transform: focused ? "scale(1.1)" : "scale(1)",
+          transition: "all 0.2s ease",
+          boxShadow: focused ? "0 8px 24px rgba(102, 126, 234, 0.4)" : "none",
+          zIndex: focused ? 10 : 1,
         }}
         role={onClick ? "button" : undefined}
         tabIndex={onClick ? 0 : undefined}
@@ -314,9 +370,14 @@ const LiveChannels = () => {
         <TextField
           value={searchTerm}
           onChange={handleSearchChange}
+          onFocus={() => setIsSearchFocused(true)}
+          onBlur={() => setIsSearchFocused(false)}
           placeholder="Search Channels"
           variant="outlined"
           size="small"
+          inputProps={{
+            "data-input-focused": isSearchFocused ? "true" : "false",
+          }}
           sx={{
             width: 300,
             "& .MuiOutlinedInput-root": {
@@ -373,41 +434,48 @@ const LiveChannels = () => {
 
       {/* ================= CATEGORY FILTERS ================= */}
       <Box sx={{ display: "flex", gap: 1.5, mb: 4, flexWrap: "wrap", overflowX: "auto", pb: 1 }}>
-        {categories.map((cat, i) => (
-          <ButtonBase
-            key={i}
-            onClick={() => handleFilter(cat)}
-            sx={{
-              px: 3,
-              py: 1,
-              borderRadius: "20px",
-              border: activeFilter === cat.title ? "none" : "1px solid rgba(255,255,255,0.2)",
-              color: "#fff",
-              fontSize: 13,
-              fontWeight: 500,
-              background: activeFilter === cat.title 
-                ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" 
-                : "rgba(255,255,255,0.05)",
-              transition: "all 0.3s ease",
-              "&:hover": {
-                background: activeFilter === cat.title
-                  ? "linear-gradient(135deg, #764ba2 0%, #667eea 100%)"
-                  : "rgba(255,255,255,0.1)",
-                transform: "translateY(-2px)",
-              },
-            }}
-          >
-            {cat.title}
-          </ButtonBase>
-        ))}
+        {categories.map((cat, i) => {
+          const categoryProps = !isSearchFocused ? getCategoryProps(i) : {};
+          return (
+            <ButtonBase
+              key={i}
+              {...categoryProps}
+              onClick={() => handleFilter(cat)}
+              sx={{
+                px: 3,
+                py: 1,
+                borderRadius: "20px",
+                border: activeFilter === cat.title ? "none" : "1px solid rgba(255,255,255,0.2)",
+                color: "#fff",
+                fontSize: 13,
+                fontWeight: 500,
+                background: activeFilter === cat.title 
+                  ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" 
+                  : "rgba(255,255,255,0.05)",
+                transition: "all 0.3s ease",
+                outline: categoryProps["data-focused"] ? "2px solid #667eea" : "none",
+                outlineOffset: "2px",
+                "&:hover": {
+                  background: activeFilter === cat.title
+                    ? "linear-gradient(135deg, #764ba2 0%, #667eea 100%)"
+                    : "rgba(255,255,255,0.1)",
+                  transform: "translateY(-2px)",
+                },
+              }}
+            >
+              {cat.title}
+            </ButtonBase>
+          );
+        })}
       </Box>
 
       {/* ================= CHANNEL GRID ================= */}
       <Box
         sx={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+          gridTemplateColumns: "repeat(5, 220px)",
           gap: 3,
+          pb: 4,
         }}
       >
         {filteredChannels.length === 0 ? (
@@ -415,26 +483,20 @@ const LiveChannels = () => {
             No channels available
           </Typography>
         ) : (
-          filteredChannels.map((ch, i) => (
-            <ChannelBox
-              key={i}
-              logo={ch.chlogo}
-              name={ch.chtitle}
-              subscribed={ch.subscribed}
-              onClick={() => {
-                // Try to find any stream URL
-                let streamUrl = ch.streamlink || ch.stream_link || ch.streamurl || ch.stream_url || 
-                                ch.url || ch.link || ch.videourl || ch.video_url || 
-                                ch.hlsurl || ch.hls_url || ch.manifest || ch.manifesturl;
-                
-                if (streamUrl) {
-                  navigate("/player", { state: { streamlink: streamUrl, title: ch.chtitle, channelData: ch } });
-                } else {
-                  setError(`No stream URL found for channel: ${ch.chtitle}`);
-                }
-              }}
-            />
-          ))
+          filteredChannels.map((ch, i) => {
+            const channelProps = !isSearchFocused ? getChannelProps(i) : {};
+            return (
+              <Box key={i} {...channelProps}>
+                <ChannelBox
+                  logo={ch.chlogo}
+                  name={ch.chtitle}
+                  subscribed={ch.subscribed}
+                  focused={channelProps["data-focused"] && !isSearchFocused}
+                  onClick={() => handleChannelSelect(ch)}
+                />
+              </Box>
+            );
+          })
         )}
       </Box>
     </Box>
