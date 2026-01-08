@@ -46,17 +46,19 @@ const fallbackChannels = [
 
 const ChannelsView = () => {
 	const [channels, setChannels] = useState([]);
+	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState("");
 	const [selected, setSelected] = useState(-1);
 	const [deviceInfo, setDeviceInfo] = useState({});
 	const navigate = useNavigate();
+	const { getItemProps } = useRemoteNavigation({ itemCount: CHANNEL_CARD_LIMIT });
 
 	useEffect(() => {
 		const fetchChannel = async () => {
 			setLoading(true);
 			setError("");
 			try {
-				const apiChannels = await fetchChannels(getUserInfo(), headers);
+				const apiChannels = await fetchChannels(DEFAULT_USER, DEFAULT_HEADERS);
 				setChannels(apiChannels || []);
 			} catch (err) {
 				setError(err.message || "Failed to load channels");
