@@ -13,8 +13,17 @@ import MenuIcon from "@mui/icons-material/Menu";
 import SearchIcon from "@mui/icons-material/Search";
 import SettingsIcon from "@mui/icons-material/Settings";
 import WifiIcon from "@mui/icons-material/Wifi";
+import { useRemoteNavigation } from "./useRemoteNavigation";
 
 const Header = ({ onMenuClick }) => {
+  // Remote navigation for header buttons: Menu, Search, Dark Mode, Network, Settings
+  const { getItemProps } = useRemoteNavigation(5, {
+    orientation: "horizontal",
+    onSelect: (index) => {
+      if (index === 0 && onMenuClick) onMenuClick(); // Menu button
+      // Other actions can be added as needed
+    },
+  });
   const iconButtonSx = {
     bgcolor: "#0e0e0e",
     border: "1px solid #1c1c1c",
@@ -39,8 +48,13 @@ const Header = ({ onMenuClick }) => {
             BBNL
           </Typography>
           <IconButton
+            {...getItemProps(0)}
             size="small"
-            sx={iconButtonSx}
+            sx={{
+              ...iconButtonSx,
+              border: getItemProps(0)["data-focused"] ? "2px solid #667eea" : "1px solid #1c1c1c",
+              transform: getItemProps(0)["data-focused"] ? "scale(1.1)" : "scale(1)",
+            }}
             aria-label="Open menu"
             onClick={onMenuClick}
           >
@@ -50,17 +64,19 @@ const Header = ({ onMenuClick }) => {
 
         <Box flex={1} display="flex" alignItems="center">
           <Box
+            {...getItemProps(1)}
             sx={{
               display: "flex",
               alignItems: "center",
               gap: 1,
               bgcolor: "#0d0d0d",
-              border: "1px solid #1e1e1e",
+              border: getItemProps(1)["data-focused"] ? "2px solid #667eea" : "1px solid #1e1e1e",
               borderRadius: 3,
               px: 2,
               py: 1,
               width: "100%",
               maxWidth: 620,
+              transform: getItemProps(1)["data-focused"] ? "scale(1.02)" : "scale(1)",
             }}
           >
             <SearchIcon sx={{ color: "#8a8a8a" }} />
@@ -77,14 +93,43 @@ const Header = ({ onMenuClick }) => {
         </Box>
 
         <Box display="flex" alignItems="center" gap={1.75}>
-          <Typography fontSize={15} color="#cfcfcf">
-            Dark Mode
-          </Typography>
-          <Switch color="default" size="medium" aria-label="Toggle dark mode" />
-          <IconButton sx={iconButtonSx} aria-label="Network status">
+          <Box 
+            {...getItemProps(2)}
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 0.5,
+              border: getItemProps(2)["data-focused"] ? "2px solid #667eea" : "2px solid transparent",
+              borderRadius: 1,
+              px: 1,
+              transform: getItemProps(2)["data-focused"] ? "scale(1.05)" : "scale(1)",
+            }}
+          >
+            <Typography fontSize={15} color="#cfcfcf">
+              Dark Mode
+            </Typography>
+            <Switch color="default" size="medium" aria-label="Toggle dark mode" />
+          </Box>
+          <IconButton 
+            {...getItemProps(3)}
+            sx={{
+              ...iconButtonSx,
+              border: getItemProps(3)["data-focused"] ? "2px solid #667eea" : "1px solid #1c1c1c",
+              transform: getItemProps(3)["data-focused"] ? "scale(1.1)" : "scale(1)",
+            }}
+            aria-label="Network status"
+          >
             <WifiIcon />
           </IconButton>
-          <IconButton sx={iconButtonSx} aria-label="Settings">
+          <IconButton 
+            {...getItemProps(4)}
+            sx={{
+              ...iconButtonSx,
+              border: getItemProps(4)["data-focused"] ? "2px solid #667eea" : "1px solid #1c1c1c",
+              transform: getItemProps(4)["data-focused"] ? "scale(1.1)" : "scale(1)",
+            }}
+            aria-label="Settings"
+          >
             <SettingsIcon />
           </IconButton>
         </Box>

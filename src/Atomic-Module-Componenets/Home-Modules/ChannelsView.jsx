@@ -2,21 +2,9 @@ import  { useEffect, useState } from "react";
 import { Box, Typography, Card, CardActionArea, CardContent, Avatar } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { fetchChannels } from "../../Api/modules-api/ChannelApi";
-
-const getUserInfo = () => {
-	return {
-		userid: localStorage.getItem("userId") || "testiser1",
-		mobile: localStorage.getItem("userPhone") || "7800000001",
-		ip_address: "192.168.101.110",
-		mac_address: "68:1D:EF:14:6C:21",
-	};
-};
-
-const headers = {
-	"Content-Type": "application/json",
-	Authorization: "Basic Zm9maWxhYkBnbWFpbC5jb206MTIzNDUtNTQzMjE=",
-	devslno: "FOFI20191129000336",
-};
+import { fetchDeviceInfo } from "../../Api/utils/deviceInfo";
+import { DEFAULT_HEADERS, DEFAULT_USER } from "../../Api/config";
+import { useRemoteNavigation } from "../../Atomic-Common-Componenets/useRemoteNavigation";
 
 const CHANNEL_CARD_LIMIT = 4;
 
@@ -60,19 +48,23 @@ const ChannelsView = () => {
 	const [channels, setChannels] = useState([]);
 	const [error, setError] = useState("");
 	const [selected, setSelected] = useState(-1);
+	const [deviceInfo, setDeviceInfo] = useState({});
 	const navigate = useNavigate();
 
 	useEffect(() => {
-		const loadChannels = async () => {
+		const fetchChannel = async () => {
+			setLoading(true);
 			setError("");
 			try {
 				const apiChannels = await fetchChannels(getUserInfo(), headers);
 				setChannels(apiChannels || []);
 			} catch (err) {
 				setError(err.message || "Failed to load channels");
+			} finally {
+				setLoading(false);
 			}
 		};
-		loadChannels();
+		fetchChannel();
 	}, []);
 
 	const handleCardClick = (idx) => {
@@ -84,10 +76,7 @@ const ChannelsView = () => {
 		navigate("/live-channels");
 	};
 
-	const visibleChannels = (channels.length ? channels : fallbackChannels).slice(
-		0,
-		CHANNEL_CARD_LIMIT
-	);
+	const visibleChannels = channels.slice(0, CHANNEL_CARD_LIMIT);
 
 	return (
 		<Box sx={{ mb: 6 }}>
@@ -106,12 +95,19 @@ const ChannelsView = () => {
 				<Typography sx={{ color: "#f44336", mb: 2 }}>{error}</Typography>
 			)}
 			<Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
-				{visibleChannels.map((ch, idx) => (
+			{visibleChannels.map((ch, idx) => {
+				const cardProps = getItemProps(idx);
+				const isFocused = cardProps["data-focused"];
+				return (
 					<Card
 						key={ch.chnl_id || idx}
+						{...cardProps}
 						sx={{
 							...cardStyle,
-							border: selected === idx ? "2px solid #000" : "2px solid transparent",
+							border: isFocused ? "3px solid #667eea" : (selected === idx ? "2px solid #000" : "2px solid transparent"),
+							transform: isFocused ? "scale(1.08)" : "scale(1)",
+							boxShadow: isFocused ? "0 8px 24px rgba(102, 126, 234, 0.4)" : "none",
+							zIndex: isFocused ? 10 : 1,
 						}}
 						className={selected === idx ? "selected" : ""}
 						onClick={() => handleCardClick(idx)}
@@ -142,8 +138,8 @@ const ChannelsView = () => {
 							</CardContent>
 						</CardActionArea>
 					</Card>
-				))}
-				
+				);
+			})}
 				{/* View All Channels Card */}
 				<Card
 					key="view-all-channels"

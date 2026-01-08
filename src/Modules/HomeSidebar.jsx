@@ -9,6 +9,7 @@ import {
   Typography,
   Divider,
 } from "@mui/material";
+import { useRemoteNavigation } from "../Atomic-Common-Componenets/useRemoteNavigation";
 
 import HomeIcon from "@mui/icons-material/Home";
 import LiveTvIcon from "@mui/icons-material/LiveTv";
@@ -34,6 +35,27 @@ const helpDesk = [
 
 const SidebarGlass = () => {
   const navigate = useNavigate();
+  
+  // Remote navigation for menu items
+  const { getItemProps: getMenuProps } = useRemoteNavigation(
+    menuItems.length,
+    {
+      orientation: "vertical",
+      onSelect: (index) => {
+        const item = menuItems[index];
+        if (item.path) navigate(item.path);
+      },
+    }
+  );
+  
+  // Remote navigation for help desk items
+  const { getItemProps: getHelpProps } = useRemoteNavigation(
+    helpDesk.length,
+    {
+      orientation: "vertical",
+    }
+  );
+  
   return (
     <Box
       sx={{
@@ -63,32 +85,37 @@ const SidebarGlass = () => {
       </Typography>
 
       <List sx={{ color: "#fff" }}>
-        {menuItems.map((item) => (
-          <ListItemButton
-            key={item.text}
-            onClick={() => item.path && navigate(item.path)}
-            sx={{
-              mb: 1,
-              borderRadius: "14px",
-              bgcolor: "transparent",
-              border: "1px solid transparent",
-              transition: "0.3s",
-              "&:hover": {
-                bgcolor: "rgba(255,255,255,0.22)",
-                border: "1px solid rgba(255,255,255,0.8)",
-              },
-            }}
-          >
-            <ListItemIcon sx={{ color: "#fff", minWidth: 38 }}>
-              {item.icon}
-            </ListItemIcon>
+        {menuItems.map((item, index) => {
+          const menuItemProps = getMenuProps(index);
+          return (
+            <ListItemButton
+              key={item.text}
+              {...menuItemProps}
+              onClick={() => item.path && navigate(item.path)}
+              sx={{
+                mb: 1,
+                borderRadius: "14px",
+                bgcolor: "transparent",
+                border: menuItemProps["data-focused"] ? "2px solid #667eea" : "1px solid transparent",
+                transform: menuItemProps["data-focused"] ? "scale(1.05)" : "scale(1)",
+                transition: "all 0.3s",
+                "&:hover": {
+                  bgcolor: "rgba(255,255,255,0.22)",
+                  border: "1px solid rgba(255,255,255,0.8)",
+                },
+              }}
+            >
+              <ListItemIcon sx={{ color: "#fff", minWidth: 38 }}>
+                {item.icon}
+              </ListItemIcon>
 
-            <ListItemText
-              primary={item.text}
-              primaryTypographyProps={{ fontSize: 13, fontWeight: 600 }}
-            />
-          </ListItemButton>
-        ))}
+              <ListItemText
+                primary={item.text}
+                primaryTypographyProps={{ fontSize: 13, fontWeight: 600 }}
+              />
+            </ListItemButton>
+          );
+        })}
       </List>
 
       <Divider sx={{ borderColor: "rgba(255,255,255,.4)" }} />
@@ -106,28 +133,34 @@ const SidebarGlass = () => {
       </Typography>
 
       <List sx={{ color: "#fff" }}>
-        {helpDesk.map((item) => (
-          <ListItemButton
-            key={item.text}
-            sx={{
-              mb: 1,
-              borderRadius: "14px",
-              transition: "0.3s",
-              "&:hover": {
-                bgcolor: "rgba(255,255,255,0.18)",
-                border: "1px solid rgba(255,255,255,0.7)",
-              },
-            }}
-          >
-            <ListItemIcon sx={{ color: "#fff", minWidth: 38 }}>
-              {item.icon}
-            </ListItemIcon>
-            <ListItemText
-              primary={item.text}
-              primaryTypographyProps={{ fontSize: 13, fontWeight: 600 }}
-            />
-          </ListItemButton>
-        ))}
+        {helpDesk.map((item, index) => {
+          const helpItemProps = getHelpProps(index);
+          return (
+            <ListItemButton
+              key={item.text}
+              {...helpItemProps}
+              sx={{
+                mb: 1,
+                borderRadius: "14px",
+                border: helpItemProps["data-focused"] ? "2px solid #667eea" : "1px solid transparent",
+                transform: helpItemProps["data-focused"] ? "scale(1.05)" : "scale(1)",
+                transition: "all 0.3s",
+                "&:hover": {
+                  bgcolor: "rgba(255,255,255,0.18)",
+                  border: "1px solid rgba(255,255,255,0.7)",
+                },
+              }}
+            >
+              <ListItemIcon sx={{ color: "#fff", minWidth: 38 }}>
+                {item.icon}
+              </ListItemIcon>
+              <ListItemText
+                primary={item.text}
+                primaryTypographyProps={{ fontSize: 13, fontWeight: 600 }}
+              />
+            </ListItemButton>
+          );
+        })}
       </List>
     </Box>
   );

@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Box, Container, Drawer } from "@mui/material";
+import { useState } from "react";
+import { Box, Drawer } from "@mui/material";
 
 import Header from "../Atomic-Common-Componenets/Headerbar";
 import OttViews from "../Atomic-Module-Componenets/Home-Modules/OttViews";
@@ -11,8 +11,19 @@ const Home = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <Box bgcolor="#121212" minHeight="100vh" color="#fff">
+    <Box
+      sx={{
+        bgcolor: "#000",
+        minHeight: "100vh",
+        color: "#fff",
+        overflowX: "hidden",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+      }}
+    >
       <Header onMenuClick={() => setSidebarOpen(true)} />
+
       <Drawer
         anchor="left"
         open={sidebarOpen}
@@ -21,17 +32,26 @@ const Home = () => {
           sx: {
             bgcolor: "transparent",
             boxShadow: "none",
-            p: 2,
           },
         }}
       >
         <SidebarGlass />
       </Drawer>
-      <Container sx={{ mt: 3, pb: 6 }}>
+
+      <Box
+        sx={{
+          width: "100%",
+          maxWidth: "clamp(72rem, 92vw, 100rem)",
+          mx: "auto",
+          px: { xs: "1.5rem", sm: "2rem", md: "2.75rem" },
+          mt: { xs: "1.5rem", md: "2rem" },
+          pb: { xs: "4.5rem", md: "6rem" },
+        }}
+      >
         <HomeAds />
         <OttViews />
         <ChannelsView />
-      </Container>
+      </Box>
     </Box>
   );
 };
