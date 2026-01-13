@@ -6,16 +6,18 @@ import OttViews from "../Atomic-Module-Componenets/Home-Modules/OttViews";
 import ChannelsView from "../Atomic-Module-Componenets/Home-Modules/ChannelsView";
 import HomeAds from "../Atomic-Module-Componenets/Home-Modules/HomeAds";
 import SidebarGlass from "./HomeSidebar";
+import { useTheme } from "../Atomic-Common-Componenets/TheamChange";
 
 const Home = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { theme } = useTheme();
 
   return (
     <Box
       sx={{
-        bgcolor: "#000",
+        bgcolor: theme.colors.background,
         minHeight: "100vh",
-        color: "#fff",
+        color: theme.colors.text,
         overflowX: "hidden",
         display: "flex",
         flexDirection: "column",
