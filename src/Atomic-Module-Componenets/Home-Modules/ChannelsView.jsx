@@ -46,26 +46,28 @@ const fallbackChannels = [
 
 const ChannelsView = () => {
 	const [channels, setChannels] = useState([]);
+	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState("");
 	const [selected, setSelected] = useState(-1);
 	const [deviceInfo, setDeviceInfo] = useState({});
 	const navigate = useNavigate();
+	const { getItemProps } = useRemoteNavigation({ itemCount: CHANNEL_CARD_LIMIT });
 
-	const visibleChannels = (channels.length ? channels : fallbackChannels).slice(
-		0,
-		CHANNEL_CARD_LIMIT
-	);
-
-	// Remote navigation for channel cards
-	const { getItemProps } = useRemoteNavigation(
-		visibleChannels.length,
-		{
-			orientation: "horizontal",
-			onSelect: (index) => {
-				handleCardClick(index);
-			},
-		}
-	);
+	useEffect(() => {
+		const fetchChannel = async () => {
+			setLoading(true);
+			setError("");
+			try {
+				const apiChannels = await fetchChannels(DEFAULT_USER, DEFAULT_HEADERS);
+				setChannels(apiChannels || []);
+			} catch (err) {
+				setError(err.message || "Failed to load channels");
+			} finally {
+				setLoading(false);
+			}
+		};
+		fetchChannel();
+	}, []);
 
 	const handleCardClick = (idx) => {
 		setSelected(idx);
@@ -76,46 +78,7 @@ const ChannelsView = () => {
 		navigate("/live-channels");
 	};
 
-	useEffect(() => {
-		const loadDevice = async () => {
-			try {
-				const info = await fetchDeviceInfo();
-				setDeviceInfo(info);
-			} catch (err) {
-				console.warn("Device info unavailable", err);
-			}
-		};
-		loadDevice();
-	}, []);
-
-	useEffect(() => {
-		const loadChannels = async () => {
-			setError("");
-			try {
-				const payload = {
-					userid: localStorage.getItem("userId") || DEFAULT_USER.userid,
-					mobile: localStorage.getItem("userPhone") || "7800000001",
-				};
-				
-				// Include device info in payload
-				if (deviceInfo?.ipAddress) payload.ip_address = deviceInfo.ipAddress;
-				if (deviceInfo?.macAddress) payload.mac_address = deviceInfo.macAddress;
-				
-				// Build headers with device info
-				const headers = {
-					...DEFAULT_HEADERS,
-				};
-				
-				const apiChannels = await fetchChannels(payload, headers, setError, deviceInfo);
-				setChannels(apiChannels || []);
-			} catch (err) {
-				setError(err.message || "Failed to load channels");
-			}
-		};
-		if (deviceInfo?.ipAddress) {
-			loadChannels();
-		}
-	}, [deviceInfo]);
+	const visibleChannels = channels.slice(0, CHANNEL_CARD_LIMIT);
 
 	return (
 		<Box sx={{ mb: 6 }}>

@@ -1,4 +1,3 @@
-import React from "react";
 import {
   AppBar,
   Toolbar,
@@ -6,31 +5,35 @@ import {
   IconButton,
   Box,
   InputBase,
-  Avatar,
-  Switch,
 } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
 import SearchIcon from "@mui/icons-material/Search";
 import SettingsIcon from "@mui/icons-material/Settings";
 import WifiIcon from "@mui/icons-material/Wifi";
+import DarkModeIcon from "@mui/icons-material/DarkMode";
+import LightModeIcon from "@mui/icons-material/LightMode";
 import { useRemoteNavigation } from "./useRemoteNavigation";
+import { useTheme } from "./TheamChange";
 
 const Header = ({ onMenuClick }) => {
+  const { isDarkMode, toggleTheme, theme } = useTheme();
+  
   // Remote navigation for header buttons: Menu, Search, Dark Mode, Network, Settings
   const { getItemProps } = useRemoteNavigation(5, {
     orientation: "horizontal",
     onSelect: (index) => {
       if (index === 0 && onMenuClick) onMenuClick(); // Menu button
+      if (index === 2) toggleTheme(!isDarkMode); // Dark mode toggle
       // Other actions can be added as needed
     },
   });
   const iconButtonSx = {
-    bgcolor: "#0e0e0e",
-    border: "1px solid #1c1c1c",
-    color: "#e8e8e8",
+    bgcolor: isDarkMode ? "#0e0e0e" : "#e0e0e0",
+    border: isDarkMode ? "1px solid #1c1c1c" : "1px solid #ccc",
+    color: isDarkMode ? "#e8e8e8" : "#333",
     width: 42,
     height: 42,
-    "&:hover": { bgcolor: "#141414" },
+    "&:hover": { bgcolor: isDarkMode ? "#141414" : "#d0d0d0" },
   };
 
   return (
@@ -38,13 +41,13 @@ const Header = ({ onMenuClick }) => {
       position="static"
       elevation={0}
       sx={{
-        bgcolor: "#050505",
-        borderBottom: "1px solid #111",
+        bgcolor: isDarkMode ? "#050505" : "#ffffff",
+        borderBottom: isDarkMode ? "1px solid #111" : "1px solid #e0e0e0",
       }}
     >
       <Toolbar sx={{ display: "flex", gap: 3, px: 3 }}>
         <Box display="flex" alignItems="center" gap={1.5} minWidth={160}>
-          <Typography variant="h6" fontWeight={700} letterSpacing={0.5}>
+          <Typography variant="h6" fontWeight={700} letterSpacing={0.5} sx={{ color: theme.colors.text }}>
             BBNL
           </Typography>
           <IconButton
@@ -52,7 +55,7 @@ const Header = ({ onMenuClick }) => {
             size="small"
             sx={{
               ...iconButtonSx,
-              border: getItemProps(0)["data-focused"] ? "2px solid #667eea" : "1px solid #1c1c1c",
+              border: getItemProps(0)["data-focused"] ? "2px solid #667eea" : iconButtonSx.border,
               transform: getItemProps(0)["data-focused"] ? "scale(1.1)" : "scale(1)",
             }}
             aria-label="Open menu"
@@ -69,8 +72,8 @@ const Header = ({ onMenuClick }) => {
               display: "flex",
               alignItems: "center",
               gap: 1,
-              bgcolor: "#0d0d0d",
-              border: getItemProps(1)["data-focused"] ? "2px solid #667eea" : "1px solid #1e1e1e",
+              bgcolor: isDarkMode ? "#0d0d0d" : "#f5f5f5",
+              border: getItemProps(1)["data-focused"] ? "2px solid #667eea" : (isDarkMode ? "1px solid #1e1e1e" : "1px solid #ddd"),
               borderRadius: 3,
               px: 2,
               py: 1,
@@ -79,13 +82,13 @@ const Header = ({ onMenuClick }) => {
               transform: getItemProps(1)["data-focused"] ? "scale(1.02)" : "scale(1)",
             }}
           >
-            <SearchIcon sx={{ color: "#8a8a8a" }} />
+            <SearchIcon sx={{ color: isDarkMode ? "#8a8a8a" : "#666" }} />
             <InputBase
               placeholder="Search for movies, TV shows..."
               fullWidth
               sx={{
-                color: "#f5f5f5",
-                "& input::placeholder": { color: "#7a7a7a" },
+                color: theme.colors.text,
+                "& input::placeholder": { color: isDarkMode ? "#7a7a7a" : "#999" },
               }}
               inputProps={{ "aria-label": "Search" }}
             />
@@ -102,19 +105,27 @@ const Header = ({ onMenuClick }) => {
               border: getItemProps(2)["data-focused"] ? "2px solid #667eea" : "2px solid transparent",
               borderRadius: 1,
               px: 1,
+              py: 0.5,
               transform: getItemProps(2)["data-focused"] ? "scale(1.05)" : "scale(1)",
+              cursor: "pointer",
             }}
+            onClick={() => toggleTheme(!isDarkMode)}
           >
-            <Typography fontSize={15} color="#cfcfcf">
-              Dark Mode
-            </Typography>
-            <Switch color="default" size="medium" aria-label="Toggle dark mode" />
+            <IconButton
+              size="small"
+              sx={{
+                color: isDarkMode ? "#667eea" : "#f39c12",
+                transition: "all 0.3s ease",
+              }}
+            >
+              {isDarkMode ? <DarkModeIcon /> : <LightModeIcon />}
+            </IconButton>
           </Box>
           <IconButton 
             {...getItemProps(3)}
             sx={{
               ...iconButtonSx,
-              border: getItemProps(3)["data-focused"] ? "2px solid #667eea" : "1px solid #1c1c1c",
+              border: getItemProps(3)["data-focused"] ? "2px solid #667eea" : iconButtonSx.border,
               transform: getItemProps(3)["data-focused"] ? "scale(1.1)" : "scale(1)",
             }}
             aria-label="Network status"
@@ -125,7 +136,7 @@ const Header = ({ onMenuClick }) => {
             {...getItemProps(4)}
             sx={{
               ...iconButtonSx,
-              border: getItemProps(4)["data-focused"] ? "2px solid #667eea" : "1px solid #1c1c1c",
+              border: getItemProps(4)["data-focused"] ? "2px solid #667eea" : iconButtonSx.border,
               transform: getItemProps(4)["data-focused"] ? "scale(1.1)" : "scale(1)",
             }}
             aria-label="Settings"

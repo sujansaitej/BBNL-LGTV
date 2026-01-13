@@ -7,13 +7,18 @@ import Home from './Modules/Home';
 import LiveChannels from './Modules/LiveChannels';
 import LivePlayer from './Modules/LivePlayer';
 import { initializeWebOSEnvironment, preventWebOSDefaults } from './utils/webos';
+import { ThemeProvider } from './Atomic-Common-Componenets/TheamChange';
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    try {
+      return localStorage.getItem('isAuthenticated') === 'true';
+    } catch {
+      return false;
+    }
+  });
 
   useEffect(() => {
-    localStorage.removeItem('isAuthenticated');
-    
     // Initialize webOS TV environment
     const cleanup = initializeWebOSEnvironment();
     preventWebOSDefaults();
@@ -32,58 +37,60 @@ function App() {
   };
 
   return (
-    <Router>
-      <Routes>
-        <Route 
-          path="/bbnl-video" 
-          element={
-            isAuthenticated ? 
-            <Navigate to="/home" replace /> : 
-            <BbnlVideo />
-          } 
-        />
-        <Route 
-          path="/login" 
-          element={
-            isAuthenticated ? 
-            <Navigate to="/home" replace /> : 
-            <PhoneNumberOtp onLoginSuccess={handleLoginSuccess} />
-          } 
-        />
-        <Route 
-          path="/home" 
-          element={
-            isAuthenticated ? 
-            <Home onLogout={handleLogout} /> : 
-            <Navigate to="/login" replace />
-          } 
-        />
-        <Route
-          path="/live-channels"
-          element={
-            isAuthenticated ? (
-              <LiveChannels />
-            ) : (
+    <ThemeProvider>
+      <Router>
+        <Routes>
+          <Route 
+            path="/bbnl-video" 
+            element={
+              isAuthenticated ? 
+              <Navigate to="/home" replace /> : 
+              <BbnlVideo />
+            } 
+          />
+          <Route 
+            path="/login" 
+            element={
+              isAuthenticated ? 
+              <Navigate to="/home" replace /> : 
+              <PhoneNumberOtp onLoginSuccess={handleLoginSuccess} />
+            } 
+          />
+          <Route 
+            path="/home" 
+            element={
+              isAuthenticated ? 
+              <Home onLogout={handleLogout} /> : 
               <Navigate to="/login" replace />
-            )
-          }
-        />
-        <Route
-          path="/player"
-          element={
-            isAuthenticated ? (
-              <LivePlayer />
-            ) : (
-              <Navigate to="/login" replace />
-            )
-          }
-        />
-        <Route 
-          path="/" 
-          element={<Navigate to={isAuthenticated ? "/home" : "/bbnl-video"} replace />} 
-        />
-      </Routes>
-    </Router>
+            } 
+          />
+          <Route
+            path="/live-channels"
+            element={
+              isAuthenticated ? (
+                <LiveChannels />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          />
+          <Route
+            path="/player"
+            element={
+              isAuthenticated ? (
+                <LivePlayer />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          />
+          <Route 
+            path="/" 
+            element={<Navigate to={isAuthenticated ? "/home" : "/login"} replace />} 
+          />
+        </Routes>
+      </Router>
+    </ThemeProvider>
    
   );
 }

@@ -16,8 +16,8 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [networkError, setNetworkError] = useState(false);
-
-  const [timer, setTimer] = useState(60);
+  
+  const [timer, setTimer] = useState(30);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
 
   const [deviceInfo, setDeviceInfo] = useState({

@@ -58,6 +58,7 @@ export const buildApiConfig = (basePayload = {}, deviceInfo = {}) => {
  * Get user credentials from localStorage
  * @returns {Object} User credentials { userid, mobile }
  */
+
 export const getUserCredentials = () => {
   return {
     userid: localStorage.getItem("userId") || "testiser1",
