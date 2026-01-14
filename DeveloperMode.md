@@ -10,3 +10,8 @@ ares-install --device myLGTV com.lg.bbnl_2.0.0_all.ipk
 
 # 4. Launch the app
 ares-launch --device myLGTV com.lg.bbnl
+
+
+
+# Open inspector in your terminal
+ares-inspect --device myLGTV --app com.lg.bbnl --open
