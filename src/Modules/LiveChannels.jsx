@@ -2,16 +2,16 @@ import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Subject, debounceTime, distinctUntilChanged } from "rxjs";
 
-import { Box, Typography, ButtonBase, Button, TextField, InputAdornment, IconButton } from "@mui/material";
+import { Box, Typography, ButtonBase, Button, InputAdornment, IconButton } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import ClearIcon from "@mui/icons-material/Clear";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 
 import { fetchCategories, fetchChannels } from "../Api/modules-api/ChannelApi";
-import { fetchDeviceInfo } from "../Api/utils/deviceInfo";
 import { useGridNavigation, useInputFocusHandler, useRemoteNavigation } from "../Atomic-Common-Componenets/useRemoteNavigation";
 import { DEFAULT_HEADERS, DEFAULT_USER } from "../Api/config";
 import { useTheme } from "../Atomic-Common-Componenets/TheamChange";
+import SearchTextField from "../Atomic-Reusable-Componenets/Search";
 
 const LiveChannels = () => {
   const navigate = useNavigate();
@@ -23,14 +23,6 @@ const LiveChannels = () => {
   const [error, setError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
-
-  const [deviceInfo, setDeviceInfo] = useState({
-    ipAddress: null,
-    macAddress: null,
-    deviceId: null,
-    isWebOS: false,
-  });
-  const [deviceReady, setDeviceReady] = useState(false);
   
   // RxJS Subject for search
   const searchSubject = useRef(new Subject());
@@ -68,28 +60,6 @@ const LiveChannels = () => {
   // Handle input focus to prevent scroll issues
   useInputFocusHandler();
 
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadDevice = async () => {
-      try {
-        const info = await fetchDeviceInfo();
-        if (!cancelled && info) {
-          setDeviceInfo(info);
-        }
-      } catch (err) {
-        console.warn("Device info fetch failed", err);
-      } finally {
-        if (!cancelled) setDeviceReady(true);
-      }
-    };
-
-    loadDevice();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   // Get userid + mobile (safe for environments without localStorage)
   const userid = localStorage.getItem("userId") || DEFAULT_USER.userid;
   const mobile = localStorage.getItem("userPhone") || "";
@@ -97,17 +67,10 @@ const LiveChannels = () => {
   const payloadBase = {
     userid,
     mobile,
-    ip_address: deviceInfo.ipAddress || undefined,
-    mac_address: deviceInfo.macAddress || undefined,
   };
 
   const headers = {
     ...DEFAULT_HEADERS,
-    ...(deviceInfo.ipAddress ? { devip: deviceInfo.ipAddress } : {}),
-    ...(deviceInfo.macAddress ? { devmac: deviceInfo.macAddress } : {}),
-    ...(deviceInfo.serialNumber ? { devslno: deviceInfo.serialNumber } : {}),
-    ...(deviceInfo.deviceId ? { devid: deviceInfo.deviceId } : {}),
-    ...(deviceInfo.modelName ? { devmodel: deviceInfo.modelName } : {}),
   };
 
   // ================= RXJS SEARCH SETUP =================
@@ -174,7 +137,7 @@ const LiveChannels = () => {
   // ================= FETCH CATEGORIES =================
   const handleFetchCategories = async () => {
     try {
-      const formatted = await fetchCategories(payloadBase, headers, deviceInfo);
+      const formatted = await fetchCategories(payloadBase, headers);
       setCategories(formatted);
     } catch (err) {
       setError("Failed to load categories");
@@ -184,7 +147,7 @@ const LiveChannels = () => {
   // ================= FETCH CHANNELS =================
   const handleFetchChannels = async () => {
     try {
-      const apiChannels = await fetchChannels(payloadBase, headers, setError, deviceInfo);
+      const apiChannels = await fetchChannels(payloadBase, headers, setError);
       setChannels(apiChannels);
       setFilteredChannels(apiChannels);
     } catch (err) {
@@ -193,8 +156,6 @@ const LiveChannels = () => {
   };
 
   useEffect(() => {
-    if (!deviceReady) return;
-
     if (!mobile) {
       setError("NO_LOGIN");
       return;
@@ -202,7 +163,7 @@ const LiveChannels = () => {
     handleFetchCategories();
     handleFetchChannels();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mobile, deviceReady]);
+  }, [mobile]);
 
   // ================= FILTER HANDLER =================
   const applyFilter = (filterTitle) => {
@@ -369,53 +330,58 @@ const LiveChannels = () => {
         </Typography>
 
         {/* Search Bar */}
-        <TextField
-          value={searchTerm}
-          onChange={handleSearchChange}
-          onFocus={() => setIsSearchFocused(true)}
-          onBlur={() => setIsSearchFocused(false)}
-          placeholder="Search Channels"
-          variant="outlined"
-          size="small"
-          inputProps={{
-            "data-input-focused": isSearchFocused ? "true" : "false",
-          }}
+        <Box
           sx={{
             width: 300,
-            "& .MuiOutlinedInput-root": {
-              color: "#fff",
-              background: "rgba(255,255,255,0.05)",
-              borderRadius: "20px",
-              "& fieldset": {
-                borderColor: "rgba(255,255,255,0.2)",
-              },
-              "&:hover fieldset": {
-                borderColor: "rgba(255,255,255,0.3)",
-              },
-              "&.Mui-focused fieldset": {
-                borderColor: "#667eea",
-              },
-            },
-            "& .MuiInputBase-input::placeholder": {
-              color: "rgba(255,255,255,0.5)",
-              opacity: 1,
-            },
+            display: "flex",
+            alignItems: "center",
           }}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon sx={{ color: "rgba(255,255,255,0.5)" }} />
-              </InputAdornment>
-            ),
-            endAdornment: searchTerm && (
-              <InputAdornment position="end">
-                <IconButton onClick={handleClearSearch} size="small" sx={{ color: "#fff" }}>
-                  <ClearIcon fontSize="small" />
-                </IconButton>
-              </InputAdornment>
-            ),
-          }}
-        />
+        >
+          <SearchTextField
+            value={searchTerm}
+            onChange={handleSearchChange}
+            onFocus={() => setIsSearchFocused(true)}
+            onBlur={() => setIsSearchFocused(false)}
+            placeholder="Search Channels"
+            type="text"
+            autoFocus={false}
+            maxLength={50}
+            sx={{
+              "& .MuiOutlinedInput-root": {
+                color: "#fff",
+                background: "rgba(255,255,255,0.05)",
+                borderRadius: "20px",
+                "& fieldset": {
+                  borderColor: "rgba(255,255,255,0.2)",
+                },
+                "&:hover fieldset": {
+                  borderColor: "rgba(255,255,255,0.3)",
+                },
+                "&.Mui-focused fieldset": {
+                  borderColor: "#667eea",
+                },
+              },
+              "& .MuiInputBase-input::placeholder": {
+                color: "rgba(255,255,255,0.5)",
+                opacity: 1,
+              },
+            }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon sx={{ color: "rgba(255,255,255,0.5)" }} />
+                </InputAdornment>
+              ),
+              endAdornment: searchTerm && (
+                <InputAdornment position="end">
+                  <IconButton onClick={handleClearSearch} size="small" sx={{ color: "#fff" }}>
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
+          />
+        </Box>
       </Box>
 
       {/* ================= ERROR BOX ================= */}
