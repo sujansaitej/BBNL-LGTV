@@ -9,13 +9,11 @@ const NetworkErrorNotification = ({ onRetry }) => {
         width: '100%',
         maxWidth: 360,
         height: 200,
-        bgcolor: 'rgba(255, 255, 255, 0.1)',
         borderRadius: 2,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         mb: 3,
-        border: '2px solid rgba(255, 255, 255, 0.2)',
       }}
     >
       <img 
