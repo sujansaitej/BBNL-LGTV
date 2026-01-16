@@ -2,7 +2,6 @@ import  { useEffect, useState } from "react";
 import { Box, Typography, Card, CardActionArea, CardContent, Avatar } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { fetchChannels } from "../../Api/modules-api/ChannelApi";
-import { fetchDeviceInfo } from "../../Api/utils/deviceInfo";
 import { DEFAULT_HEADERS, DEFAULT_USER } from "../../Api/config";
 import { useRemoteNavigation } from "../../Atomic-Common-Componenets/useRemoteNavigation";
 
@@ -49,7 +48,6 @@ const ChannelsView = () => {
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState("");
 	const [selected, setSelected] = useState(-1);
-	const [deviceInfo, setDeviceInfo] = useState({});
 	const navigate = useNavigate();
 	const { getItemProps } = useRemoteNavigation({ itemCount: CHANNEL_CARD_LIMIT });
 

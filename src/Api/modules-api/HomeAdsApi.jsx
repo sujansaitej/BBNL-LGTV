@@ -1,5 +1,4 @@
 import axios from "axios";
-import { fetchDeviceInfo } from "../utils/deviceInfo";
 import { API_BASE_URL_PROD, DEFAULT_HEADERS } from "../config";
 
 const api = axios.create({
@@ -7,18 +6,10 @@ const api = axios.create({
   timeout: 10000,
 });
 
-// Add request interceptor to include the same auth headers as LoginOtp
+// Add request interceptor to include auth headers
 api.interceptors.request.use(
   async (config) => {
-    // Fetch device info and add all device headers
-    const deviceInfo = await fetchDeviceInfo();
-    
     config.headers["Authorization"] = DEFAULT_HEADERS.Authorization;
-    if (deviceInfo?.ipAddress) config.headers["devip"] = deviceInfo.ipAddress;
-    if (deviceInfo?.macAddress) config.headers["devmac"] = deviceInfo.macAddress;
-    if (deviceInfo?.serialNumber) config.headers["devslno"] = deviceInfo.serialNumber;
-    if (deviceInfo?.deviceId) config.headers["devid"] = deviceInfo.deviceId;
-    if (deviceInfo?.modelName) config.headers["devmodel"] = deviceInfo.modelName;
 
     console.log("[IPTV Ads API] Request:", {
       url: config.baseURL + config.url,
@@ -68,8 +59,6 @@ const postForm = async (payload, config) => {
 export const fetchIptvAds = async ({
   userid,
   mobile,
-  ip_address,
-  mac_address,
   adclient,
   srctype,
   displayarea,
@@ -82,19 +71,6 @@ export const fetchIptvAds = async ({
     throw new Error("Missing required field: mobile");
   }
 
-  let resolvedIp = ip_address;
-  let resolvedMac = mac_address;
-
-  if (!resolvedIp || !resolvedMac) {
-    try {
-      const info = await fetchDeviceInfo();
-      resolvedIp = resolvedIp || info?.ipAddress || null;
-      resolvedMac = resolvedMac || info?.macAddress || null;
-    } catch (err) {
-      console.warn("[IPTV Ads API] Device info unavailable", err);
-    }
-  }
-
   const payload = {
     userid: userid || "testiser1",
     mobile,
@@ -104,20 +80,11 @@ export const fetchIptvAds = async ({
     displaytype: displaytype || "",
   };
 
-  // Include network identifiers only if available (webOS) to avoid simulator errors
-  if (resolvedIp) payload.ip_address = resolvedIp;
-  if (resolvedMac) payload.mac_address = resolvedMac;
-
 //   console.log("[IPTV Ads API] Payload being sent:", payload);
-
-  const resolvedHeaders = {
-    ...(resolvedMac ? { devmac: resolvedMac } : {}),
-  };
 
   const config = { 
     signal, 
     withCredentials: true,
-    headers: resolvedHeaders,
   };
 
   const doRequest = preferForm ? postForm : postJson;

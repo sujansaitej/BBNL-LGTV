@@ -5,8 +5,6 @@ import { useRemoteNavigation } from "../../Atomic-Common-Componenets/useRemoteNa
 
 const HomeAds = (props) => {
   const {
-    ip_address = "",
-    mac_address = "",
     adclient = "fofi",
     srctype = "image",
     displayarea = "homepage",
@@ -52,8 +50,6 @@ const HomeAds = (props) => {
         const urls = await fetchIptvAds({
           userid,
           mobile,
-          ip_address,
-          mac_address,
           adclient,
           srctype,
           displayarea,

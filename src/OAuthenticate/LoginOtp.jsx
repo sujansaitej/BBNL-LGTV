@@ -2,9 +2,9 @@ import { useState, useEffect } from "react";
 import {  Box,  Paper, Typography, Button, TextField,} from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import NetworkErrorNotification from "../Atomic-ErrorThrow-Componenets/NetworkError";
-import { fetchDeviceInfo } from "../Api/utils/deviceInfo";
 import { sendOtp, verifyOtp, resendOtp } from "../Api/OAuthentication-Api/LoginOtp";
 import { useInputFocusHandler } from "../Atomic-Common-Componenets/useRemoteNavigation";
+import SearchTextField from "../Atomic-Reusable-Componenets/Search";
 
 const PhoneAuthApp = ({ onLoginSuccess }) => {
   const navigate = useNavigate();
@@ -19,13 +19,6 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
   
   const [timer, setTimer] = useState(30);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
-
-  const [deviceInfo, setDeviceInfo] = useState({
-    isWebOS: false,
-    ipAddress: null,
-    macAddress: null,
-    deviceId: null,
-  });
 
   // Prevent scrolling issues with input focus on webOS TV
   useInputFocusHandler();
@@ -46,19 +39,6 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
     if (timer === 0) setIsTimerRunning(false);
     return () => clearInterval(interval);
   }, [timer, isTimerRunning]);
-
-  /* ---------------- DEVICE INFO ---------------- */
-  useEffect(() => {
-    let cancelled = false;
-    const loadDevice = async () => {
-      try {
-        const info = await fetchDeviceInfo();
-        if (!cancelled && info) setDeviceInfo(info);
-      } catch {}
-    };
-    loadDevice();
-    return () => (cancelled = true);
-  }, []);
 
   /* ---------------- INPUT HANDLERS ---------------- */
   const handlePhoneChange = (e) => {
@@ -116,7 +96,7 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
     setNetworkError(false);
 
     try {
-      const result = await sendOtp(phone, deviceInfo);
+      const result = await sendOtp(phone);
 
       if (result.success) {
         if (result.userId) {
@@ -149,12 +129,10 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
     setError("");
 
     try {
-      const result = await verifyOtp(phone, otp, deviceInfo);
+      const result = await verifyOtp(phone, otp);
 
       if (result.success) {
-        const ipInfo = result.deviceInfo.ipAddress;
-        const macInfo = result.deviceInfo.macAddress;
-        setSuccess(`Login successful!\nIP: ${ipInfo}\nMAC: ${macInfo}`);
+        setSuccess(`Login successful!`);
         localStorage.setItem("userId", "testiser1");
         localStorage.setItem("userPhone", phone);
         console.log("Login successful - navigating to home");
@@ -191,7 +169,7 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
     setSuccess("");
 
     try {
-      const result = await resendOtp(phone, deviceInfo);
+      const result = await resendOtp(phone);
 
       if (result.success) {
         setSuccess(result.message);
@@ -227,105 +205,6 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
         position: "relative",
       }}
     >
-      {/* Device Info Display - Top Right */}
-      <Box
-        sx={{
-          position: "absolute",
-          top: 20,
-          right: 20,
-          bgcolor: "rgba(10, 14, 26, 0.8)",
-          backdropFilter: "blur(10px)",
-          borderRadius: "12px",
-          border: "1px solid rgba(59, 130, 246, 0.2)",
-          p: 2,
-          minWidth: 280,
-        }}
-      >
-        <Typography
-          sx={{
-            fontSize: 12,
-            fontWeight: 700,
-            color: "#2563EB",
-            mb: 1.5,
-            textTransform: "uppercase",
-            letterSpacing: "0.1em",
-          }}
-        >
-          Device Information
-        </Typography>
-        
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-          <Box sx={{ display: "flex", justifyContent: "space-between" }}>
-            <Typography sx={{ fontSize: 13, color: "#64748B", fontWeight: 500 }}>
-              IP Address:
-            </Typography>
-            <Typography sx={{ fontSize: 13, color: "#E2E8F0", fontWeight: 600, fontFamily: "monospace" }}>
-              {deviceInfo.ipAddress || "N/A"}
-            </Typography>
-          </Box>
-          
-          <Box sx={{ display: "flex", justifyContent: "space-between" }}>
-            <Typography sx={{ fontSize: 13, color: "#64748B", fontWeight: 500 }}>
-              MAC Address:
-            </Typography>
-            <Typography sx={{ fontSize: 13, color: "#E2E8F0", fontWeight: 600, fontFamily: "monospace" }}>
-              {deviceInfo.macAddress || "N/A"}
-            </Typography>
-          </Box>
-          
-          <Box sx={{ display: "flex", justifyContent: "space-between" }}>
-            <Typography sx={{ fontSize: 13, color: "#64748B", fontWeight: 500 }}>
-              Device ID:
-            </Typography>
-            <Typography sx={{ fontSize: 13, color: "#E2E8F0", fontWeight: 600, fontFamily: "monospace" }}>
-              {deviceInfo.deviceId || "N/A"}
-            </Typography>
-          </Box>
-          
-          <Box sx={{ display: "flex", justifyContent: "space-between" }}>
-            <Typography sx={{ fontSize: 13, color: "#64748B", fontWeight: 500 }}>
-              Serial Number:
-            </Typography>
-            <Typography sx={{ fontSize: 13, color: "#E2E8F0", fontWeight: 600, fontFamily: "monospace" }}>
-              {deviceInfo.serialNumber || "N/A"}
-            </Typography>
-          </Box>
-          
-          <Box sx={{ display: "flex", justifyContent: "space-between" }}>
-            <Typography sx={{ fontSize: 13, color: "#64748B", fontWeight: 500 }}>
-              Model:
-            </Typography>
-            <Typography sx={{ fontSize: 13, color: "#E2E8F0", fontWeight: 600, fontFamily: "monospace" }}>
-              {deviceInfo.modelName || "N/A"}
-            </Typography>
-          </Box>
-          
-          <Box
-            sx={{
-              mt: 1,
-              pt: 1.5,
-              borderTop: "1px solid rgba(59, 130, 246, 0.1)",
-              display: "flex",
-              alignItems: "center",
-              gap: 1,
-            }}
-          >
-            <Box
-              sx={{
-                width: 8,
-                height: 8,
-                borderRadius: "50%",
-                bgcolor: deviceInfo.isWebOS ? "#22C55E" : "#F59E0B",
-                boxShadow: deviceInfo.isWebOS ? "0 0 10px #22C55E" : "0 0 10px #F59E0B",
-              }}
-            />
-            <Typography sx={{ fontSize: 12, color: "#94A3B8", fontWeight: 500 }}>
-              {deviceInfo.isWebOS ? "LG webOS Device" : "Browser"}
-            </Typography>
-          </Box>
-        </Box>
-      </Box>
-
       <Paper
         elevation={24}
         sx={{
@@ -510,44 +389,11 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
                 +91
               </Box>
 
-              <TextField
-                fullWidth
-                autoFocus
+              <SearchTextField
                 value={phone}
                 onChange={handlePhoneChange}
                 onKeyDown={handlePhoneKeyDown}
                 placeholder="Enter 10 Digit Number"
-                type="tel"
-                inputProps={{
-                  inputMode: "numeric",
-                  pattern: "[0-9]*",
-                  maxLength: 10,
-                  "data-webos-input": "true",
-                }}
-                InputProps={{
-                  sx: {
-                    height: 56,
-                    bgcolor: "#0F172A",
-                    border: "1px solid #1E293B",
-                    borderRadius: "14px",
-                    color: "#fff",
-                    fontSize: 16,
-                    fontWeight: 500,
-                    transition: "all 0.2s ease",
-                    "&:hover": {
-                      border: "1px solid #334155",
-                    },
-                    "&.Mui-focused": {
-                      border: "1px solid #2563EB",
-                      boxShadow: "0 0 0 3px rgba(37, 99, 235, 0.1)",
-                    },
-                    "& fieldset": { border: "none" },
-                    "& input::placeholder": {
-                      color: "#475569",
-                      opacity: 1,
-                    },
-                  },
-                }}
               />
             </Box>
 

@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Box, Typography, Card, CardActionArea, CardContent, Avatar } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { fetchDeviceInfo } from "../../Api/utils/deviceInfo";
 import { API_ENDPOINTS, DEFAULT_HEADERS, DEFAULT_USER } from "../../Api/config";
 import { useRemoteNavigation } from "../../Atomic-Common-Componenets/useRemoteNavigation";
 
@@ -65,27 +64,14 @@ const OttViews = () => {
   useEffect(() => {
     const fetchApps = async () => {
       try {
-        // Fetch device info
-        const deviceInfo = await fetchDeviceInfo();
-        
         const payload = {
           userid: localStorage.getItem("userId") || DEFAULT_USER.userid,
           mobile: localStorage.getItem("userPhone") || "7800000001",
         };
         
-        // Include device info in payload if available
-        if (deviceInfo?.ipAddress) payload.ip_address = deviceInfo.ipAddress;
-        if (deviceInfo?.macAddress) payload.mac_address = deviceInfo.macAddress;
-        
-        // Build device headers
         const headers = {
           ...DEFAULT_HEADERS,
         };
-        if (deviceInfo?.ipAddress) headers.devip = deviceInfo.ipAddress;
-        if (deviceInfo?.macAddress) headers.devmac = deviceInfo.macAddress;
-        if (deviceInfo?.serialNumber) headers.devslno = deviceInfo.serialNumber;
-        if (deviceInfo?.deviceId) headers.devid = deviceInfo.deviceId;
-        if (deviceInfo?.modelName) headers.devmodel = deviceInfo.modelName;
         
         const res = await axios.post(
           API_ENDPOINTS.ALLOWED_APPS,
