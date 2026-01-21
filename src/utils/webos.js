@@ -207,3 +207,71 @@ export const logWebOSActivity = (activity) => {
     console.warn("Failed to log webOS activity:", error);
   }
 };
+
+/**
+ * Get LG webOS Device Unique ID (LGUDID)
+ * Official API: luna://com.webos.service.sm/deviceid/getIDs
+ * 
+ * IMPORTANT: Before using this API, you must get user agreement for using their personal information.
+ * This API only works on webOS 3.0+ and NOT in the emulator.
+ * 
+ * @returns {Promise<string|null>} Device ID (LGUDID) or null if failed
+ */
+export const getWebOSDeviceID = () => {
+  if (!isWebOSTV() || !window.webOS) {
+    console.warn("getWebOSDeviceID: Not running on webOS TV");
+    return Promise.resolve(null);
+  }
+
+  return new Promise((resolve, reject) => {
+    try {
+      if (!window.webOS.service || !window.webOS.service.request) {
+        console.warn("webOS.service.request not available");
+        return resolve(null);
+      }
+
+      window.webOS.service.request('luna://com.webos.service.sm', {
+        method: 'deviceid/getIDs',
+        parameters: {
+          idType: ['LGUDID'],
+        },
+        onSuccess: function (inResponse) {
+          console.log('Device ID API Response:', inResponse);
+          
+          if (inResponse.returnValue && inResponse.idList && inResponse.idList.length > 0) {
+            const deviceId = inResponse.idList[0].idValue;
+            console.log('Device ID (LGUDID) retrieved:', deviceId);
+            resolve(deviceId);
+          } else {
+            console.warn('Device ID not found in response');
+            resolve(null);
+          }
+        },
+        onFailure: function (inError) {
+          console.error('Failed to get Device ID:', inError);
+          console.error('[' + inError.errorCode + ']: ' + inError.errorText);
+          
+          // Handle specific error codes
+          switch (inError.errorCode) {
+            case 'ERR.001':
+              console.error('Invalid Parameters provided to deviceid/getIDs');
+              break;
+            case 'ERR.002':
+              console.error('Security Manager Internal Error');
+              break;
+            case 'ERR.801':
+              console.error('Unsupported Device ID Type');
+              break;
+            default:
+              console.error('Unknown error occurred');
+          }
+          
+          reject(inError);
+        },
+      });
+    } catch (error) {
+      console.error('Exception while fetching Device ID:', error);
+      reject(error);
+    }
+  });
+};

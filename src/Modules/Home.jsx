@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { Box, Drawer } from "@mui/material";
+import { Box } from "@mui/material";
 
 import Header from "../Atomic-Common-Componenets/Headerbar";
 import OttViews from "../Atomic-Module-Componenets/Home-Modules/OttViews";
@@ -9,7 +8,6 @@ import SidebarGlass from "./HomeSidebar";
 import { useTheme } from "../Atomic-Common-Componenets/TheamChange";
 
 const Home = () => {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const { theme } = useTheme();
 
   return (
@@ -20,39 +18,43 @@ const Home = () => {
         color: theme.colors.text,
         overflowX: "hidden",
         display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
+        flexDirection: "row",
+        alignItems: "flex-start",
       }}
     >
-      <Header onMenuClick={() => setSidebarOpen(true)} />
-
-      <Drawer
-        anchor="left"
-        open={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        PaperProps={{
-          sx: {
-            bgcolor: "transparent",
-            boxShadow: "none",
-          },
+      <Box
+        sx={{
+          flex: "0 0 auto",
         }}
       >
         <SidebarGlass />
-      </Drawer>
+      </Box>
 
       <Box
         sx={{
+          display: "flex",
+          flexDirection: "column",
+          flex: 1,
           width: "100%",
-          maxWidth: "clamp(72rem, 92vw, 100rem)",
-          mx: "auto",
-          px: { xs: "1.5rem", sm: "2rem", md: "2.75rem" },
-          mt: { xs: "1.5rem", md: "2rem" },
-          pb: { xs: "4.5rem", md: "6rem" },
         }}
       >
-        <HomeAds />
-        <OttViews />
-        <ChannelsView />
+        <Header />
+
+        <Box
+          sx={{
+            width: "100%",
+            maxWidth: "clamp(72rem, 92vw, 100rem)",
+            mx: "auto",
+            px: { xs: "1.5rem", sm: "2rem", md: "2.75rem" },
+            mt: "2px",
+            mb: "2px",
+            pb: { xs: "4.5rem", md: "6rem" },
+          }}
+        >
+          <HomeAds />
+          <OttViews />
+          <ChannelsView />
+        </Box>
       </Box>
     </Box>
   );
