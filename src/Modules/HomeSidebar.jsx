@@ -1,4 +1,3 @@
-import React from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Box,
@@ -60,7 +59,7 @@ const SidebarGlass = () => {
     <Box
       sx={{
         width: 260,
-        height: "100vh",
+        height: "auto",
         p: 2,
         display: "flex",
         flexDirection: "column",
