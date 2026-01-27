@@ -6,12 +6,11 @@ npm run build
 ares-package build
 
 # 3. Install/Update on TV (this will overwrite the existing app)
-ares-install --device myLGTV com.lg.bbnl_2.0.0_all.ipk
+ares-install --device mylgtv com.lg.bbnl_2.0.0_all.ipk
 
 # 4. Launch the app
-ares-launch --device myLGTV com.lg.bbnl
-
+ares-launch --device mylgtv com.lg.bbnl
 
 
 # Open inspector in your terminal
-ares-inspect --device myLGTV --app com.lg.bbnl --open
+ares-inspect --device mylgtv --app com.lg.bbnl --open

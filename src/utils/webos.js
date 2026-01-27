@@ -4,14 +4,31 @@
 
 /**
  * Check if the app is running on LG webOS TV
+ * Checks multiple indicators for webOS detection
  */
 export const isWebOSTV = () => {
-  return !!(
-    window.webOS ||
-    window.PalmSystem ||
-    navigator.userAgent.includes("Web0S") ||
-    navigator.userAgent.includes("webOS")
-  );
+  // Primary check: window.webOS object (loaded from webOSTV.js)
+  if (window.webOS) {
+    console.log('✓ webOS TV detected via window.webOS');
+    return true;
+  }
+
+  // Fallback checks for detection
+  const checks = [
+    !!window.PalmSystem,
+    navigator.userAgent.includes("Web0S"),
+    navigator.userAgent.includes("webOS"),
+    navigator.userAgent.includes("LG Browser"),
+    window.location.hostname === 'localhost' && /webos|tv|lg/i.test(navigator.userAgent)
+  ];
+
+  if (checks.some(check => check)) {
+    console.log('✓ webOS TV detected via fallback checks');
+    return true;
+  }
+
+  console.warn('⚠ webOS TV not detected. Make sure you are running on an LG TV and webOSTV.js is loaded.');
+  return false;
 };
 
 /**
@@ -211,67 +228,99 @@ export const logWebOSActivity = (activity) => {
 /**
  * Get LG webOS Device Unique ID (LGUDID)
  * Official API: luna://com.webos.service.sm/deviceid/getIDs
- * 
- * IMPORTANT: Before using this API, you must get user agreement for using their personal information.
- * This API only works on webOS 3.0+ and NOT in the emulator.
+ * FAST VERSION - No retries, instant timeout
  * 
  * @returns {Promise<string|null>} Device ID (LGUDID) or null if failed
  */
 export const getWebOSDeviceID = () => {
-  if (!isWebOSTV() || !window.webOS) {
-    console.warn("getWebOSDeviceID: Not running on webOS TV");
-    return Promise.resolve(null);
-  }
+  return new Promise((resolve) => {
+    // Check if running on webOS TV
+    if (!isWebOSTV()) {
+      console.warn('⚠ Not on webOS TV');
+      return resolve(null);
+    }
 
-  return new Promise((resolve, reject) => {
+    // Check if Luna service is properly available
+    if (!window.webOS?.service?.request || typeof window.webOS.service.request !== 'function') {
+      console.warn('⚠ Luna service.request not available - device ID will use fallback');
+      return resolve(null);
+    }
+
     try {
-      if (!window.webOS.service || !window.webOS.service.request) {
-        console.warn("webOS.service.request not available");
-        return resolve(null);
-      }
-
+      // Call Luna API immediately - NO RETRY LOGIC
       window.webOS.service.request('luna://com.webos.service.sm', {
         method: 'deviceid/getIDs',
-        parameters: {
-          idType: ['LGUDID'],
-        },
-        onSuccess: function (inResponse) {
-          console.log('Device ID API Response:', inResponse);
-          
-          if (inResponse.returnValue && inResponse.idList && inResponse.idList.length > 0) {
-            const deviceId = inResponse.idList[0].idValue;
-            console.log('Device ID (LGUDID) retrieved:', deviceId);
-            resolve(deviceId);
-          } else {
-            console.warn('Device ID not found in response');
-            resolve(null);
+        parameters: { idType: ['LGUDID'] },
+        onSuccess: (response) => {
+          if (response?.returnValue && response?.idList?.[0]?.idValue) {
+            console.log('✓ Device ID:', response.idList[0].idValue);
+            return resolve(response.idList[0].idValue);
           }
+          return resolve(null);
         },
-        onFailure: function (inError) {
-          console.error('Failed to get Device ID:', inError);
-          console.error('[' + inError.errorCode + ']: ' + inError.errorText);
-          
-          // Handle specific error codes
-          switch (inError.errorCode) {
-            case 'ERR.001':
-              console.error('Invalid Parameters provided to deviceid/getIDs');
-              break;
-            case 'ERR.002':
-              console.error('Security Manager Internal Error');
-              break;
-            case 'ERR.801':
-              console.error('Unsupported Device ID Type');
-              break;
-            default:
-              console.error('Unknown error occurred');
-          }
-          
-          reject(inError);
-        },
+        onFailure: (error) => {
+          console.warn('⚠ Device ID Luna call failed:', error?.errorCode || 'unknown error');
+          return resolve(null);
+        }
       });
     } catch (error) {
-      console.error('Exception while fetching Device ID:', error);
-      reject(error);
+      console.warn('⚠ Device ID exception:', error.message);
+      return resolve(null);
+    }
+  });
+};
+
+/**
+ * Get LG webOS Network Information (Private IP Address)
+ * Official API: luna://com.palm.connectionmanager/getStatus
+ * FAST VERSION - No retry logic, instant results
+ * 
+ * @returns {Promise<Object>} Network info object with ipv4, ipv6, and connectionType
+ */
+export const getWebOSNetworkInfo = () => {
+  return new Promise((resolve) => {
+    if (!isWebOSTV()) {
+      console.warn('⚠ Not on webOS TV');
+      return resolve({ ipv4: null, ipv6: null, connectionType: 'Unknown' });
+    }
+
+    // Check if Luna service is properly available
+    if (!window.webOS?.service?.request || typeof window.webOS.service.request !== 'function') {
+      console.warn('⚠ Luna service.request not available for network info');
+      return resolve({ ipv4: null, ipv6: null, connectionType: 'Unknown' });
+    }
+
+    try {
+      window.webOS.service.request('luna://com.palm.connectionmanager', {
+        method: 'getStatus',
+        parameters: {},
+        onSuccess: (response) => {
+          let ipv4 = null, ipv6 = null, connectionType = 'Unknown';
+
+          // Check wired first
+          if (response?.wired?.state === 'connected') {
+            connectionType = 'Wired';
+            ipv4 = response.wired.ipAddress || null;
+            ipv6 = response.wired.ipv6Address || null;
+          }
+          // Then check WiFi
+          else if (response?.wifi?.state === 'connected') {
+            connectionType = 'WiFi';
+            ipv4 = response.wifi.ipAddress || null;
+            ipv6 = response.wifi.ipv6Address || null;
+          }
+
+          console.log('✓ Network:', connectionType, ipv4);
+          resolve({ ipv4, ipv6, connectionType });
+        },
+        onFailure: (error) => {
+          console.warn('⚠ Network Luna call failed:', error?.errorCode || 'unknown error');
+          resolve({ ipv4: null, ipv6: null, connectionType: 'Unknown' });
+        }
+      });
+    } catch (error) {
+      console.warn('⚠ Network exception:', error.message);
+      resolve({ ipv4: null, ipv6: null, connectionType: 'Unknown' });
     }
   });
 };
