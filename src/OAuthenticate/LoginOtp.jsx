@@ -5,6 +5,7 @@ import NetworkErrorNotification from "../Atomic-ErrorThrow-Componenets/NetworkEr
 import { sendOtp, verifyOtp, resendOtp } from "../Api/OAuthentication-Api/LoginOtpApi";
 import { useInputFocusHandler } from "../Atomic-Common-Componenets/useRemoteNavigation";
 import SearchTextField from "../Atomic-Reusable-Componenets/Search";
+import { useDeviceInformation } from "../Api/Deviceinformaction/ipaddress";
 
 const PhoneAuthApp = ({ onLoginSuccess }) => {
   const navigate = useNavigate();
@@ -19,6 +20,9 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
   
   const [timer, setTimer] = useState(30);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
+
+  // Fetch device information (IP address and Device ID)
+  const deviceInfo = useDeviceInformation();
 
   // Prevent scrolling issues with input focus on webOS TV
   useInputFocusHandler();
@@ -638,13 +642,37 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
         )}
       </Paper>
     </Box>
-    <div>
-      <Box>
-        <Typography> ip address</Typography>
-        <Typography> deviceId </Typography>
-
-      </Box>
-    </div>
+    
+    {/* Device Information Display */}
+    <Box
+      sx={{
+        position: 'fixed',
+        bottom: 16,
+        right: 16,
+        bgcolor: 'rgba(0, 0, 0, 0.7)',
+        color: 'white',
+        padding: 2,
+        borderRadius: 2,
+        fontSize: 12,
+        maxWidth: 350,
+        backdropFilter: 'blur(10px)',
+      }}
+    >
+      <Typography variant="caption" sx={{ fontWeight: 'bold', display: 'block', mb: 1 }}>
+        Device Information
+      </Typography>
+      <Typography variant="caption" sx={{ display: 'block', opacity: 0.8 }}>
+        IP Address: {deviceInfo.loading ? 'Loading...' : deviceInfo.ipAddress}
+      </Typography>
+      <Typography variant="caption" sx={{ display: 'block', opacity: 0.8 }}>
+        Device ID: {deviceInfo.loading ? 'Loading...' : deviceInfo.deviceId}
+      </Typography>
+      {deviceInfo.error && (
+        <Typography variant="caption" sx={{ display: 'block', color: '#ff6b6b', mt: 1 }}>
+          Error: {deviceInfo.error}
+        </Typography>
+      )}
+    </Box>
     </div>
   );
 };
