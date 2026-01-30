@@ -1,13 +1,7 @@
-import React from "react";
-import { useNavigate } from "react-router-dom";
-import {
-  Box,
-  List,
-  ListItemButton,
-  ListItemIcon,
-  Divider,
-} from "@mui/material";
+import { Box, List, ListItemButton, ListItemIcon } from "@mui/material";
 import { useRemoteNavigation } from "../Atomic-Common-Componenets/useRemoteNavigation";
+import { useNavigate } from "react-router-dom";
+
 
 // Icons
 import HomeIcon from "@mui/icons-material/Home";
@@ -26,11 +20,8 @@ const menuItems = [
   { icon: <MovieIcon />, path: "/movies" },
   { icon: <SubscriptionsIcon />, path: "/subscription" },
   { icon: <NotificationsIcon />, path: "/notification" },
-];
-
-const helpDesk = [
-  { icon: <SmsFailedIcon />, id: "complaint" },
-  { icon: <FeedbackIcon />, id: "feedback" },
+  { icon: <SmsFailedIcon />, path: "/complaint" },
+  { icon: <FeedbackIcon />, path: "/feedback" },
 ];
 
 /* -------------------- COMPONENT -------------------- */
@@ -50,19 +41,11 @@ const SidebarGlass = () => {
     }
   );
 
-  // Remote navigation for help desk items
-  const { getItemProps: getHelpProps } = useRemoteNavigation(
-    helpDesk.length,
-    {
-      orientation: "vertical",
-    }
-  );
-
   return (
     <Box
       sx={{
         width: 90,
-        height: "100vh", // ✅ Full height
+        height: "49vh",
         position: "fixed",
         left: 16,
         top: 0,
@@ -74,8 +57,11 @@ const SidebarGlass = () => {
         borderRadius: "20px",
         border: "1px solid rgba(255,255,255,0.5)",
         boxShadow: "0px 20px 40px rgba(0,0,0,0.45)",
-        py: 3,
+        pt: 3,
+        pb: 3,
         zIndex: 1000,
+        mt: "10vh",
+        mr: "3vh",
       }}
     >
       {/* -------- TOP SPACER -------- */}
@@ -88,7 +74,7 @@ const SidebarGlass = () => {
 
           return (
             <ListItemButton
-              key={item.path}
+              key={item.path || index}
               {...props}
               onClick={() => item.path && navigate(item.path)}
               sx={{
@@ -97,56 +83,27 @@ const SidebarGlass = () => {
                 justifyContent: "center",
                 minWidth: 0,
                 p: 1.6,
-                border: props["data-focused"]
-                  ? "2px solid #667eea"
-                  : "1px solid transparent",
-                transform: props["data-focused"]
-                  ? "scale(1.08)"
-                  : "scale(1)",
+                bgcolor: props["data-focused"] ? "#ffffff" : "transparent",
+                border: props["data-focused"] ? "2px solid #ffffff" : "1px solid transparent",
+                outline: "none",
                 transition: "all 0.25s ease",
                 "&:hover": {
-                  bgcolor: "rgba(255,255,255,0.22)",
+                  bgcolor: props["data-focused"] ? "#ffffff" : "#ffffff",
+                },
+                "&:focus": {
+                  outline: "none",
+                  border: props["data-focused"] ? "2px solid #ffffff" : "1px solid transparent",
                 },
               }}
             >
-              <ListItemIcon sx={{ color: "#fff", minWidth: 0, fontSize: 28 }}>
-                {item.icon}
-              </ListItemIcon>
-            </ListItemButton>
-          );
-        })}
-      </List>
-
-      <Divider sx={{ my: 2, width: "70%", borderColor: "rgba(255,255,255,.4)" }} />
-
-      {/* -------- HELP DESK -------- */}
-      <List sx={{ width: "100%", p: 0 }}>
-        {helpDesk.map((item, index) => {
-          const props = getHelpProps(index);
-
-          return (
-            <ListItemButton
-              key={item.id}
-              {...props}
-              sx={{
-                mb: 1.2,
-                borderRadius: "14px",
-                justifyContent: "center",
-                minWidth: 0,
-                p: 1.6,
-                border: props["data-focused"]
-                  ? "2px solid #667eea"
-                  : "1px solid transparent",
-                transform: props["data-focused"]
-                  ? "scale(1.08)"
-                  : "scale(1)",
-                transition: "all 0.25s ease",
-                "&:hover": {
-                  bgcolor: "rgba(255,255,255,0.2)",
-                },
-              }}
-            >
-              <ListItemIcon sx={{ color: "#fff", minWidth: 0, fontSize: 28 }}>
+              <ListItemIcon
+                sx={{
+                  color: props["data-focused"] ? "#000" : "#fff",
+                  minWidth: 0,
+                  fontSize: 28,
+                  transition: "color 0.25s ease"
+                }}
+              >
                 {item.icon}
               </ListItemIcon>
             </ListItemButton>

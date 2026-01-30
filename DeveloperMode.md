@@ -14,3 +14,13 @@ ares-launch --device mylgtv com.lg.bbnl
 
 # Open inspector in your terminal
 ares-inspect --device mylgtv --app com.lg.bbnl --open
+
+
+
+
+cd C:\LG-BBNL-UI\lg-iptv-app 
+npm run build 
+ares-package build 
+ares-install --device mylgtv com.lg.bbnl_2.0.0_all.ipk 
+ares-launch --device mylgtv com.lg.bbnl 
+ares-inspect --device mylgtv --app com.lg.bbnl --open

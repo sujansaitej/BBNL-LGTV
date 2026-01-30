@@ -13,18 +13,13 @@ body.webos-input-focused {
   outline: none;
 }
 
-/* Custom focus styles for interactive elements */
+/* Remove all custom focus outlines for remote-nav elements */
 [data-focused="true"] {
-  outline: 3px solid #667eea !important;
-  outline-offset: 4px;
-  transition: outline 0.2s ease, transform 0.2s ease;
-}
-
-/* Focused button styles */
-button[data-focused="true"],
-[role="button"][data-focused="true"] {
-  transform: scale(1.05);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  outline: none !important;
+  outline-offset: 0;
+  box-shadow: none !important;
+  transform: none !important;
+  transition: none;
 }
 
 /* Prevent scroll on body when navigating with remote */
@@ -74,10 +69,10 @@ body.tv-navigation-active {
 }
 
 .tv-card[data-focused="true"] {
-  border-color: #667eea;
-  transform: scale(1.1);
+  border-color: transparent;
+  transform: none;
   z-index: 100;
-  box-shadow: 0 12px 32px rgba(102, 126, 234, 0.4);
+  box-shadow: none;
 }
 
 /* Input field styles for webOS TV */
@@ -89,8 +84,8 @@ textarea[data-webos-input="true"] {
 
 input[data-webos-input="true"]:focus,
 textarea[data-webos-input="true"]:focus {
-  outline: 2px solid #2563EB;
-  outline-offset: 2px;
+  outline: none;
+  outline-offset: 0;
 }
 
 /* Disable pointer events during remote navigation */
@@ -104,8 +99,8 @@ textarea[data-webos-input="true"]:focus {
 
 /* Category filter focus styles */
 .category-filter[data-focused="true"] {
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.5);
-  transform: translateY(-2px);
+  box-shadow: none;
+  transform: none;
 }
 
 /* Smooth transitions for all focusable elements */
@@ -161,12 +156,7 @@ button:focus {
 
 [role="button"]:focus::after,
 button:focus::after {
-  content: "";
-  position: absolute;
-  inset: -4px;
-  border: 2px solid #667eea;
-  border-radius: inherit;
-  pointer-events: none;
+  content: none;
 }
 
 /* Disable focus ring when using mouse (not remote) */
@@ -181,8 +171,7 @@ button:focus::after {
 /* High contrast mode for better visibility on TV screens */
 @media (prefers-contrast: high) {
   [data-focused="true"] {
-    outline-width: 4px;
-    outline-color: #ffffff;
+    outline: none;
   }
 }
 
@@ -194,8 +183,7 @@ button:focus::after {
   }
 
   [data-focused="true"] {
-    outline-width: 4px;
-    outline-offset: 6px;
+    outline: none;
   }
 }
 
@@ -207,7 +195,6 @@ button:focus::after {
   }
 
   [data-focused="true"] {
-    outline-width: 6px;
-    outline-offset: 8px;
+    outline: none;
   }
 }

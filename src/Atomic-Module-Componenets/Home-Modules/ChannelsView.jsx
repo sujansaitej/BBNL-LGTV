@@ -1,53 +1,40 @@
 import  { useEffect, useState } from "react";
-import { Box, Typography, Card, CardActionArea, CardContent, Avatar } from "@mui/material";
+import { Box, Typography } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { fetchChannels } from "../../Api/modules-api/ChannelApi";
 import { DEFAULT_HEADERS, DEFAULT_USER } from "../../Api/config";
 import { useRemoteNavigation } from "../../Atomic-Common-Componenets/useRemoteNavigation";
+import CommonCard from "../../Atomic-Reusable-Componenets/cards";
 
 const CHANNEL_CARD_LIMIT = 4;
 
-const cardStyle = {
-	background: "#fff",
-	borderRadius: 3,
-	width: 145,
-	height: 145,
-	color: "#111",
-	display: "flex",
-	flexDirection: "column",
-	alignItems: "center",
-	justifyContent: "center",
-	border: "2px solid transparent",
-	transition: "all 0.2s ease",
-	cursor: "pointer",
-	'&:hover': {
-		border: "2px solid #000",
-		transform: "translateY(-2px)",
-	},
-	'&.selected': {
-		border: "2px solid #000",
-	},
-};
-
-const avatarStyle = {
-	width: 70,
-	height: 70,
-	marginBottom: 1.5,
-	borderRadius: 2,
-};
-
 const fallbackChannels = [
-	{ chnl_name: "Udhaya TV", logo: "" },
-	{ chnl_name: "Colors Super", logo: "" },
-	{ chnl_name: "Zee Kannada", logo: "" },
-	{ chnl_name: "Gemini TV", logo: "" },
+	{
+		chnl_name: "FoFi Info",
+		chlogo: "http://124.40.244.211/netmon/cable-images/ch-fo-fi_info.png",
+		streamlink: "https://livestream.bbnl.in/infochan/index.m3u8",
+	},
+	{
+		chnl_name: "Regional Channels",
+		chlogo: "http://124.40.244.211/netmon/Cabletvapis/adimage/regionalchannels.jpg",
+		streamlink: "https://livestream.bbnl.in/infochan/index.m3u8",
+	},
+	{
+		chnl_name: "Parental Control",
+		chlogo: "http://124.40.244.211/netmon/Cabletvapis/adimage/parentalcontrol.jpg",
+		streamlink: "https://livestream.bbnl.in/infochan/index.m3u8",
+	},
+	{
+		chnl_name: "Sports",
+		chlogo: "http://124.40.244.211/netmon/Cabletvapis/adimage/sports.jpg",
+		streamlink: "https://livestream.bbnl.in/infochan/index.m3u8",
+	},
 ];
 
 const ChannelsView = () => {
 	const [channels, setChannels] = useState([]);
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState("");
-	const [selected, setSelected] = useState(-1);
 	const navigate = useNavigate();
 	const { getItemProps } = useRemoteNavigation({ itemCount: CHANNEL_CARD_LIMIT });
 
@@ -67,16 +54,12 @@ const ChannelsView = () => {
 		fetchChannel();
 	}, []);
 
-	const handleCardClick = (idx) => {
-		setSelected(idx);
-		setTimeout(() => navigate("/live-channels"), 80);
+	const handleCardClick = (idx, streamlink) => {
+		navigate("/player", { state: { streamlink } });
 	};
 
-	const handleViewAll = () => {
-		navigate("/live-channels");
-	};
-
-	const visibleChannels = channels.slice(0, CHANNEL_CARD_LIMIT);
+	const sourceChannels = channels && channels.length ? channels : fallbackChannels;
+	const visibleChannels = sourceChannels.slice(0, CHANNEL_CARD_LIMIT);
 
 	return (
 		<Box sx={{ mb: 6 }}>
@@ -91,99 +74,32 @@ const ChannelsView = () => {
 			>
 				Live TV Channels
 			</Typography>
-			{error && (
-				<Typography sx={{ color: "#f44336", mb: 2 }}>{error}</Typography>
-			)}
-			<Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
+			<Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
 			{visibleChannels.map((ch, idx) => {
 				const cardProps = getItemProps(idx);
 				const isFocused = cardProps["data-focused"];
+				const streamlink = ch.streamlink || "https://livestream.bbnl.in/infochan/index.m3u8";
+				const logo = ch.chlogo || ch.logo || "http://124.40.244.211/netmon/cable-images/ch-fo-fi_info.png";
+				const name = ch.chnl_name || ch.name || "Live Channel";
 				return (
-					<Card
+					<CommonCard
 						key={ch.chnl_id || idx}
 						{...cardProps}
+						ratio="16:9"
 						sx={{
-							...cardStyle,
-							border: isFocused ? "3px solid #667eea" : (selected === idx ? "2px solid #000" : "2px solid transparent"),
-							transform: isFocused ? "scale(1.08)" : "scale(1)",
-							boxShadow: isFocused ? "0 8px 24px rgba(102, 126, 234, 0.4)" : "none",
-							zIndex: isFocused ? 10 : 1,
+							border: isFocused ? "3px solid #fff" : "2px solid transparent",
+							transform: isFocused ? "scale(1.05)" : "scale(1)",
+							boxShadow: isFocused ? "0 8px 24px #fff" : "none",
+							cursor: "pointer",
+							maxHeight: 150,
 						}}
-						className={selected === idx ? "selected" : ""}
-						onClick={() => handleCardClick(idx)}
-					>
-						<CardActionArea 
-							sx={{ 
-								height: "100%",
-								display: "flex", 
-								flexDirection: "column", 
-								alignItems: "center",
-								justifyContent: "center",
-								p: 2 
-							}}
-						>
-							<Avatar 
-								src={ch.logo} 
-								alt={ch.chnl_name} 
-								sx={avatarStyle}
-								variant="rounded"
-							/>
-							<CardContent sx={{ textAlign: "center", p: 0 }}>
-								<Typography sx={{ color: "#000", fontWeight: 600, fontSize: 14, mb: 0.5 }}>
-									{ch.chnl_name}
-								</Typography>
-								<Typography sx={{ color: "#666", fontSize: 11 }}>
-									live Channels
-								</Typography>
-							</CardContent>
-						</CardActionArea>
-					</Card>
+						onClick={() => handleCardClick(idx, streamlink)}
+						alt={name}
+						src={logo}
+						borderRadius="14px"
+					/>
 				);
 			})}
-				{/* View All Channels Card */}
-				<Card
-					key="view-all-channels"
-					sx={{
-						...cardStyle,
-						background: "#1a1a1a",
-						color: "#fff",
-						border: selected === 99 ? "2px solid #fff" : "2px solid transparent",
-						'&:hover': {
-							border: "2px solid #fff",
-							transform: "translateY(-2px)",
-						},
-					}}
-					className={selected === 99 ? "selected" : ""}
-					onClick={() => {
-						setSelected(99);
-						setTimeout(() => handleViewAll(), 100);
-					}}
-				>
-					<CardActionArea 
-						sx={{ 
-							height: "100%",
-							display: "flex", 
-							flexDirection: "column", 
-							alignItems: "center",
-							justifyContent: "center",
-							p: 2 
-						}}
-					>
-						<Avatar sx={{ ...avatarStyle, bgcolor: "#2a2a2a" }} variant="rounded">
-							<Typography sx={{ color: "#fff", fontWeight: 700, fontSize: 28 }}>
-								→
-							</Typography>
-						</Avatar>
-						<CardContent sx={{ textAlign: "center", p: 0 }}>
-							<Typography sx={{ color: "#fff", fontWeight: 600, fontSize: 14, mb: 0.5 }}>
-								View All Channel
-							</Typography>
-							<Typography sx={{ color: "#888", fontSize: 11 }}>
-								Live Channels
-							</Typography>
-						</CardContent>
-					</CardActionArea>
-				</Card>
 			</Box>
 		</Box>
 	);

@@ -7,7 +7,6 @@ import Home from './Modules/Home';
 import LiveChannels from './Modules/LiveChannels';
 import LivePlayer from './Modules/LivePlayer';
 import { initializeWebOSEnvironment, preventWebOSDefaults } from './utils/webos';
-import { ThemeProvider } from './Atomic-Common-Componenets/TheamChange';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
@@ -37,9 +36,8 @@ function App() {
   };
 
   return (
-    <ThemeProvider>
-      <Router>
-        <Routes>
+    <Router>
+      <Routes>
           <Route 
             path="/bbnl-video" 
             element={
@@ -90,10 +88,9 @@ function App() {
           />
         </Routes>
       </Router>
-    </ThemeProvider>
-   
-  );
-}
+    );
+  }
+
 
 export default App;
 
