@@ -10,12 +10,10 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { fetchCategories, fetchChannels } from "../Api/modules-api/ChannelApi";
 import { useGridNavigation, useInputFocusHandler, useRemoteNavigation } from "../Atomic-Common-Componenets/useRemoteNavigation";
 import { DEFAULT_HEADERS, DEFAULT_USER } from "../Api/config";
-import { useTheme } from "../Atomic-Common-Componenets/TheamChange";
 import SearchTextField from "../Atomic-Reusable-Componenets/Search";
 
 const LiveChannels = () => {
   const navigate = useNavigate();
-  const { theme } = useTheme();
   const [categories, setCategories] = useState([]);
   const [channels, setChannels] = useState([]);
   const [filteredChannels, setFilteredChannels] = useState([]);
@@ -306,7 +304,7 @@ const LiveChannels = () => {
   }
 
   return (
-    <Box sx={{ background: theme.colors.background, minHeight: "100vh", color: theme.colors.text, p: 3 }}>
+    <Box sx={{ background: "#000", minHeight: "100vh", color: "#fff", p: 3 }}>
       {/* ================= HEADER WITH BACK BUTTON AND TITLE ================= */}
       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 3 }}>
         {/* Back Button */}

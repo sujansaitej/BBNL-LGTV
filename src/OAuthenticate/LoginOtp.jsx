@@ -5,7 +5,7 @@ import NetworkErrorNotification from "../Atomic-ErrorThrow-Componenets/NetworkEr
 import { sendOtp, verifyOtp, resendOtp } from "../Api/OAuthentication-Api/LoginOtpApi";
 import { useInputFocusHandler } from "../Atomic-Common-Componenets/useRemoteNavigation";
 import SearchTextField from "../Atomic-Reusable-Componenets/Search";
-import { useDeviceInformation } from "../Api/Deviceinformaction/ipaddress";
+import { useDeviceInformation } from "../Api/Deviceinformaction/LG-Devicesinformaction";
 
 const PhoneAuthApp = ({ onLoginSuccess }) => {
   const navigate = useNavigate();
