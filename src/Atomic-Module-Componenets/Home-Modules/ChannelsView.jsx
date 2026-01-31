@@ -1,106 +1,141 @@
-import  { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Box, Typography } from "@mui/material";
 import { useNavigate } from "react-router-dom";
-import { fetchChannels } from "../../Api/modules-api/ChannelApi";
+import { fetchLanguages } from "../../Api/modules-api/LanguageChannelsApi";
 import { DEFAULT_HEADERS, DEFAULT_USER } from "../../Api/config";
-import { useRemoteNavigation } from "../../Atomic-Common-Componenets/useRemoteNavigation";
-import CommonCard from "../../Atomic-Reusable-Componenets/cards";
-
-const CHANNEL_CARD_LIMIT = 4;
-
-const fallbackChannels = [
-	{
-		chnl_name: "FoFi Info",
-		chlogo: "http://124.40.244.211/netmon/cable-images/ch-fo-fi_info.png",
-		streamlink: "https://livestream.bbnl.in/infochan/index.m3u8",
-	},
-	{
-		chnl_name: "Regional Channels",
-		chlogo: "http://124.40.244.211/netmon/Cabletvapis/adimage/regionalchannels.jpg",
-		streamlink: "https://livestream.bbnl.in/infochan/index.m3u8",
-	},
-	{
-		chnl_name: "Parental Control",
-		chlogo: "http://124.40.244.211/netmon/Cabletvapis/adimage/parentalcontrol.jpg",
-		streamlink: "https://livestream.bbnl.in/infochan/index.m3u8",
-	},
-	{
-		chnl_name: "Sports",
-		chlogo: "http://124.40.244.211/netmon/Cabletvapis/adimage/sports.jpg",
-		streamlink: "https://livestream.bbnl.in/infochan/index.m3u8",
-	},
-];
 
 const ChannelsView = () => {
-	const [channels, setChannels] = useState([]);
+	const navigate = useNavigate();
+	const [languages, setLanguages] = useState([]);
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState("");
-	const navigate = useNavigate();
-	const { getItemProps } = useRemoteNavigation({ itemCount: CHANNEL_CARD_LIMIT });
 
-	useEffect(() => {
-		const fetchChannel = async () => {
-			setLoading(true);
-			setError("");
-			try {
-				const apiChannels = await fetchChannels(DEFAULT_USER, DEFAULT_HEADERS);
-				setChannels(apiChannels || []);
-			} catch (err) {
-				setError(err.message || "Failed to load channels");
-			} finally {
-				setLoading(false);
-			}
-		};
-		fetchChannel();
-	}, []);
+	// Get userid + mobile
+	const userid = localStorage.getItem("userId") || DEFAULT_USER.userid;
+	const mobile = localStorage.getItem("userPhone") || "";
 
-	const handleCardClick = (idx, streamlink) => {
-		navigate("/player", { state: { streamlink } });
+	const payloadBase = {
+		userid,
+		mobile,
 	};
 
-	const sourceChannels = channels && channels.length ? channels : fallbackChannels;
-	const visibleChannels = sourceChannels.slice(0, CHANNEL_CARD_LIMIT);
+	const headers = {
+		...DEFAULT_HEADERS,
+	};
+
+	// ================= FETCH LANGUAGES =================
+	const handleFetchLanguages = async () => {
+		try {
+			setLoading(true);
+			const languagesData = await fetchLanguages(payloadBase, headers);
+			setLanguages(languagesData || []);
+		} catch (err) {
+			setError("Failed to load languages");
+			console.error(err);
+		} finally {
+			setLoading(false);
+		}
+	};
+
+	useEffect(() => {
+		if (!mobile) {
+			setError("NO_LOGIN");
+			return;
+		}
+		handleFetchLanguages();
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [mobile]);
+
+	// Handle language card click
+	const handleLanguageClick = (langid) => {
+		navigate("/live-channels", { state: { filterByLanguage: langid } });
+	};
 
 	return (
 		<Box sx={{ mb: 6 }}>
-			<Typography 
-				sx={{ 
-					color: "#fff", 
-					fontSize: 22, 
-					fontWeight: 600, 
-					mb: 3,
-					fontFamily: 'system-ui, -apple-system, sans-serif'
-				}}
-			>
-				Live TV Channels
+			<Typography sx={{ fontSize: 22, fontWeight: 700, mb: 3, color: "#fff" }}>
+				TV CHANNELS
 			</Typography>
-			<Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
-			{visibleChannels.map((ch, idx) => {
-				const cardProps = getItemProps(idx);
-				const isFocused = cardProps["data-focused"];
-				const streamlink = ch.streamlink || "https://livestream.bbnl.in/infochan/index.m3u8";
-				const logo = ch.chlogo || ch.logo || "http://124.40.244.211/netmon/cable-images/ch-fo-fi_info.png";
-				const name = ch.chnl_name || ch.name || "Live Channel";
-				return (
-					<CommonCard
-						key={ch.chnl_id || idx}
-						{...cardProps}
-						ratio="16:9"
-						sx={{
-							border: isFocused ? "3px solid #fff" : "2px solid transparent",
-							transform: isFocused ? "scale(1.05)" : "scale(1)",
-							boxShadow: isFocused ? "0 8px 24px #fff" : "none",
-							cursor: "pointer",
-							maxHeight: 150,
-						}}
-						onClick={() => handleCardClick(idx, streamlink)}
-						alt={name}
-						src={logo}
-						borderRadius="14px"
-					/>
-				);
-			})}
-			</Box>
+
+			{/* ================= LOADING STATE ================= */}
+			{loading && (
+				<Typography sx={{ color: "#999" }}>Loading channels...</Typography>
+			)}
+
+			{/* ================= ERROR STATE ================= */}
+			{error && error !== "NO_LOGIN" && (
+				<Typography sx={{ color: "#ff6b6b" }}>
+					{error}
+				</Typography>
+			)}
+
+			{/* ================= CHANNEL CARDS GRID ================= */}
+			{!loading && !error && (
+				<Box
+					sx={{
+						display: "grid",
+						gridTemplateColumns: "repeat(5, 240px)",
+						gap: "103px",
+					}}
+				>
+					{languages.length === 0 ? (
+						<Typography sx={{ color: "#888" }}>No channels available</Typography>
+					) : (
+						languages.map((lang, index) => (
+							<Box
+								key={index}
+								onClick={() => handleLanguageClick(lang.langid)}
+								sx={{
+									background: "#111",
+									borderRadius: "14px",
+									padding: "20px 10px",
+									cursor: "pointer",
+									transition: "all 0.3s ease",
+									display: "flex",
+									flexDirection: "column",
+									alignItems: "center",
+									justifyContent: "center",
+									border: "2px solid rgba(255,255,255,.2)",
+									"&:hover": {
+										transform: "scale(1.05)",
+										boxShadow: "0 8px 24px rgba(102, 126, 234, 0.4)",
+										borderColor: "#667eea",
+									},
+								}}
+							>
+								{/* Language Logo */}
+								{lang.langlogo && (
+									<img
+										src={lang.langlogo}
+										alt={lang.langtitle}
+										style={{
+											width: "90px",
+											height: "90px",
+											objectFit: "contain",
+											marginBottom: "12px",
+										}}
+										onError={(e) => {
+											e.target.style.display = "none";
+										}}
+									/>
+								)}
+
+								{/* Language Title */}
+								<Typography
+									sx={{
+										fontSize: 14,
+										fontWeight: 600,
+										color: "#fff",
+										textAlign: "center",
+									}}
+								>
+									{lang.langtitle}
+								</Typography>
+							</Box>
+						))
+					)}
+				</Box>
+			)}
 		</Box>
 	);
 };

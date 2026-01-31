@@ -11,6 +11,7 @@ import { fetchCategories, fetchChannels } from "../Api/modules-api/ChannelApi";
 import { useGridNavigation, useInputFocusHandler, useRemoteNavigation } from "../Atomic-Common-Componenets/useRemoteNavigation";
 import { DEFAULT_HEADERS, DEFAULT_USER } from "../Api/config";
 import SearchTextField from "../Atomic-Reusable-Componenets/Search";
+import ChannelBox from "../Atomic-Reusable-Componenets/ChannelBox";
 
 const LiveChannels = () => {
   const navigate = useNavigate();
@@ -202,66 +203,6 @@ const LiveChannels = () => {
   };
 
   // ================= CHANNEL CARD =================
-  const ChannelBox = ({ logo, name, subscribed, onClick, focused }) => (
-    <Box>
-      <Box
-        sx={{
-          width: 200,
-          height: 120,
-          background: "#fff",
-          borderRadius: "14px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          position: "relative",
-          cursor: onClick ? "pointer" : "default",
-          border: focused ? "4px solid #667eea" : "4px solid transparent",
-          transform: focused ? "scale(1.1)" : "scale(1)",
-          transition: "all 0.2s ease",
-          boxShadow: focused ? "0 8px 24px rgba(102, 126, 234, 0.4)" : "none",
-          zIndex: focused ? 10 : 1,
-        }}
-        role={onClick ? "button" : undefined}
-        tabIndex={onClick ? 0 : undefined}
-        onClick={onClick}
-      >
-        {subscribed === "yes" && (
-          <Box
-            sx={{
-              position: "absolute",
-              top: 8,
-              right: 8,
-              background: "red",
-              color: "#fff",
-              fontSize: 10,
-              px: 1.5,
-              borderRadius: "10px",
-            }}
-          >
-            Live
-          </Box>
-        )}
-
-        <img
-          src={logo}
-          alt={name}
-          style={{ width: "80%", height: "80%", objectFit: "contain" }}
-          onError={(e) =>
-            (e.target.src =
-              "http://124.40.244.211/netmon/assets/site_images/chnlnoimage.jpg")
-          }
-        />
-      </Box>
-
-      <Typography sx={{ color: "#fff", fontSize: 14, fontWeight: 600, mt: 1 }}>
-        {name}
-      </Typography>
-
-      {/* <Typography sx={{ color: "#9b9b9b", fontSize: 12 }}>
-        live Channels
-      </Typography> */}
-    </Box>
-  );
 
   // Show login required message
   if (error === "NO_LOGIN") {
@@ -433,14 +374,40 @@ const LiveChannels = () => {
             </ButtonBase>
           );
         })}
+        
+        {/* Language Filter Button */}
+        <ButtonBase
+          onClick={() => navigate("/languagechannels")}
+          sx={{
+            px: 3,
+            py: 1,
+            borderRadius: "20px",
+            border: activeFilter === "Language" ? "none" : "1px solid rgba(255,255,255,0.2)",
+            color: "#fff",
+            fontSize: 13,
+            fontWeight: 500,
+            background: activeFilter === "Language" 
+              ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" 
+              : "rgba(255,255,255,0.05)",
+            transition: "all 0.3s ease",
+            "&:hover": {
+              background: activeFilter === "Language"
+                ? "linear-gradient(135deg, #764ba2 0%, #667eea 100%)"
+                : "rgba(255,255,255,0.1)",
+              transform: "translateY(-2px)",
+            },
+          }}
+        >
+          Language
+        </ButtonBase>
       </Box>
 
       {/* ================= CHANNEL GRID ================= */}
       <Box
         sx={{
           display: "grid",
-          gridTemplateColumns: "repeat(5, 220px)",
-          gap: 3,
+          gridTemplateColumns: "repeat(7, 220px)",
+          gap: 5,
           pb: 4,
         }}
       >

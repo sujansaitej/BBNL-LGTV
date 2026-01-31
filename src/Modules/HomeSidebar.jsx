@@ -7,9 +7,6 @@ import { useNavigate } from "react-router-dom";
 import HomeIcon from "@mui/icons-material/Home";
 import LiveTvIcon from "@mui/icons-material/LiveTv";
 import MovieIcon from "@mui/icons-material/Movie";
-import SubscriptionsIcon from "@mui/icons-material/Subscriptions";
-import NotificationsIcon from "@mui/icons-material/Notifications";
-import SmsFailedIcon from "@mui/icons-material/SmsFailed";
 import FeedbackIcon from "@mui/icons-material/Feedback";
 
 /* -------------------- MENU DATA -------------------- */
@@ -17,10 +14,7 @@ import FeedbackIcon from "@mui/icons-material/Feedback";
 const menuItems = [
   { icon: <HomeIcon />, path: "/home" },
   { icon: <LiveTvIcon />, path: "/live-channels" },
-  { icon: <MovieIcon />, path: "/movies" },
-  { icon: <SubscriptionsIcon />, path: "/subscription" },
-  { icon: <NotificationsIcon />, path: "/notification" },
-  { icon: <SmsFailedIcon />, path: "/complaint" },
+  { icon: <MovieIcon />, path: "/movies-ott" },
   { icon: <FeedbackIcon />, path: "/feedback" },
 ];
 
