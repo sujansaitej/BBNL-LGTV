@@ -5,7 +5,10 @@ import BbnlVideo from "./OAuthenticate/bbnl";
 import PhoneNumberOtp from "./OAuthenticate/LoginOtp";
 import Home from './Modules/Home'; 
 import LiveChannels from './Modules/LiveChannels';
+import LanguageChannels from './Modules/LanguageChannels';
 import LivePlayer from './Modules/LivePlayer';
+import MoviesOtt from './Modules/MoviesOtt';
+import Feedback from './Modules/Feedback';
 import { initializeWebOSEnvironment, preventWebOSDefaults } from './utils/webos';
 
 function App() {
@@ -67,6 +70,36 @@ function App() {
             element={
               isAuthenticated ? (
                 <LiveChannels />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          />
+          <Route
+            path="/languagechannels"
+            element={
+              isAuthenticated ? (
+                <LanguageChannels />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          />
+          <Route
+            path="/movies-ott"
+            element={
+              isAuthenticated ? (
+                <MoviesOtt />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          />
+          <Route
+            path="/feedback"
+            element={
+              isAuthenticated ? (
+                <Feedback />
               ) : (
                 <Navigate to="/login" replace />
               )

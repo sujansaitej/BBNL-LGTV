@@ -40,7 +40,7 @@ const Home = () => {
         <Box
           sx={{
             width: "100%",
-            px: 0,
+            pl: "9rem",
             mt: 0,
             mb: 0,
             pb: 0,
