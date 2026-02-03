@@ -75,7 +75,7 @@ const ChannelsView = () => {
 					sx={{
 						display: "grid",
 						gridTemplateColumns: "repeat(5, 240px)",
-						gap: "103px",
+						gap: "125px",
 					}}
 				>
 					{languages.length === 0 ? (
@@ -86,38 +86,45 @@ const ChannelsView = () => {
 								key={index}
 								onClick={() => handleLanguageClick(lang.langid)}
 								sx={{
-									background: "#111",
+									width: "240px",
 									borderRadius: "14px",
-									padding: "20px 10px",
 									cursor: "pointer",
 									transition: "all 0.3s ease",
 									display: "flex",
 									flexDirection: "column",
 									alignItems: "center",
 									justifyContent: "center",
-									border: "2px solid rgba(255,255,255,.2)",
+									gap: 1,
 									"&:hover": {
 										transform: "scale(1.05)",
-										boxShadow: "0 8px 24px rgba(102, 126, 234, 0.4)",
-										borderColor: "#667eea",
+										boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
 									},
 								}}
 							>
 								{/* Language Logo */}
 								{lang.langlogo && (
-									<img
-										src={lang.langlogo}
-										alt={lang.langtitle}
-										style={{
-											width: "90px",
-											height: "90px",
-											objectFit: "contain",
-											marginBottom: "12px",
+									<Box
+										sx={{
+											width: "240px",
+											height: "140px",
+											overflow: "hidden",
+											borderRadius: "14px",
 										}}
-										onError={(e) => {
-											e.target.style.display = "none";
-										}}
-									/>
+									>
+										<img
+											src={lang.langlogo}
+											alt={lang.langtitle}
+											style={{
+												width: "100%",
+												height: "100%",
+												objectFit: "cover",
+												display: "block",
+											}}
+											onError={(e) => {
+												e.target.style.display = "none";
+											}}
+										/>
+									</Box>
 								)}
 
 								{/* Language Title */}
@@ -127,6 +134,7 @@ const ChannelsView = () => {
 										fontWeight: 600,
 										color: "#fff",
 										textAlign: "center",
+										mt: 1,
 									}}
 								>
 									{lang.langtitle}

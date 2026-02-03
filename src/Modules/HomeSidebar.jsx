@@ -8,6 +8,7 @@ import HomeIcon from "@mui/icons-material/Home";
 import LiveTvIcon from "@mui/icons-material/LiveTv";
 import MovieIcon from "@mui/icons-material/Movie";
 import FeedbackIcon from "@mui/icons-material/Feedback";
+import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
 
 /* -------------------- MENU DATA -------------------- */
 
@@ -16,6 +17,7 @@ const menuItems = [
   { icon: <LiveTvIcon />, path: "/live-channels" },
   { icon: <MovieIcon />, path: "/movies-ott" },
   { icon: <FeedbackIcon />, path: "/feedback" },
+  { icon: <FavoriteBorderIcon />, path: "/favorites" },
 ];
 
 /* -------------------- COMPONENT -------------------- */
@@ -82,7 +84,7 @@ const SidebarGlass = () => {
                 outline: "none",
                 transition: "all 0.25s ease",
                 "&:hover": {
-                  bgcolor: props["data-focused"] ? "#ffffff" : "#ffffff",
+                  bgcolor: "transparent",
                 },
                 "&:focus": {
                   outline: "none",

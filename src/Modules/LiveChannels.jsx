@@ -27,7 +27,7 @@ const LiveChannels = () => {
   const searchSubject = useRef(new Subject());
 
   // Calculate columns based on grid
-  const columnsCount = 5; // Adjust based on your grid layout
+  const columnsCount = 6; // Adjust based on your grid layout
 
   // Use grid navigation for channel cards
   const { focusedIndex, getItemProps: getChannelProps } = useGridNavigation(
@@ -245,33 +245,46 @@ const LiveChannels = () => {
   }
 
   return (
-    <Box sx={{ background: "#000", minHeight: "100vh", color: "#fff", p: 3 }}>
+    <Box
+      sx={{
+        background: "#000",
+        minHeight: "100vh",
+        color: "#fff",
+        p: 5,
+        fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
+        textRendering: "optimizeLegibility",
+        WebkitFontSmoothing: "antialiased",
+        MozOsxFontSmoothing: "grayscale",
+        letterSpacing: "0.3px",
+      }}
+    >
       {/* ================= HEADER WITH BACK BUTTON AND TITLE ================= */}
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 3 }}>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 5 }}>
         {/* Back Button */}
         <IconButton
           onClick={() => navigate(-1)}
           sx={{
             color: "#fff",
-            border: "1px solid rgba(255,255,255,0.3)",
-            borderRadius: "8px",
+            border: "2px solid rgba(255,255,255,0.4)",
+            borderRadius: "10px",
+            padding: "12px",
             "&:hover": {
-              background: "rgba(255,255,255,0.1)",
+              background: "rgba(255,255,255,0.15)",
             },
           }}
         >
-          <ArrowBackIcon />
+          <ArrowBackIcon sx={{ fontSize: 28 }} />
         </IconButton>
 
         {/* Title on Right */}
-        <Typography sx={{ fontSize: 24, fontWeight: 700 }}>
+        <Typography sx={{ fontSize: 38, fontWeight: 700, lineHeight: 1.1, letterSpacing: "0.5px" }}>
           TV Channels
         </Typography>
 
         {/* Search Bar */}
         <Box
           sx={{
-            width: 300,
+            width: 420,
             display: "flex",
             alignItems: "center",
           }}
@@ -288,20 +301,28 @@ const LiveChannels = () => {
             sx={{
               "& .MuiOutlinedInput-root": {
                 color: "#fff",
-                background: "rgba(255,255,255,0.05)",
-                borderRadius: "20px",
+                background: "rgba(255,255,255,0.08)",
+                borderRadius: "28px",
+                minHeight: 56,
                 "& fieldset": {
-                  borderColor: "rgba(255,255,255,0.2)",
+                  borderColor: "rgba(255,255,255,0.3)",
+                  borderWidth: "2px",
                 },
                 "&:hover fieldset": {
-                  borderColor: "rgba(255,255,255,0.3)",
+                  borderColor: "rgba(255,255,255,0.5)",
                 },
                 "&.Mui-focused fieldset": {
                   borderColor: "#667eea",
+                  borderWidth: "2px",
                 },
               },
+              "& .MuiInputBase-input": {
+                fontSize: 20,
+                padding: "14px 16px",
+                fontWeight: 500,
+              },
               "& .MuiInputBase-input::placeholder": {
-                color: "rgba(255,255,255,0.5)",
+                color: "rgba(255,255,255,0.6)",
                 opacity: 1,
               },
             }}
@@ -340,7 +361,7 @@ const LiveChannels = () => {
       )}
 
       {/* ================= CATEGORY FILTERS ================= */}
-      <Box sx={{ display: "flex", gap: 1.5, mb: 4, flexWrap: "wrap", overflowX: "auto", pb: 1 }}>
+      <Box sx={{ display: "flex", gap: 2.5, mb: 5, flexWrap: "wrap", overflowX: "auto", pb: 2 }}>
         {categories.map((cat, i) => {
           const categoryProps = !isSearchFocused ? getCategoryProps(i) : {};
           return (
@@ -349,23 +370,25 @@ const LiveChannels = () => {
               {...categoryProps}
               onClick={() => handleFilter(cat)}
               sx={{
-                px: 3,
-                py: 1,
-                borderRadius: "20px",
-                border: activeFilter === cat.title ? "none" : "1px solid rgba(255,255,255,0.2)",
+                px: 5,
+                py: 1.75,
+                borderRadius: "26px",
+                border: activeFilter === cat.title ? "none" : "2px solid rgba(255,255,255,0.3)",
                 color: "#fff",
-                fontSize: 13,
-                fontWeight: 500,
+                fontSize: 19,
+                fontWeight: 600,
+                letterSpacing: "0.3px",
                 background: activeFilter === cat.title 
                   ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" 
-                  : "rgba(255,255,255,0.05)",
-                transition: "all 0.3s ease",
-                outline: categoryProps["data-focused"] ? "2px solid #667eea" : "none",
-                outlineOffset: "2px",
+                  : "rgba(255,255,255,0.08)",
+                transition: "all 0.25s ease",
+                outline: categoryProps["data-focused"] ? "3px solid #667eea" : "none",
+                outlineOffset: "3px",
+                minHeight: 52,
                 "&:hover": {
                   background: activeFilter === cat.title
                     ? "linear-gradient(135deg, #764ba2 0%, #667eea 100%)"
-                    : "rgba(255,255,255,0.1)",
+                    : "rgba(255,255,255,0.15)",
                   transform: "translateY(-2px)",
                 },
               }}
@@ -379,21 +402,23 @@ const LiveChannels = () => {
         <ButtonBase
           onClick={() => navigate("/languagechannels")}
           sx={{
-            px: 3,
-            py: 1,
-            borderRadius: "20px",
-            border: activeFilter === "Language" ? "none" : "1px solid rgba(255,255,255,0.2)",
+            px: 5,
+            py: 1.75,
+            borderRadius: "26px",
+            border: activeFilter === "Language" ? "none" : "2px solid rgba(255,255,255,0.3)",
             color: "#fff",
-            fontSize: 13,
-            fontWeight: 500,
+            fontSize: 19,
+            fontWeight: 600,
+            letterSpacing: "0.3px",
             background: activeFilter === "Language" 
               ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" 
-              : "rgba(255,255,255,0.05)",
-            transition: "all 0.3s ease",
+              : "rgba(255,255,255,0.08)",
+            transition: "all 0.25s ease",
+            minHeight: 52,
             "&:hover": {
               background: activeFilter === "Language"
                 ? "linear-gradient(135deg, #764ba2 0%, #667eea 100%)"
-                : "rgba(255,255,255,0.1)",
+                : "rgba(255,255,255,0.15)",
               transform: "translateY(-2px)",
             },
           }}
@@ -406,9 +431,11 @@ const LiveChannels = () => {
       <Box
         sx={{
           display: "grid",
-          gridTemplateColumns: "repeat(7, 220px)",
-          gap: 5,
-          pb: 4,
+          gridTemplateColumns: "repeat(5, 280px)",
+          gap: 8,
+          pb: 5,
+          alignContent: "start",
+          justifyContent: "start",
         }}
       >
         {filteredChannels.length === 0 ? (
@@ -437,5 +464,3 @@ const LiveChannels = () => {
 };
 
 export default LiveChannels;
-
-

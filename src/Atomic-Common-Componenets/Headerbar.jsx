@@ -2,13 +2,18 @@ import {AppBar, Toolbar, Typography, IconButton, Box, InputBase,} from "@mui/mat
 import SearchIcon from "@mui/icons-material/Search";
 import SettingsIcon from "@mui/icons-material/Settings";
 import { useRemoteNavigation } from "./useRemoteNavigation";
+import { useNavigate } from "react-router-dom";
 
 const Header = () => {
+  const navigate = useNavigate();
+  
   // Remote navigation for header buttons: Search, Network, Settings
   const { getItemProps } = useRemoteNavigation(3, {
     orientation: "horizontal",
     onSelect: (index) => {
-      // Other actions can be added as needed
+      if (index === 2) {
+        navigate("/settings");
+      }
     },
   });
   const iconButtonSx = {
@@ -69,6 +74,7 @@ const Header = () => {
         <Box display="flex" alignItems="center" gap={1.75}>
           <IconButton 
             {...getItemProps(2)}
+            onClick={() => navigate("/settings")}
             sx={{
               ...iconButtonSx,
               border: getItemProps(2)["data-focused"] ? "2px solid #667eea" : iconButtonSx.border,

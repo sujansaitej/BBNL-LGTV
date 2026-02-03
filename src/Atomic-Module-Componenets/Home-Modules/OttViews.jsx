@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Box, Typography, Card, CardActionArea, CardContent, Avatar } from "@mui/material";
+import { Box, Typography, Card } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { useRemoteNavigation } from "../../Atomic-Common-Componenets/useRemoteNavigation";
 import { fetchOttApps } from "../../Api/modules-api/OttAppsApi";
@@ -8,26 +8,17 @@ import { DEFAULT_HEADERS, DEFAULT_USER } from "../../Api/config";
 const OTT_CARD_LIMIT = 4;
 
 const cardStyle = {
-  background: "#111",
-  borderRadius: "14px",
   width: "240px",
-  height: "150px",
-  color: "#fff",
-  border: "2px solid rgba(255,255,255,.2)",
-  transition: "all .2s",
-  cursor: "pointer",
-
-  "&:hover": {
-    border: "2px solid white",
-    transform: "translateY(-3px)",
-  },
+  height: "180px",
+  backgroundColor: "transparent",
+  boxShadow: "none",
 };
 
 const avatarStyle = {
-  width: 90,
-  height: 90,
-  marginBottom: 1,
-  borderRadius: 3,
+  width: "240px",
+  height: "120px",
+  objectFit: "cover",
+  borderRadius: "12px",
 };
 
 const OttViews = () => {
@@ -86,7 +77,7 @@ const OttViews = () => {
         sx={{
           display: "grid",
           gridTemplateColumns: "repeat(5, 240px)",
-          gap: "103px",
+          gap: "125px",
         }}
       >
         {visibleApps.map((app, idx) => {
@@ -99,15 +90,10 @@ const OttViews = () => {
               onClick={() => setSelected(idx)}
               sx={{
                 ...cardStyle,
-                border: isFocused ? "3px solid #667eea" : "2px solid rgba(255,255,255,.2)",
+                border: isFocused ? "3px solid #667eea" : "none",
                 transform: isFocused ? "scale(1.08)" : "scale(1)",
                 boxShadow: isFocused ? "0 8px 24px rgba(102, 126, 234, 0.4)" : "none",
                 zIndex: isFocused ? 10 : 1,
-              }}
-          >
-            <CardActionArea
-              sx={{
-                height: "100%",
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
@@ -116,32 +102,55 @@ const OttViews = () => {
                 p: 2,
               }}
             >
-              <Avatar src={app.icon} sx={avatarStyle} variant="rounded" />
-              <CardContent sx={{ textAlign: "center", p: 0 }}>
-                <Typography sx={{ fontWeight: 600 }}>{app.appname}</Typography>
-              </CardContent>
-            </CardActionArea>
-          </Card>
+              <Box
+                sx={{
+                  width: "240px",
+                  height: "180px",
+                  overflow: "hidden",
+                  borderRadius: "12px",
+                }}
+              >
+                <img
+                  src={app.icon}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    display: "block",
+                  }}
+                  alt={app.appname}
+                />
+              </Box>
+            </Card>
           );
         })}
 
-        <Card sx={cardStyle} onClick={() => navigate("/movies-ott")}>
-          <CardActionArea
+        <Card
+          sx={{
+            ...cardStyle,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            p: 0,
+          }}
+          onClick={() => navigate("/movies-ott")}
+        >
+          <Box
             sx={{
-              height: "100%",
+              width: "240px",
+              height: "180px",
+              background: "#2a2a2a",
               display: "flex",
-              flexDirection: "column",
               alignItems: "center",
               justifyContent: "center",
+              color: "#fff",
+              fontSize: 48,
+              borderRadius: "12px",
             }}
           >
-            <Avatar sx={{ ...avatarStyle, bgcolor: "#2a2a2a" }} variant="rounded">
-              →
-            </Avatar>
-            <CardContent sx={{ textAlign: "center", p: 0 }}>
-              <Typography sx={{ fontWeight: 700 }}>View All OTT</Typography>
-            </CardContent>
-          </CardActionArea>
+            →
+          </Box>
+          
         </Card>
       </Box>
     </Box>
