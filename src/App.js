@@ -9,6 +9,7 @@ import LanguageChannels from './Modules/LanguageChannels';
 import LivePlayer from './Modules/LivePlayer';
 import MoviesOtt from './Modules/MoviesOtt';
 import Feedback from './Modules/Feedback';
+import Setting from './Modules/Setting';
 import { initializeWebOSEnvironment, preventWebOSDefaults } from './utils/webos';
 
 function App() {
@@ -100,6 +101,16 @@ function App() {
             element={
               isAuthenticated ? (
                 <Feedback />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              isAuthenticated ? (
+                <Setting />
               ) : (
                 <Navigate to="/login" replace />
               )

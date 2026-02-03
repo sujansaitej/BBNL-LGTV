@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getWebOSDeviceID, getWebOSNetworkInfo } from '../../utils/webos';
+import { getWebOSDeviceID, getWebOSNetworkInfo, getWebOSMacAddresses } from '../../utils/webos';
 import { getFormattedDeviceId } from '../../utils/deviceStorage';
 
 /**
@@ -13,6 +13,8 @@ export const useDeviceInformation = () => {
     privateIPv4: null,
     privateIPv6: null,
     deviceId: null,
+    wiredMac: null,
+    wifiMac: null,
     connectionType: null,
     loading: true,
     error: null,
@@ -27,10 +29,11 @@ export const useDeviceInformation = () => {
         const deviceUUID = getFormattedDeviceId();
         
         // Fetch ALL data in PARALLEL (not sequential) - MUCH FASTER
-        const [deviceId, networkInfo, publicIPs] = await Promise.all([
+        const [deviceId, networkInfo, publicIPs, macAddresses] = await Promise.all([
           fetchDeviceIdWithTimeout(5000),  // 5 second timeout
           fetchNetworkInfoWithTimeout(5000),
-          fetchPublicIPWithTimeout(5000)
+          fetchPublicIPWithTimeout(5000),
+          fetchMacAddressesWithTimeout(5000)
         ]);
 
         setDeviceInfo({
@@ -39,6 +42,8 @@ export const useDeviceInformation = () => {
           privateIPv4: networkInfo.ipv4 || 'Not available',
           privateIPv6: networkInfo.ipv6 || 'Not available',
           deviceId: deviceUUID, // Always use the static UUID
+          wiredMac: macAddresses.wiredMac || 'Not available',
+          wifiMac: macAddresses.wifiMac || 'Not available',
           connectionType: networkInfo.connectionType || 'Unknown',
           loading: false,
           error: null,
@@ -51,6 +56,8 @@ export const useDeviceInformation = () => {
           privateIPv4: 'Not available',
           privateIPv6: 'Not available',
           deviceId: getFormattedDeviceId(), // Fallback to UUID
+          wiredMac: 'Not available',
+          wifiMac: 'Not available',
           connectionType: 'Unknown',
           loading: false,
           error: error.message,
@@ -97,6 +104,23 @@ const fetchNetworkInfoWithTimeout = async (timeoutMs) => {
   } catch (err) {
     console.error('[ipaddress.jsx] Network info fetch failed:', err.message);
     return { ipv4: null, ipv6: null, connectionType: 'Unknown' };
+  }
+};
+
+/**
+ * Fetch MAC Addresses with timeout
+ */
+const fetchMacAddressesWithTimeout = async (timeoutMs) => {
+  try {
+    return await Promise.race([
+      getWebOSMacAddresses(),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('MAC address timeout')), timeoutMs)
+      )
+    ]);
+  } catch (err) {
+    console.error('[ipaddress.jsx] MAC address fetch failed:', err.message);
+    return { wiredMac: null, wifiMac: null };
   }
 };
 

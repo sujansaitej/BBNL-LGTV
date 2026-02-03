@@ -324,3 +324,119 @@ export const getWebOSNetworkInfo = () => {
     }
   });
 };
+
+/**
+ * Format MAC Address for consistent display
+ * Ensures MAC address is in uppercase with colons (XX:XX:XX:XX:XX:XX)
+ * 
+ * @param {string} mac - MAC address to format
+ * @returns {string} Formatted MAC address
+ */
+export const formatMacAddress = (mac) => {
+  if (!mac) return null;
+  
+  // Remove any existing separators and convert to uppercase
+  const cleanMac = mac.replace(/[:\s\-]/g, '').toUpperCase();
+  
+  // Check if valid MAC (12 hex characters)
+  if (!/^[A-F0-9]{12}$/.test(cleanMac)) {
+    console.warn('Invalid MAC address format:', mac);
+    return mac; // Return original if invalid
+  }
+  
+  // Format as XX:XX:XX:XX:XX:XX
+  return cleanMac.match(/.{1,2}/g).join(':');
+};
+
+/**
+ * Get LG webOS MAC Addresses (Wired and WiFi)
+ * Official API: luna://com.webos.service.connectionmanager/getStatus
+ * Returns both wired and WiFi MAC addresses
+ * 
+ * @returns {Promise<Object>} MAC addresses object with wiredMac and wifiMac
+ */
+export const getWebOSMacAddresses = () => {
+  const extractMacs = (response) => {
+    const wiredMac = formatMacAddress(
+      response?.wiredInfo?.macAddress ||
+      response?.wired?.macAddress ||
+      response?.wired?.macaddress ||
+      response?.wired?.mac ||
+      response?.wired?.hardwareAddress ||
+      response?.wiredInfo?.hardwareAddress
+    );
+    const wifiMac = formatMacAddress(
+      response?.wifiInfo?.macAddress ||
+      response?.wifi?.macAddress ||
+      response?.wifi?.macaddress ||
+      response?.wifi?.mac ||
+      response?.wifi?.hardwareAddress ||
+      response?.wifiInfo?.hardwareAddress
+    );
+    return { wiredMac, wifiMac };
+  };
+
+  const requestMacFromService = (serviceUri) => new Promise((resolve) => {
+    try {
+      window.webOS.service.request(serviceUri, {
+        method: 'getStatus',
+        parameters: { subscribe: false },
+        onSuccess: (response) => resolve(extractMacs(response)),
+        onFailure: (error) => {
+          console.warn('⚠ MAC address call failed:', serviceUri, error?.errorCode || 'unknown error');
+          resolve({ wiredMac: null, wifiMac: null });
+        }
+      });
+    } catch (error) {
+      console.warn('⚠ MAC address exception:', serviceUri, error.message);
+      resolve({ wiredMac: null, wifiMac: null });
+    }
+  });
+
+  return new Promise(async (resolve) => {
+    if (!isWebOSTV()) {
+      console.warn('⚠ Not on webOS TV');
+      return resolve({ wiredMac: null, wifiMac: null });
+    }
+
+    if (!window.webOS?.service?.request || typeof window.webOS.service.request !== 'function') {
+      console.warn('⚠ Luna service.request not available for MAC addresses');
+      return resolve({ wiredMac: null, wifiMac: null });
+    }
+
+    // Try official service first, then legacy palm service
+    const primary = await requestMacFromService('luna://com.webos.service.connectionmanager');
+    if (primary.wiredMac || primary.wifiMac) {
+      console.log('✓ MAC Addresses (primary) - Wired:', primary.wiredMac, 'WiFi:', primary.wifiMac);
+      return resolve(primary);
+    }
+
+    const fallback = await requestMacFromService('luna://com.palm.connectionmanager');
+    if (fallback.wiredMac || fallback.wifiMac) {
+      console.log('✓ MAC Addresses (fallback) - Wired:', fallback.wiredMac, 'WiFi:', fallback.wifiMac);
+      return resolve(fallback);
+    }
+
+    // If still missing, log a trimmed snapshot to help diagnose field names
+    try {
+      window.webOS.service.request('luna://com.webos.service.connectionmanager', {
+        method: 'getStatus',
+        parameters: { subscribe: false },
+        onSuccess: (resp) => {
+          const snapshot = {
+            wiredInfo: resp?.wiredInfo,
+            wired: resp?.wired,
+            wifiInfo: resp?.wifiInfo,
+            wifi: resp?.wifi,
+          };
+          console.warn('⚠ MAC address not found. Snapshot (trimmed):', JSON.stringify(snapshot, null, 2));
+          resolve({ wiredMac: null, wifiMac: null });
+        },
+        onFailure: () => resolve({ wiredMac: null, wifiMac: null })
+      });
+    } catch {
+      resolve({ wiredMac: null, wifiMac: null });
+    }
+  });
+};
+
