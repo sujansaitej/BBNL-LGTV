@@ -74,15 +74,16 @@ const HomeAds = (props) => {
       <Box
         sx={{
           width: "100%",
-          height: 400,
-          borderRadius: "24px",
+          height: 540,
+          borderRadius: "28px",
           background: "#0a0a0a",
           mb: 6,
           display: "flex",
           justifyContent: "center",
           alignItems: "center",
           color: "#8bdcff",
-          fontSize: "16px",
+          fontSize: "20px",
+          fontWeight: 600,
         }}
       >
         Loading ads...
@@ -95,14 +96,15 @@ const HomeAds = (props) => {
       <Box
         sx={{
           width: "100%",
-          height: 400,
-          borderRadius: "24px",
+          height: 540,
+          borderRadius: "28px",
           background: "#0a0a0a",
           mb: 6,
           display: "flex",
           justifyContent: "center",
           alignItems: "center",
           color: "#aaa",
+          fontSize: "18px",
         }}
       >
         {error}
@@ -114,12 +116,13 @@ const HomeAds = (props) => {
     <Box
       sx={{
         width: "100%",
-        height: 430,
-        borderRadius: "24px",
+        height: 540,
+        borderRadius: "28px",
         overflow: "hidden",
         background: "#0a0a0a",
         mb: 6,
         position: "relative",
+        display: "block",
       }}
     >
       {ads.map((url, index) => (
@@ -133,6 +136,9 @@ const HomeAds = (props) => {
             opacity: index === activeIndex ? 1 : 0,
             transition: "opacity 0.8s ease-in-out",
             zIndex: index === activeIndex ? 1 : 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
           }}
         >
           <img
@@ -142,7 +148,10 @@ const HomeAds = (props) => {
               width: "100%",
               height: "100%",
               objectFit: "cover",
+              objectPosition: "center",
               display: "block",
+              margin: 0,
+              padding: 0,
             }}
           />
         </Box>

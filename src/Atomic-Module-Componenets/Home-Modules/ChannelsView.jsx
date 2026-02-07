@@ -106,39 +106,36 @@ const ChannelsView = () => {
 									<Box
 										sx={{
 											width: "240px",
-											height: "140px",
+											height: "195px",
 											overflow: "hidden",
 											borderRadius: "14px",
+											position: "relative",
+											background: "#111",
+											backgroundImage: `url(${lang.langlogo})`,
+											backgroundSize: "cover",
+											backgroundPosition: "center",
+											backgroundRepeat: "no-repeat",
 										}}
 									>
-										<img
+										<Box
+											component="img"
 											src={lang.langlogo}
 											alt={lang.langtitle}
-											style={{
+											sx={{
+												position: "absolute",
+												inset: 0,
 												width: "100%",
 												height: "100%",
-												objectFit: "cover",
-												display: "block",
+												opacity: 0,
+												pointerEvents: "none",
 											}}
 											onError={(e) => {
-												e.target.style.display = "none";
+												e.currentTarget.style.display = "none";
+												e.currentTarget.parentElement.style.backgroundImage = "none";
 											}}
 										/>
 									</Box>
 								)}
-
-								{/* Language Title */}
-								<Typography
-									sx={{
-										fontSize: 14,
-										fontWeight: 600,
-										color: "#fff",
-										textAlign: "center",
-										mt: 1,
-									}}
-								>
-									{lang.langtitle}
-								</Typography>
 							</Box>
 						))
 					)}

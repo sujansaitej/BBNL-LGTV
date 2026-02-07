@@ -1,7 +1,7 @@
 import { Box } from "@mui/material";
 
 import Header from "../Atomic-Common-Componenets/Headerbar";
-import OttViews from "../Atomic-Module-Componenets/Home-Modules/OttViews";
+// import OttViews from "../Atomic-Module-Componenets/Home-Modules/OttViews";
 import ChannelsView from "../Atomic-Module-Componenets/Home-Modules/ChannelsView";
 import HomeAds from "../Atomic-Module-Componenets/Home-Modules/HomeAds";
 import SidebarGlass from "./HomeSidebar";
@@ -49,7 +49,7 @@ const Home = () => {
           <Box sx={{ mt: "2rem" }}>
             <HomeAds/>
           </Box>
-          <OttViews />
+          {/* <OttViews /> */}
           <ChannelsView />
         </Box>
       </Box>
