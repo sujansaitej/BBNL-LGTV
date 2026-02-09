@@ -1,7 +1,7 @@
 import PropTypes from "prop-types";
 import { Box, Typography } from "@mui/material";
 
-const ChannelBox = ({ logo, name, subscribed, onClick, focused }) => (
+const ChannelBox = ({ logo, name, channelNo, onClick, focused }) => (
   <Box>
     <Box
       sx={{
@@ -25,24 +25,6 @@ const ChannelBox = ({ logo, name, subscribed, onClick, focused }) => (
       tabIndex={onClick ? 0 : undefined}
       onClick={onClick}
     >
-      {subscribed === "yes" && (
-        <Box
-          sx={{
-            position: "absolute",
-            top: 10,
-            right: 10,
-            background: "red",
-            color: "#fff",
-            fontSize: 13,
-            fontWeight: 600,
-            px: 2,
-            py: 0.5,
-            borderRadius: "14px",
-          }}
-        >
-          Live
-        </Box>
-      )}
 
       <img
         src={logo}
@@ -55,25 +37,50 @@ const ChannelBox = ({ logo, name, subscribed, onClick, focused }) => (
       />
     </Box>
 
-    <Typography
+    <Box
       sx={{
-        color: "#fff",
-        fontSize: 20,
-        fontWeight: 600,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
         mt: 2,
-        lineHeight: 1.3,
-        letterSpacing: "0.3px",
-        textRendering: "optimizeLegibility",
+        gap: 0.5,
       }}
     >
-      {name}
-    </Typography>
+      <Typography
+        sx={{
+          color: "#fff",
+          fontSize: 20,
+          fontWeight: 600,
+          lineHeight: 1.3,
+          letterSpacing: "0.3px",
+          textRendering: "optimizeLegibility",
+          flex: 1,
+        }}
+      >
+        {name}
+      </Typography>
+      {channelNo && (
+        <Typography
+          sx={{
+            color: "rgba(255, 255, 255, 0.75)",
+            fontSize: 18,
+            fontWeight: 600,
+            letterSpacing: "0.2px",
+            minWidth: 36,
+            textAlign: "right",
+          }}
+        >
+          {channelNo}
+        </Typography>
+      )}
+    </Box>
   </Box>
 );
 
 ChannelBox.propTypes = {
   logo: PropTypes.string,
   name: PropTypes.string,
+  channelNo: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
   subscribed: PropTypes.string,
   onClick: PropTypes.func,
   focused: PropTypes.bool,
