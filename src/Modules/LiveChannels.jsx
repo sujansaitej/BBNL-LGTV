@@ -1,8 +1,7 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Subject, debounceTime, distinctUntilChanged } from "rxjs";
 
-import { Box, Typography, ButtonBase, Button, InputAdornment, IconButton } from "@mui/material";
+import { Box, Typography, ButtonBase, Button, InputAdornment, IconButton, Skeleton } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import ClearIcon from "@mui/icons-material/Clear";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
@@ -17,17 +16,67 @@ const LiveChannels = () => {
   const navigate = useNavigate();
   const [categories, setCategories] = useState([]);
   const [channels, setChannels] = useState([]);
-  const [filteredChannels, setFilteredChannels] = useState([]);
   const [activeFilter, setActiveFilter] = useState("All Channels");
   const [error, setError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
-  
-  // RxJS Subject for search
-  const searchSubject = useRef(new Subject());
+  const [isLoading, setIsLoading] = useState(false);
+  const [totalChannelsCount, setTotalChannelsCount] = useState(0);
+  const lastAutoPlayKey = useRef("");
 
-  // Calculate columns based on grid
-  const columnsCount = 6; // Adjust based on your grid layout
+  // Calculate columns dynamically based on viewport width
+  const getColumnsCount = () => {
+    const width = window.innerWidth;
+    const cardWidth = 280;
+    const gap = 32; // 8 units = 8 * 4px = 32px
+    const padding = 40; // 5 units padding on each side
+    const availableWidth = width - padding * 2;
+    return Math.max(3, Math.floor(availableWidth / (cardWidth + gap)));
+  };
+
+  const [columnsCount, setColumnsCount] = useState(getColumnsCount());
+
+  // Handle window resize for responsive columns
+  useEffect(() => {
+    const handleResize = () => {
+      setColumnsCount(getColumnsCount());
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  // ================= SEARCH + FILTER =================
+  const filteredChannels = useMemo(() => {
+    const term = searchTerm.toLowerCase().trim();
+    const isNumericTerm = term !== "" && /^\d+$/.test(term);
+
+    // Filter based on active category first
+    let baseChannels = channels;
+    if (activeFilter !== "All Channels") {
+      if (activeFilter === "Subscribed Channels") {
+        baseChannels = channels.filter((c) => c.subscribed === "yes");
+      } else {
+        const selectedCategory = categories.find((cat) => cat.title === activeFilter);
+        if (selectedCategory) {
+          baseChannels = channels.filter((c) => c.grid === selectedCategory.grid);
+        }
+      }
+    }
+
+    if (!term) {
+      return baseChannels;
+    }
+
+    // Search in channelno and chtitle
+    return baseChannels.filter((channel) => {
+      const channelNo = (channel.channelno || "").toString().toLowerCase();
+      const channelTitle = (channel.chtitle || "").toLowerCase();
+      if (isNumericTerm) {
+        return channelNo === term;
+      }
+      return channelTitle.includes(term) || channelNo.includes(term);
+    });
+  }, [activeFilter, categories, channels, searchTerm]);
 
   // Use grid navigation for channel cards
   const { focusedIndex, getItemProps: getChannelProps } = useGridNavigation(
@@ -72,64 +121,15 @@ const LiveChannels = () => {
     ...DEFAULT_HEADERS,
   };
 
-  // ================= RXJS SEARCH SETUP =================
-  useEffect(() => {
-    const subscription = searchSubject.current
-      .pipe(
-        debounceTime(300), // Wait 300ms after user stops typing
-        distinctUntilChanged() // Only emit if value changed
-      )
-      .subscribe((searchValue) => {
-        performSearch(searchValue);
-      });
-
-    return () => subscription.unsubscribe();
-  }, [channels, activeFilter]);
-
-  // ================= SEARCH FUNCTION =================
-  const performSearch = (searchValue) => {
-    const term = searchValue.toLowerCase().trim();
-    
-    if (!term) {
-      // If search is empty, apply current filter
-      applyFilter(activeFilter);
-      return;
-    }
-
-    // Filter based on active category first
-    let baseChannels = channels;
-    if (activeFilter !== "All Channels") {
-      if (activeFilter === "Subscribed Channels") {
-        baseChannels = channels.filter((c) => c.subscribed === "yes");
-      } else {
-        const selectedCategory = categories.find(cat => cat.title === activeFilter);
-        if (selectedCategory) {
-          baseChannels = channels.filter((c) => c.grid === selectedCategory.grid);
-        }
-      }
-    }
-
-    // Search in channelno and chtitle
-    const results = baseChannels.filter((channel) => {
-      const channelNo = (channel.channelno || "").toString().toLowerCase();
-      const channelTitle = (channel.chtitle || "").toLowerCase();
-      return channelNo.includes(term) || channelTitle.includes(term);
-    });
-
-    setFilteredChannels(results);
-  };
-
   // Handle search input change
   const handleSearchChange = (event) => {
     const value = event.target.value;
     setSearchTerm(value);
-    searchSubject.current.next(value);
   };
 
   // Clear search
   const handleClearSearch = () => {
     setSearchTerm("");
-    searchSubject.current.next("");
   };
 
 
@@ -146,11 +146,14 @@ const LiveChannels = () => {
   // ================= FETCH CHANNELS =================
   const handleFetchChannels = async () => {
     try {
+      setIsLoading(true);
       const apiChannels = await fetchChannels(payloadBase, headers, setError);
       setChannels(apiChannels);
-      setFilteredChannels(apiChannels);
+      setTotalChannelsCount(Array.isArray(apiChannels) ? apiChannels.length : 0);
     } catch (err) {
       setError("Failed to load channels - Network error or invalid credentials.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -165,28 +168,30 @@ const LiveChannels = () => {
   }, [mobile]);
 
   // ================= FILTER HANDLER =================
-  const applyFilter = (filterTitle) => {
-    if (filterTitle === "All Channels") {
-      setFilteredChannels(channels);
-      return;
-    }
-
-    if (filterTitle === "Subscribed Channels") {
-      setFilteredChannels(channels.filter((c) => c.subscribed === "yes"));
-      return;
-    }
-
-    const selectedCategory = categories.find(cat => cat.title === filterTitle);
-    if (selectedCategory) {
-      setFilteredChannels(channels.filter((c) => c.grid === selectedCategory.grid));
-    }
-  };
-
   const handleFilter = (cat) => {
     setActiveFilter(cat.title);
     setSearchTerm(""); // Clear search when changing category
-    applyFilter(cat.title);
   };
+
+  // Auto-play when the search matches a single channel
+  useEffect(() => {
+    const term = searchTerm.toLowerCase().trim();
+    if (!term || filteredChannels.length !== 1) {
+      lastAutoPlayKey.current = "";
+      return;
+    }
+
+    const match = filteredChannels[0];
+    const title = (match.chtitle || "").toLowerCase();
+    const channelNo = (match.channelno || "").toString().toLowerCase();
+    const isExactMatch = term === title || term === channelNo;
+    const autoPlayKey = `${match.channelno || ""}-${match.chtitle || ""}`;
+
+    if (isExactMatch && lastAutoPlayKey.current !== autoPlayKey) {
+      lastAutoPlayKey.current = autoPlayKey;
+      handleChannelSelect(match);
+    }
+  }, [filteredChannels, searchTerm]);
 
   // Handle channel selection
   const handleChannelSelect = (ch) => {
@@ -431,33 +436,41 @@ const LiveChannels = () => {
       <Box
         sx={{
           display: "grid",
-          gridTemplateColumns: "repeat(5, 280px)",
+          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
           gap: 8,
           pb: 5,
           alignContent: "start",
           justifyContent: "start",
+          width: "100%",
         }}
       >
-        {filteredChannels.length === 0 ? (
-          <Typography sx={{ color: "#888" }}>
-            No channels available
-          </Typography>
-        ) : (
-          filteredChannels.map((ch, i) => {
-            const channelProps = !isSearchFocused ? getChannelProps(i) : {};
-            return (
-              <Box key={i} {...channelProps}>
-                <ChannelBox
-                  logo={ch.chlogo}
-                  name={ch.chtitle}
-                  subscribed={ch.subscribed}
-                  focused={channelProps["data-focused"] && !isSearchFocused}
-                  onClick={() => handleChannelSelect(ch)}
+        {isLoading
+          ? Array.from({ length: totalChannelsCount || 80 }).map((_, i) => (
+              <Box key={`skeleton-${i}`}>
+                <Skeleton
+                  variant="rectangular"
+                  width={280}
+                  height={160}
+                  sx={{ borderRadius: "18px", mb: 2, bgcolor: "rgba(255, 255, 255, 0.57)" }}
                 />
+                <Skeleton width="70%" height={24} sx={{ bgcolor: "rgba(255, 255, 255, 0.6)" }} />
               </Box>
-            );
-          })
-        )}
+            ))
+          : filteredChannels.map((ch, i) => {
+              const channelProps = !isSearchFocused ? getChannelProps(i) : {};
+              return (
+                <Box key={i} {...channelProps}>
+                  <ChannelBox
+                    logo={ch.chlogo}
+                    name={ch.chtitle}
+                    channelNo={ch.channelno}
+                    subscribed={ch.subscribed}
+                    focused={channelProps["data-focused"] && !isSearchFocused}
+                    onClick={() => handleChannelSelect(ch)}
+                  />
+                </Box>
+              );
+            })}
       </Box>
     </Box>
   );
