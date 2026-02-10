@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { Box, Typography, ButtonBase, Button, InputAdornment, IconButton, Skeleton } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
@@ -11,13 +11,17 @@ import { DEFAULT_USER } from "../Api/config";
 import SearchTextField from "../Atomic-Reusable-Componenets/Search";
 import ChannelBox from "../Atomic-Reusable-Componenets/ChannelBox";
 import useLiveChannelsStore from "../Global-storage/LiveChannelsStore";
+import useLanguageStore from "../Global-storage/LivePlayersStore";
 
 const LiveChannels = () => {
+  const location = useLocation();
   const navigate = useNavigate();
   const [activeFilter, setActiveFilter] = useState("All Channels");
   const [authError, setAuthError] = useState("");
   const [localError, setLocalError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
+  const [selectedLanguageId, setSelectedLanguageId] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const {
     categories,
@@ -27,6 +31,7 @@ const LiveChannels = () => {
     fetchChannels,
     clearError,
   } = useLiveChannelsStore();
+  const { languagesCache, fetchLanguages } = useLanguageStore();
   const lastAutoPlayKey = useRef("");
 
   // Get userid + mobile (safe for environments without localStorage)
@@ -35,6 +40,10 @@ const LiveChannels = () => {
   const channelsKey = `${userid}|${mobile}|`;
   const channelsEntry = channelsCache[channelsKey] || {};
   const channels = channelsEntry.data || [];
+
+  const langKey = `${userid}|${mobile}`;
+  const langEntry = languagesCache[langKey] || {};
+  const languages = langEntry.data || [];
 
   // Calculate columns dynamically based on viewport width
   const getColumnsCount = () => {
@@ -57,12 +66,71 @@ const LiveChannels = () => {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  useEffect(() => {
+    const state = location.state || {};
+    if (state.filterByLanguage !== undefined && state.filterByLanguage !== null) {
+      setSelectedLanguageId(String(state.filterByLanguage));
+      setActiveFilter("Language");
+      setSearchTerm("");
+      return;
+    }
+
+    if (state.filter) {
+      setSelectedLanguageId("");
+      setActiveFilter(state.filter);
+      setSearchTerm("");
+    }
+  }, [location.state]);
+
+  useEffect(() => {
+    if (!mobile) return;
+    if (!selectedLanguageId) return;
+    if (languages.length > 0 || langEntry.isLoading) return;
+    fetchLanguages(payloadBase, { key: langKey });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mobile, selectedLanguageId]);
+
   // ================= SEARCH + FILTER =================
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 1500);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm]);
+
   const filteredChannels = useMemo(() => {
-    const term = searchTerm.toLowerCase().trim();
+    const term = debouncedSearchTerm.toLowerCase().trim();
     const isNumericTerm = term !== "" && /^\d+$/.test(term);
 
-    // Filter based on active category first
+    const selectedLanguage = languages.find(
+      (lang) => String(lang.langid) === String(selectedLanguageId)
+    );
+    const selectedLanguageTitle = (selectedLanguage?.langtitle || "").toLowerCase();
+
+    const matchesLanguage = (channel) => {
+      if (!selectedLanguageId && !selectedLanguageTitle) return true;
+      const langIdValue =
+        channel.langid ||
+        channel.lang_id ||
+        channel.languageid ||
+        channel.language_id ||
+        channel.lang;
+      const langTitleValue =
+        channel.langtitle ||
+        channel.langname ||
+        channel.language ||
+        channel.language_name;
+
+      if (langIdValue && String(langIdValue) === String(selectedLanguageId)) {
+        return true;
+      }
+      if (langTitleValue && selectedLanguageTitle) {
+        return String(langTitleValue).toLowerCase().includes(selectedLanguageTitle);
+      }
+      return false;
+    };
+
     let baseChannels = channels;
     if (activeFilter !== "All Channels") {
       if (activeFilter === "Subscribed Channels") {
@@ -73,6 +141,10 @@ const LiveChannels = () => {
           baseChannels = channels.filter((c) => c.grid === selectedCategory.grid);
         }
       }
+    }
+
+    if (selectedLanguageId) {
+      baseChannels = baseChannels.filter(matchesLanguage);
     }
 
     if (!term) {
@@ -88,7 +160,7 @@ const LiveChannels = () => {
       }
       return channelTitle.includes(term) || channelNo.includes(term);
     });
-  }, [activeFilter, categories, channels, searchTerm]);
+  }, [activeFilter, categories, channels, debouncedSearchTerm, languages, selectedLanguageId]);
 
   // Use grid navigation for channel cards
   const { focusedIndex, getItemProps: getChannelProps } = useGridNavigation(
@@ -174,7 +246,7 @@ const LiveChannels = () => {
       lastAutoPlayKey.current = autoPlayKey;
       handleChannelSelect(match);
     }
-  }, [filteredChannels, searchTerm]);
+  }, [filteredChannels, debouncedSearchTerm]);
 
   // Handle channel selection
   const handleChannelSelect = (ch) => {
