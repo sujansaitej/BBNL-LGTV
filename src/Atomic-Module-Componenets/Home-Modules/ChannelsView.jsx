@@ -1,14 +1,12 @@
 import { useEffect, useState } from "react";
 import { Box, Typography } from "@mui/material";
 import { useNavigate } from "react-router-dom";
-import { fetchLanguages } from "../../Api/modules-api/LanguageChannelsApi";
-import { DEFAULT_HEADERS, DEFAULT_USER } from "../../Api/config";
+import { DEFAULT_USER } from "../../Api/config";
+import useLanguageStore from "../../Global-storage/LivePlayersStore";
 
 const ChannelsView = () => {
 	const navigate = useNavigate();
-	const [languages, setLanguages] = useState([]);
-	const [loading, setLoading] = useState(false);
-	const [error, setError] = useState("");
+	const { languagesCache, error, fetchLanguages } = useLanguageStore();
 
 	// Get userid + mobile
 	const userid = localStorage.getItem("userId") || DEFAULT_USER.userid;
@@ -19,32 +17,19 @@ const ChannelsView = () => {
 		mobile,
 	};
 
-	const headers = {
-		...DEFAULT_HEADERS,
-	};
-
 	// ================= FETCH LANGUAGES =================
-	const handleFetchLanguages = async () => {
-		try {
-			setLoading(true);
-			const languagesData = await fetchLanguages(payloadBase, headers);
-			setLanguages(languagesData || []);
-		} catch (err) {
-			setError("Failed to load languages");
-			console.error(err);
-		} finally {
-			setLoading(false);
-		}
-	};
-
 	useEffect(() => {
 		if (!mobile) {
-			setError("NO_LOGIN");
 			return;
 		}
-		handleFetchLanguages();
+		fetchLanguages(payloadBase);
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [mobile]);
+
+	const langKey = `${userid}|${mobile}`;
+	const langEntry = languagesCache[langKey] || {};
+	const languages = langEntry.data || [];
+	const loading = langEntry.isLoading;
 
 	// Handle language card click
 	const handleLanguageClick = (langid) => {

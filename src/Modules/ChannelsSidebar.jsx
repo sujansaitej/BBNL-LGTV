@@ -2,14 +2,15 @@ import { useState, useEffect, useMemo } from "react";
 import { Box, Typography, InputBase, List, ListItemButton, Avatar, Tabs, Tab,} from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import { useRemoteNavigation } from "../Atomic-Common-Componenets/useRemoteNavigation";
-import { fetchChannels, fetchCategories } from "../Api/modules-api/ChannelApi";
-import { DEFAULT_HEADERS, DEFAULT_USER } from "../Api/config";
+import { DEFAULT_USER } from "../Api/config";
+import useLiveChannelsStore from "../Global-storage/LiveChannelsStore";
 
 const ChannelsSidebar = ({ onChannelSelect, currentChannel }) => {
   const [channels, setChannels] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const { categories: cachedCategories, channelsCache, fetchCategories, fetchChannels } = useLiveChannelsStore();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState(0);
 
@@ -24,15 +25,14 @@ const ChannelsSidebar = ({ onChannelSelect, currentChannel }) => {
     mac: "26:F2:AE:D8:3F:99",
   };
 
-  const headers = {
-    ...DEFAULT_HEADERS,
-  };
-
   // Fetch categories on mount
   useEffect(() => {
     const loadCategories = async () => {
       try {
-        const cats = await fetchCategories(payloadBase, headers);
+        if (cachedCategories.length > 0) {
+          setCategories([{ title: "All", grid: "" }, ...cachedCategories]);
+        }
+        const cats = await fetchCategories(payloadBase);
         setCategories([{ title: "All", grid: "" }, ...cats]);
       } catch (err) {
         console.error("Failed to fetch categories:", err);
@@ -53,7 +53,12 @@ const ChannelsSidebar = ({ onChannelSelect, currentChannel }) => {
           ...payloadBase,
           grid: currentGrid,
         };
-        const channelsData = await fetchChannels(payload, headers, setError);
+        const key = `${userid}|${mobile}|${currentGrid}`;
+        const cached = channelsCache[key]?.data;
+        if (cached) {
+          setChannels(cached || []);
+        }
+        const channelsData = await fetchChannels(payload, { key });
         setChannels(channelsData || []);
       } catch (err) {
         setError("Failed to load channels");
