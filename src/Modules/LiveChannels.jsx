@@ -6,23 +6,35 @@ import SearchIcon from "@mui/icons-material/Search";
 import ClearIcon from "@mui/icons-material/Clear";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 
-import { fetchCategories, fetchChannels } from "../Api/modules-api/ChannelApi";
 import { useGridNavigation, useInputFocusHandler, useRemoteNavigation } from "../Atomic-Common-Componenets/useRemoteNavigation";
-import { DEFAULT_HEADERS, DEFAULT_USER } from "../Api/config";
+import { DEFAULT_USER } from "../Api/config";
 import SearchTextField from "../Atomic-Reusable-Componenets/Search";
 import ChannelBox from "../Atomic-Reusable-Componenets/ChannelBox";
+import useLiveChannelsStore from "../Global-storage/LiveChannelsStore";
 
 const LiveChannels = () => {
   const navigate = useNavigate();
-  const [categories, setCategories] = useState([]);
-  const [channels, setChannels] = useState([]);
   const [activeFilter, setActiveFilter] = useState("All Channels");
-  const [error, setError] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [localError, setLocalError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [totalChannelsCount, setTotalChannelsCount] = useState(0);
+  const {
+    categories,
+    channelsCache,
+    error,
+    fetchCategories,
+    fetchChannels,
+    clearError,
+  } = useLiveChannelsStore();
   const lastAutoPlayKey = useRef("");
+
+  // Get userid + mobile (safe for environments without localStorage)
+  const userid = localStorage.getItem("userId") || DEFAULT_USER.userid;
+  const mobile = localStorage.getItem("userPhone") || "";
+  const channelsKey = `${userid}|${mobile}|`;
+  const channelsEntry = channelsCache[channelsKey] || {};
+  const channels = channelsEntry.data || [];
 
   // Calculate columns dynamically based on viewport width
   const getColumnsCount = () => {
@@ -108,17 +120,9 @@ const LiveChannels = () => {
   // Handle input focus to prevent scroll issues
   useInputFocusHandler();
 
-  // Get userid + mobile (safe for environments without localStorage)
-  const userid = localStorage.getItem("userId") || DEFAULT_USER.userid;
-  const mobile = localStorage.getItem("userPhone") || "";
-
   const payloadBase = {
     userid,
     mobile,
-  };
-
-  const headers = {
-    ...DEFAULT_HEADERS,
   };
 
   // Handle search input change
@@ -133,37 +137,15 @@ const LiveChannels = () => {
   };
 
 
-  // ================= FETCH CATEGORIES =================
-  const handleFetchCategories = async () => {
-    try {
-      const formatted = await fetchCategories(payloadBase, headers);
-      setCategories(formatted);
-    } catch (err) {
-      setError("Failed to load categories");
-    }
-  };
-
-  // ================= FETCH CHANNELS =================
-  const handleFetchChannels = async () => {
-    try {
-      setIsLoading(true);
-      const apiChannels = await fetchChannels(payloadBase, headers, setError);
-      setChannels(apiChannels);
-      setTotalChannelsCount(Array.isArray(apiChannels) ? apiChannels.length : 0);
-    } catch (err) {
-      setError("Failed to load channels - Network error or invalid credentials.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   useEffect(() => {
     if (!mobile) {
-      setError("NO_LOGIN");
+      setAuthError("NO_LOGIN");
       return;
     }
-    handleFetchCategories();
-    handleFetchChannels();
+    setAuthError("");
+    clearError();
+    fetchCategories(payloadBase);
+    fetchChannels(payloadBase, { key: channelsKey });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mobile]);
 
@@ -171,6 +153,7 @@ const LiveChannels = () => {
   const handleFilter = (cat) => {
     setActiveFilter(cat.title);
     setSearchTerm(""); // Clear search when changing category
+    setLocalError("");
   };
 
   // Auto-play when the search matches a single channel
@@ -203,14 +186,14 @@ const LiveChannels = () => {
     if (streamUrl) {
       navigate("/player", { state: { streamlink: streamUrl, title: ch.chtitle, channelData: ch } });
     } else {
-      setError(`No stream URL found for channel: ${ch.chtitle}`);
+      setLocalError(`No stream URL found for channel: ${ch.chtitle}`);
     }
   };
 
   // ================= CHANNEL CARD =================
 
   // Show login required message
-  if (error === "NO_LOGIN") {
+  if (authError === "NO_LOGIN") {
     return (
       <Box
         sx={{
@@ -350,7 +333,7 @@ const LiveChannels = () => {
       </Box>
 
       {/* ================= ERROR BOX ================= */}
-      {error && error !== "NO_LOGIN" && (
+      {(localError || error) && authError !== "NO_LOGIN" && (
         <Box
           sx={{
             mb: 3,
@@ -361,7 +344,7 @@ const LiveChannels = () => {
             color: "#ff9a9a",
           }}
         >
-          {error}
+          {localError || error}
         </Box>
       )}
 
@@ -444,8 +427,8 @@ const LiveChannels = () => {
           width: "100%",
         }}
       >
-        {isLoading
-          ? Array.from({ length: totalChannelsCount || 80 }).map((_, i) => (
+        {channelsEntry.isLoading
+          ? Array.from({ length: channelsEntry.count || 100}).map((_, i) => (
               <Box key={`skeleton-${i}`}>
                 <Skeleton
                   variant="rectangular"

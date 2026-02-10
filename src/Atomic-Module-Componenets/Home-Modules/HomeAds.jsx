@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Box } from "@mui/material";
-import { fetchIptvAds } from "../../Api/modules-api/HomeAdsApi";
+import useHomeAdsStore from "../../Global-storage/ChannelsSearchStore";
 
 const HomeAds = (props) => {
   const {
@@ -13,10 +13,13 @@ const HomeAds = (props) => {
 
   const userid = (props && props.userid) ?? localStorage.getItem("userId") ?? "testiser1";
   const mobile = (props && props.mobile) ?? localStorage.getItem("userPhone") ?? "";
-  const [ads, setAds] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const { adsCache, error, fetchAds } = useHomeAdsStore();
   const [activeIndex, setActiveIndex] = useState(0);
+
+  const adsKey = `${userid}|${mobile}|${displayarea}|${displaytype}|${adclient}|${srctype}`;
+  const adsEntry = adsCache[adsKey] || {};
+  const ads = adsEntry.data || [];
+  const loading = adsEntry.isLoading;
 
   // Auto-scroll effect
   useEffect(() => {
@@ -30,44 +33,20 @@ const HomeAds = (props) => {
   }, [ads.length]);
 
   useEffect(() => {
-    const controller = new AbortController();
-    let cancelled = false;
-    setLoading(true);
-    setError("");
-
-    if (!mobile) {
-      setError("Mobile number required. Please login again");
-      setLoading(false);
-      return;
-    }
-
-    const attempt = async (preferFormAttempt) => {
-      try {
-        const urls = await fetchIptvAds({
-          userid,
-          mobile,
-          adclient,
-          srctype,
-          displayarea,
-          displaytype,
-          signal: controller.signal,
-          preferForm: preferFormAttempt,
-        });
-
-        if (!cancelled) setAds(urls);
-      } catch {
-        if (!cancelled) setError("Failed to load ads");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-
-    attempt(preferForm);
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, []);
+    if (!mobile) return;
+    fetchAds(
+      {
+        userid,
+        mobile,
+        adclient,
+        srctype,
+        displayarea,
+        displaytype,
+      },
+      { preferForm }
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mobile, adclient, srctype, displayarea, displaytype, preferForm]);
 
   if (loading) {
     return (

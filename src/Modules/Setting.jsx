@@ -4,16 +4,16 @@ import { useNavigate } from "react-router-dom";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import InfoIcon from "@mui/icons-material/Info";
 import { useRemoteNavigation } from "../Atomic-Common-Componenets/useRemoteNavigation";
-import { fetchAppVersion } from "../Api/modules-api/AppdetailsApi";
 import { useDeviceInformation } from "../Api/Deviceinformaction/LG-Devicesinformaction";
-import { DEFAULT_HEADERS, DEFAULT_USER } from "../Api/config";
+import { DEFAULT_USER } from "../Api/config";
+import useAppVersionStore from "../Global-storage/LogineOttp";
 
 const Setting = () => {
   const navigate = useNavigate();
   const [currentPage, setCurrentPage] = useState("about");
 
   const [appVersionData, setAppVersionData] = useState(null);
-  const [loadingAppVersion, setLoadingAppVersion] = useState(false);
+  const { versionCache, fetchAppVersion } = useAppVersionStore();
   
   // Get device information
   const deviceInfo = useDeviceInformation();
@@ -37,7 +37,6 @@ const Setting = () => {
   useEffect(() => {
     const loadAppVersion = async () => {
       try {
-        setLoadingAppVersion(true);
         const userid = localStorage.getItem("userId") || DEFAULT_USER.userid;
         const mobile = localStorage.getItem("userPhone") || DEFAULT_USER.mobile;
         
@@ -51,12 +50,17 @@ const Setting = () => {
           app_package: "com.fofi.fofiboxtv",
         };
         
-        const versionData = await fetchAppVersion(payload, DEFAULT_HEADERS);
-        setAppVersionData(versionData);
+        const key = `${userid}|${mobile}|${payload.app_package}`;
+        const cached = versionCache[key]?.data;
+        if (cached) {
+          setAppVersionData(cached);
+        }
+        const versionData = await fetchAppVersion(payload);
+        if (versionData) {
+          setAppVersionData(versionData);
+        }
       } catch (error) {
         console.error("Failed to fetch app version:", error);
-      } finally {
-        setLoadingAppVersion(false);
       }
     };
 
@@ -213,7 +217,7 @@ const Setting = () => {
               >
                 Software Version
               </Typography>
-              {loadingAppVersion ? (
+              {versionCache?.[`${localStorage.getItem("userId") || DEFAULT_USER.userid}|${localStorage.getItem("userPhone") || DEFAULT_USER.mobile}|com.fofi.fofiboxtv`]?.isLoading ? (
                 <CircularProgress size={24} sx={{ color: "#fff" }} />
               ) : (
                 <Typography sx={{ fontSize: 22, fontWeight: 600, letterSpacing: "0.3px" }}>

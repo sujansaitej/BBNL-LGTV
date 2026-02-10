@@ -5,16 +5,16 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import StarIcon from "@mui/icons-material/Star";
 import StarBorderIcon from "@mui/icons-material/StarBorder";
 
-import { submitFeedback } from "../Api/modules-api/FeedBackApi";
-import { DEFAULT_HEADERS, DEFAULT_USER } from "../Api/config";
+import { DEFAULT_USER } from "../Api/config";
+import useFeedbackStore from "../Global-storage/FeedbackStore";
 
 const Feedback = () => {
   const navigate = useNavigate();
   const [rating, setRating] = useState(0);
   const [feedback, setFeedback] = useState("");
-  const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [error, setError] = useState("");
+  const { isSubmitting, submitFeedback } = useFeedbackStore();
 
   // Get device info
   const userid = localStorage.getItem("userId") || DEFAULT_USER.userid;
@@ -32,7 +32,6 @@ const Feedback = () => {
     }
 
     try {
-      setLoading(true);
       setError("");
 
       const payload = {
@@ -45,10 +44,10 @@ const Feedback = () => {
         device_type: "FOFI",
       };
 
-      const response = await submitFeedback(payload, DEFAULT_HEADERS);
+      const response = await submitFeedback(payload);
 
-      if (response.status.err_code === 0) {
-        setSuccessMessage(response.status.err_msg);
+      if (response.success) {
+        setSuccessMessage(response.data?.status?.err_msg || "Feedback submitted");
         // Clear form
         setRating(0);
         setFeedback("");
@@ -58,13 +57,11 @@ const Feedback = () => {
           navigate(-1);
         }, 3000);
       } else {
-        setError(response.status.err_msg || "Failed to submit feedback");
+        setError(response.message || "Failed to submit feedback");
       }
     } catch (err) {
       setError("Failed to submit feedback. Please try again.");
       console.error(err);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -260,7 +257,7 @@ const Feedback = () => {
           <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 3 }}>
             <Button
               onClick={handleCancel}
-              disabled={loading}
+              disabled={isSubmitting}
               sx={{
                 px: 5,
                 py: 2,
@@ -281,7 +278,7 @@ const Feedback = () => {
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={loading}
+              disabled={isSubmitting}
               sx={{
                 px: 5,
                 py: 2,
@@ -302,7 +299,7 @@ const Feedback = () => {
                 },
               }}
             >
-              {loading ? "Submitting..." : "Submit"}
+              {isSubmitting ? "Submitting..." : "Submit"}
             </Button>
           </Box>
         </Box>

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import {  Box,  Paper, Typography, Button, TextField,} from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import NetworkErrorNotification from "../Atomic-ErrorThrow-Componenets/NetworkError";
-import { sendOtp, verifyOtp, resendOtp } from "../Api/OAuthentication-Api/LoginOtpApi";
+import useAuthStore from "../Global-storage/AuthStore";
 import { useInputFocusHandler } from "../Atomic-Common-Componenets/useRemoteNavigation";
 import SearchTextField from "../Atomic-Reusable-Componenets/Search";
 import { useDeviceInformation } from "../Api/Deviceinformaction/LG-Devicesinformaction";
@@ -14,6 +14,7 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
+  const { sendOtp, verifyOtp, resendOtp } = useAuthStore();
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [networkError, setNetworkError] = useState(false);

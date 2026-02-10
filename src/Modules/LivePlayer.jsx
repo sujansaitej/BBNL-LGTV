@@ -4,8 +4,8 @@ import { useLocation } from "react-router-dom";
 import StreamPlayer from "../Atomic-Module-Componenets/Channels/StreamPlayer";
 import ChannelsSidebar from "./ChannelsSidebar";
 import ChannelsDetails from "./ChannelsDetails";
-import { fetchChannels } from "../Api/modules-api/ChannelApi";
-import { DEFAULT_HEADERS, DEFAULT_USER } from "../Api/config";
+import { DEFAULT_USER } from "../Api/config";
+import useLiveChannelsStore from "../Global-storage/LiveChannelsStore";
 
 const LivePlayer = () => {
   const location = useLocation();
@@ -15,6 +15,8 @@ const LivePlayer = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDetailsVisible, setIsDetailsVisible] = useState(false);
   const [channelsList, setChannelsList] = useState([]);
+  const [localError, setLocalError] = useState("");
+  const { channelsCache, fetchChannels } = useLiveChannelsStore();
   const sidebarRef = useRef(null);
   const detailsTimerRef = useRef(null);
 
@@ -28,10 +30,6 @@ const LivePlayer = () => {
     mac: "26:F2:AE:D8:3F:99",
   };
 
-  const headers = {
-    ...DEFAULT_HEADERS,
-  };
-
   useEffect(() => {
     setCurrentStream(initialStreamlink || "");
     setCurrentChannel(channelData || null);
@@ -40,9 +38,15 @@ const LivePlayer = () => {
   useEffect(() => {
     let isMounted = true;
 
+    const key = `${userid}|${mobile}|`;
+    const cached = channelsCache[key]?.data;
+    if (cached && isMounted) {
+      setChannelsList(cached);
+    }
+
     const loadChannels = async () => {
       try {
-        const data = await fetchChannels(payloadBase, headers);
+        const data = await fetchChannels(payloadBase, { key });
         if (isMounted) {
           setChannelsList(Array.isArray(data) ? data : []);
         }
@@ -193,7 +197,11 @@ const LivePlayer = () => {
 
   const handleChannelSelect = (channel) => {
     const streamUrl = getStreamUrl(channel);
-    if (!streamUrl) return;
+    if (!streamUrl) {
+      setLocalError("No stream URL found for this channel.");
+      return;
+    }
+    setLocalError("");
     setCurrentStream(streamUrl);
     setCurrentChannel(channel);
     setIsSidebarOpen(false);
@@ -210,11 +218,14 @@ const LivePlayer = () => {
     <Box sx={{ background: "#000", width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", top: 0, left: 0 }}>
       {!currentStream ? (
         <Box sx={{ p: 3 }}>
-          <Typography sx={{ color: "#ff9a9a" }}>No stream link provided.</Typography>
+          <Typography sx={{ color: "#ff9a9a", mb: 1 }}>No stream link provided.</Typography>
+          {localError ? (
+            <Typography sx={{ color: "#ffb347" }}>{localError}</Typography>
+          ) : null}
         </Box>
       ) : (
         <Box sx={{ width: "100%", height: "100%", overflow: "hidden", position: "relative" }}>
-          <StreamPlayer src={currentStream} />
+          <StreamPlayer key={currentStream} src={currentStream} />
           <ChannelsDetails channel={currentChannel} visible={isDetailsVisible} />
           {isSidebarOpen && (
             <Box
