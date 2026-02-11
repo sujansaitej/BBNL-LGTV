@@ -4,13 +4,13 @@ import { Box, Typography, ButtonBase, Button, InputAdornment, IconButton, Skelet
 import SearchIcon from "@mui/icons-material/Search";
 import ClearIcon from "@mui/icons-material/Clear";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { useGridNavigation, useInputFocusHandler, useRemoteNavigation } from "../Atomic-Common-Componenets/useRemoteNavigation";
+import { useInputFocusHandler } from "../Atomic-Common-Componenets/useRemoteNavigation";
 import { DEFAULT_USER } from "../Api/config";
 import SearchTextField from "../Atomic-Reusable-Componenets/Search";
 import ChannelBox from "../Atomic-Reusable-Componenets/ChannelBox";
 import useLiveChannelsStore from "../Global-storage/LiveChannelsStore";
 import useLanguageStore from "../Global-storage/LivePlayersStore";
-import {  TV_TYPOGRAPHY,  TV_SPACING,  TV_RADIUS, TV_COLORS,  TV_SIZES, TV_GRID,TV_SAFE_ZONE } from "../styles/tvConstants";
+import {  TV_TYPOGRAPHY,  TV_SPACING,  TV_RADIUS, TV_COLORS,  TV_SIZES, TV_GRID, TV_SAFE_ZONE, TV_SHADOWS } from "../styles/tvConstants";
 
 const LiveChannels = () => {
   const location = useLocation();
@@ -174,33 +174,6 @@ const LiveChannels = () => {
     ];
     return [...customCategories, ...categories];
   }, [categories]);
-
-  // Use grid navigation for channel cards
-  const { focusedIndex, getItemProps: getChannelProps } = useGridNavigation(
-    filteredChannels.length,
-    columnsCount,
-    {
-      enabled: !isSearchFocused,
-      onSelect: (index) => {
-        const ch = filteredChannels[index];
-        if (ch) {
-          handleChannelSelect(ch);
-        }
-      },
-    }
-  );
-
-  // Use horizontal navigation for category filters
-  const { getItemProps: getCategoryProps } = useRemoteNavigation(
-    enhancedCategories.length,
-    {
-      orientation: "horizontal",
-      enabled: !isSearchFocused,
-      onSelect: (index) => {
-        handleFilter(enhancedCategories[index]);
-      },
-    }
-  );
 
   // Handle input focus to prevent scroll issues
   useInputFocusHandler();
@@ -525,14 +498,11 @@ const LiveChannels = () => {
               />
             ))
           : enhancedCategories.map((cat, index) => {
-              const props = getCategoryProps(index);
               const isActive = activeFilter === cat.title;
-              const isFocused = props["data-focused"];
 
               return (
                 <ButtonBase
                   key={cat.grid || index}
-                  {...props}
                   onClick={() => handleFilter(cat)}
                   sx={{
                     fontSize: "1.125rem",
@@ -542,14 +512,14 @@ const LiveChannels = () => {
                     borderRadius: "9999px",
                     bgcolor: isActive ? "#fff" : "rgba(255,255,255,0.08)",
                     color: isActive ? "#000" : "#fff",
-                    border: isFocused 
-                      ? "3px solid #667eea" 
-                      : "3px solid transparent",
-                    transform: isFocused ? "scale(1.05)" : "scale(1)",
                     transition: "all 0.2s",
-                    boxShadow: isFocused ? "0 0 0 4px rgba(102, 126, 234, 0.4)" : "none",
                     "&:hover": {
                       bgcolor: isActive ? "#fff" : "rgba(255,255,255,0.12)",
+                    },
+                    "&:focus-visible": {
+                      border: "3px solid #667eea",
+                      transform: "scale(1.05)",
+                      boxShadow: "0 0 0 4px rgba(102, 126, 234, 0.4)",
                     },
                   }}
                 >
@@ -595,22 +565,34 @@ const LiveChannels = () => {
                 </Typography>
               </Box>
             ) : (
-              filteredChannels.map((channel, index) => {
-                const props = getChannelProps(index);
-                const isFocused = props["data-focused"];
-
-                return (
-                  <Box key={`${channel.channelno}-${index}`} {...props}>
-                    <ChannelBox
-                      logo={channel.chlogo}
-                      name={channel.chtitle}
-                      channelNo={channel.channelno}
-                      onClick={() => handleChannelSelect(channel)}
-                      focused={isFocused}
-                    />
-                  </Box>
-                );
-              })
+              filteredChannels.map((channel, index) => (
+                <Box
+                  key={`${channel.channelno}-${index}`}
+                  tabIndex={0}
+                  role="button"
+                  onClick={() => handleChannelSelect(channel)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      handleChannelSelect(channel);
+                    }
+                  }}
+                  sx={{
+                    outline: "none",
+                    "&:focus-visible": {
+                      borderRadius: TV_RADIUS.xl,
+                      boxShadow: TV_SHADOWS.focusGlow,
+                    },
+                  }}
+                >
+                  <ChannelBox
+                    logo={channel.chlogo}
+                    name={channel.chtitle}
+                    channelNo={channel.channelno}
+                    onClick={() => handleChannelSelect(channel)}
+                  />
+                </Box>
+              ))
             )}
       </Box>
     </Box>

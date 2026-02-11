@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { Box, Typography, InputBase, List, ListItemButton, Avatar, Tabs, Tab,} from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
-import { useRemoteNavigation } from "../Atomic-Common-Componenets/useRemoteNavigation";
 import { DEFAULT_USER } from "../Api/config";
 import useLiveChannelsStore from "../Global-storage/LiveChannelsStore";
 import { TV_TYPOGRAPHY, TV_SPACING, TV_RADIUS, TV_SHADOWS, TV_BLUR, TV_COLORS, TV_FOCUS, TV_TIMING, TV_SIZES } from "../styles/tvConstants";
@@ -87,19 +86,6 @@ const ChannelsSidebar = ({ onChannelSelect, currentChannel }) => {
     });
   }, [channels, searchQuery]);
 
-  // Remote navigation for channels
-  const { getItemProps: getChannelProps } = useRemoteNavigation(
-    filteredChannels.length,
-    {
-      orientation: "vertical",
-      onSelect: (index) => {
-        const channel = filteredChannels[index];
-        if (channel && onChannelSelect) {
-          onChannelSelect(channel);
-        }
-      },
-    }
-  );
 
   return (
     <Box
@@ -244,14 +230,11 @@ const ChannelsSidebar = ({ onChannelSelect, currentChannel }) => {
 
         <List sx={{ p: 0 }}>
           {filteredChannels.map((channel, index) => {
-            const props = getChannelProps(index);
-            const isFocused = props["data-focused"];
             const isActive = currentChannel?.channelno === channel.channelno;
 
             return (
               <ListItemButton
                 key={`${channel.channelno}-${index}`}
-                {...props}
                 onClick={() => onChannelSelect && onChannelSelect(channel)}
                 sx={{
                   display: "flex",
@@ -263,17 +246,16 @@ const ChannelsSidebar = ({ onChannelSelect, currentChannel }) => {
                   mb: TV_SPACING.sm,
                   bgcolor: isActive
                     ? "rgba(255, 255, 255, 0.18)"
-                    : isFocused
-                    ? "rgba(255, 255, 255, 0.12)"
                     : "transparent",
-                  border: isFocused
-                    ? "3px solid rgba(255, 255, 255, 0.4)"
-                    : "3px solid transparent",
-                  transform: isFocused ? "scale(1.02)" : "scale(1)",
                   transition: `all ${TV_TIMING.fast}`,
-                  boxShadow: isFocused ? TV_SHADOWS.md : "none",
                   "&:hover": {
                     bgcolor: "rgba(255, 255, 255, 0.08)",
+                  },
+                  "&:focus-visible": {
+                    bgcolor: "rgba(255, 255, 255, 0.12)",
+                    border: "3px solid rgba(255, 255, 255, 0.4)",
+                    transform: "scale(1.02)",
+                    boxShadow: TV_SHADOWS.md,
                   },
                 }}
               >

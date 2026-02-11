@@ -12,7 +12,6 @@ import Feedback from './Modules/Feedback';
 import Setting from './Modules/Setting';
 import { initializeWebOSEnvironment, preventWebOSDefaults } from './utils/webos';
 // Spatial navigation disabled for now - will add back after testing basic app
-// import { initializeSpatialNavigation } from './utils/spatialNavigation';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
