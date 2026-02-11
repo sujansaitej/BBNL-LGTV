@@ -11,6 +11,8 @@ import MoviesOtt from './Modules/MoviesOtt';
 import Feedback from './Modules/Feedback';
 import Setting from './Modules/Setting';
 import { initializeWebOSEnvironment, preventWebOSDefaults } from './utils/webos';
+// Spatial navigation disabled for now - will add back after testing basic app
+// import { initializeSpatialNavigation } from './utils/spatialNavigation';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
@@ -25,6 +27,8 @@ function App() {
     // Initialize webOS TV environment
     const cleanup = initializeWebOSEnvironment();
     preventWebOSDefaults();
+    
+    console.log('✓ WebOS environment initialized');
     
     return cleanup;
   }, []);
@@ -41,7 +45,8 @@ function App() {
 
   return (
     <Router>
-      <Routes>
+      <div data-focusable-container>
+        <Routes>
           <Route 
             path="/bbnl-video" 
             element={
@@ -131,11 +136,9 @@ function App() {
             element={<Navigate to={isAuthenticated ? "/home" : "/login"} replace />} 
           />
         </Routes>
-      </Router>
-    );
-  }
-
+      </div>
+    </Router>
+  );
+}
 
 export default App;
-
-

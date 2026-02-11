@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Box, Typography } from "@mui/material";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import StreamPlayer from "../Atomic-Module-Componenets/Channels/StreamPlayer";
 import ChannelsSidebar from "./ChannelsSidebar";
 import ChannelsDetails from "./ChannelsDetails";
@@ -9,6 +9,7 @@ import useLiveChannelsStore from "../Global-storage/LiveChannelsStore";
 
 const LivePlayer = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { streamlink: initialStreamlink, channelData } = location.state || {};
   const [currentStream, setCurrentStream] = useState(initialStreamlink || "");
   const [currentChannel, setCurrentChannel] = useState(channelData || null);
@@ -19,6 +20,19 @@ const LivePlayer = () => {
   const { channelsCache, fetchChannels } = useLiveChannelsStore();
   const sidebarRef = useRef(null);
   const detailsTimerRef = useRef(null);
+  const numberBufferRef = useRef("");
+  const numberTimerRef = useRef(null);
+
+  const showDetails = useCallback((durationMs = 5000) => {
+    if (isSidebarOpen) return;
+    setIsDetailsVisible(true);
+    if (detailsTimerRef.current) {
+      clearTimeout(detailsTimerRef.current);
+    }
+    detailsTimerRef.current = setTimeout(() => {
+      setIsDetailsVisible(false);
+    }, durationMs);
+  }, [isSidebarOpen]);
 
   const userid = localStorage.getItem("userId") || DEFAULT_USER.userid;
   const mobile = localStorage.getItem("userPhone") || DEFAULT_USER.mobile;
@@ -62,6 +76,7 @@ const LivePlayer = () => {
     return () => {
       isMounted = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mobile, userid]);
 
   useEffect(() => {
@@ -79,20 +94,23 @@ const LivePlayer = () => {
   }, [isSidebarOpen]);
 
   useEffect(() => {
-    const okKeys = new Set(["Enter", "OK", "Accept"]);
+    const okKeys = new Set(["Enter", "OK", "Accept", "Select"]);
     const isChannelUpKey = (event) =>
       event.key === "ChannelUp" || event.key === "PageUp" || event.keyCode === 33;
     const isChannelDownKey = (event) =>
       event.key === "ChannelDown" || event.key === "PageDown" || event.keyCode === 34;
-
-    const showDetails = (durationMs = 5000) => {
-      setIsDetailsVisible(true);
-      if (detailsTimerRef.current) {
-        clearTimeout(detailsTimerRef.current);
-      }
-      detailsTimerRef.current = setTimeout(() => {
-        setIsDetailsVisible(false);
-      }, durationMs);
+    const isBackKey = (event) =>
+      event.key === "Backspace" || event.key === "Back" || event.key === "Escape" || event.keyCode === 461;
+    const isHomeKey = (event) => event.key === "Home" || event.keyCode === 36;
+    const isMenuKey = (event) => event.key === "Menu" || event.key === "ContextMenu" || event.keyCode === 458;
+    const isInfoKey = (event) => event.key === "Info" || event.keyCode === 457;
+    const getDigitFromEvent = (event) => {
+      if (/^[0-9]$/.test(event.key)) return event.key;
+      if (event.code && event.code.startsWith("Digit")) return event.code.replace("Digit", "");
+      const code = event.keyCode;
+      if (code >= 48 && code <= 57) return String(code - 48);
+      if (code >= 96 && code <= 105) return String(code - 96);
+      return "";
     };
 
     const findChannelIndex = (channel) => {
@@ -124,7 +142,88 @@ const LivePlayer = () => {
       showDetails();
     };
 
+    const commitNumberJump = () => {
+      const value = numberBufferRef.current;
+      if (!value) return;
+      numberBufferRef.current = "";
+      if (numberTimerRef.current) {
+        clearTimeout(numberTimerRef.current);
+        numberTimerRef.current = null;
+      }
+
+      const target = channelsList.find((item) => {
+        const rawNo =
+          item.channelno ||
+          item.channel_no ||
+          item.chno ||
+          item.channelNumber ||
+          "";
+        if (String(rawNo).trim() === String(value).trim()) return true;
+        const parsedRaw = parseInt(rawNo, 10);
+        const parsedValue = parseInt(value, 10);
+        if (!Number.isNaN(parsedRaw) && !Number.isNaN(parsedValue)) {
+          return parsedRaw === parsedValue;
+        }
+        return false;
+      });
+      if (target) {
+        setLocalError("");
+        handleChannelSelect(target);
+        showDetails();
+      } else {
+        setLocalError(`Channel ${value} not found.`);
+      }
+    };
+
     const handleKey = (event) => {
+      const digit = getDigitFromEvent(event);
+      if (digit) {
+        event.preventDefault();
+        event.stopPropagation();
+        numberBufferRef.current = `${numberBufferRef.current}${digit}`.slice(0, 4);
+        if (numberTimerRef.current) {
+          clearTimeout(numberTimerRef.current);
+        }
+        numberTimerRef.current = setTimeout(commitNumberJump, 1000);
+        return;
+      }
+
+      if (isBackKey(event)) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (isSidebarOpen) {
+          setIsSidebarOpen(false);
+          return;
+        }
+        if (isDetailsVisible) {
+          setIsDetailsVisible(false);
+          return;
+        }
+        window.history.back();
+        return;
+      }
+
+      if (isHomeKey(event)) {
+        event.preventDefault();
+        event.stopPropagation();
+        navigate("/home");
+        return;
+      }
+
+      if (isMenuKey(event)) {
+        event.preventDefault();
+        event.stopPropagation();
+        setIsSidebarOpen((prev) => !prev);
+        return;
+      }
+
+      if (isInfoKey(event)) {
+        event.preventDefault();
+        event.stopPropagation();
+        showDetails();
+        return;
+      }
+
       if (event.key === "ArrowLeft") {
         if (!isSidebarOpen) {
           event.preventDefault();
@@ -145,7 +244,6 @@ const LivePlayer = () => {
         event.preventDefault();
         event.stopPropagation();
         setIsSidebarOpen(false);
-        showDetails();
         return;
       }
 
@@ -171,14 +269,26 @@ const LivePlayer = () => {
       }
     };
 
-    window.addEventListener("keydown", handleKey);
+    window.addEventListener("keydown", handleKey, true);
     return () => {
-      window.removeEventListener("keydown", handleKey);
+      window.removeEventListener("keydown", handleKey, true);
       if (detailsTimerRef.current) {
         clearTimeout(detailsTimerRef.current);
       }
+      if (numberTimerRef.current) {
+        clearTimeout(numberTimerRef.current);
+      }
     };
-  }, [isSidebarOpen, channelsList, currentChannel]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSidebarOpen, isDetailsVisible, channelsList, currentChannel, showDetails, navigate]);
+
+  useEffect(() => {
+    if (!isSidebarOpen) return;
+    setIsDetailsVisible(false);
+    if (detailsTimerRef.current) {
+      clearTimeout(detailsTimerRef.current);
+    }
+  }, [isSidebarOpen]);
 
   const getStreamUrl = (channel) =>
     channel?.streamlink ||
@@ -205,13 +315,6 @@ const LivePlayer = () => {
     setCurrentStream(streamUrl);
     setCurrentChannel(channel);
     setIsSidebarOpen(false);
-    setIsDetailsVisible(true);
-    if (detailsTimerRef.current) {
-      clearTimeout(detailsTimerRef.current);
-    }
-    detailsTimerRef.current = setTimeout(() => {
-      setIsDetailsVisible(false);
-    }, 5000);
   };
 
   return (

@@ -5,14 +5,114 @@ import { useCallback, useEffect, useRef, useState } from "react";
  * Supports both horizontal and grid-based navigation
  */
 
-const OK_KEYS = new Set(["Enter", "OK", "Accept"]);
+const OK_KEYS = new Set(["Enter", "OK", "Accept", "Select"]);
+const REMOTE_KEY_MAP = new Map([
+  ["ArrowUp", "up"],
+  ["ArrowDown", "down"],
+  ["ArrowLeft", "left"],
+  ["ArrowRight", "right"],
+  ["Enter", "enter"],
+  ["OK", "enter"],
+  ["Accept", "enter"],
+  ["Select", "enter"],
+  ["Backspace", "back"],
+  ["Escape", "back"],
+  ["Back", "back"],
+  ["Home", "home"],
+  ["ContextMenu", "menu"],
+  ["Menu", "menu"],
+  ["Info", "info"],
+  ["PageUp", "channelUp"],
+  ["PageDown", "channelDown"],
+  ["MediaTrackNext", "channelUp"],
+  ["MediaTrackPrevious", "channelDown"],
+  ["AudioVolumeUp", "volumeUp"],
+  ["AudioVolumeDown", "volumeDown"],
+  ["VolumeUp", "volumeUp"],
+  ["VolumeDown", "volumeDown"],
+  ["AudioVolumeMute", "mute"],
+  ["Mute", "mute"],
+  ["MediaPlay", "play"],
+  ["MediaPause", "pause"],
+  ["MediaPlayPause", "playPause"],
+  ["Play", "play"],
+  ["Pause", "pause"],
+  ["Stop", "stop"],
+  ["MediaStop", "stop"],
+  ["FastForward", "fastForward"],
+  ["MediaFastForward", "fastForward"],
+  ["Rewind", "rewind"],
+  ["MediaRewind", "rewind"],
+  ["ColorF0Red", "red"],
+  ["ColorF1Green", "green"],
+  ["ColorF2Yellow", "yellow"],
+  ["ColorF3Blue", "blue"],
+]);
+
+const REMOTE_KEYCODE_MAP = new Map([
+  [37, "left"],
+  [38, "up"],
+  [39, "right"],
+  [40, "down"],
+  [13, "enter"],
+  [461, "back"],
+  [27, "back"],
+  [36, "home"],
+  [33, "channelUp"],
+  [34, "channelDown"],
+  [447, "volumeUp"],
+  [448, "volumeDown"],
+  [449, "mute"],
+  [415, "play"],
+  [19, "pause"],
+  [413, "stop"],
+  [417, "fastForward"],
+  [412, "rewind"],
+  [179, "playPause"],
+  [403, "red"],
+  [404, "green"],
+  [405, "yellow"],
+  [406, "blue"],
+  [457, "info"],
+  [458, "menu"],
+]);
+
+const getRemoteAction = (event) => {
+  if (!event) return null;
+  const fromKey = REMOTE_KEY_MAP.get(event.key);
+  if (fromKey) return fromKey;
+  if (typeof event.keyCode === "number") {
+    return REMOTE_KEYCODE_MAP.get(event.keyCode) || null;
+  }
+  return null;
+};
 
 /**
  * Hook for horizontal/vertical list navigation
  */
 export const useRemoteNavigation = (
   itemCount,
-  { orientation = "horizontal", onSelect, loop = false } = {}
+  {
+    orientation = "horizontal",
+    onSelect,
+    onBack,
+    onHome,
+    onMenu,
+    onInfo,
+    onChannelUp,
+    onChannelDown,
+    onVolumeUp,
+    onVolumeDown,
+    onMute,
+    onPlay,
+    onPause,
+    onPlayPause,
+    onStop,
+    onFastForward,
+    onRewind,
+    onColor,
+    loop = false,
+  } = {}
 ) => {
   const [focusedIndex, setFocusedIndex] = useState(0);
   const refs = useRef([]);
@@ -51,14 +151,19 @@ export const useRemoteNavigation = (
       if (isInputFocused()) return;
 
       const { key } = event;
+      const action = getRemoteAction(event);
       let nextIndex = null;
 
       if (orientation === "horizontal") {
-        if (key === "ArrowRight") nextIndex = clamp(focusedIndex + 1);
-        if (key === "ArrowLeft") nextIndex = clamp(focusedIndex - 1);
+        if (action === "right" || key === "ArrowRight") nextIndex = clamp(focusedIndex + 1);
+        if (action === "left" || key === "ArrowLeft") nextIndex = clamp(focusedIndex - 1);
+        if (action === "channelUp") nextIndex = clamp(focusedIndex - 1);
+        if (action === "channelDown") nextIndex = clamp(focusedIndex + 1);
       } else {
-        if (key === "ArrowDown") nextIndex = clamp(focusedIndex + 1);
-        if (key === "ArrowUp") nextIndex = clamp(focusedIndex - 1);
+        if (action === "down" || key === "ArrowDown") nextIndex = clamp(focusedIndex + 1);
+        if (action === "up" || key === "ArrowUp") nextIndex = clamp(focusedIndex - 1);
+        if (action === "channelUp") nextIndex = clamp(focusedIndex - 1);
+        if (action === "channelDown") nextIndex = clamp(focusedIndex + 1);
       }
 
       if (nextIndex !== null && nextIndex !== focusedIndex) {
@@ -68,17 +173,138 @@ export const useRemoteNavigation = (
         return;
       }
 
-      if (OK_KEYS.has(key) || key === "Enter") {
+      if (action === "enter" || OK_KEYS.has(key) || key === "Enter") {
         event.preventDefault();
         event.stopPropagation();
         onSelect?.(focusedIndex);
         refs.current[focusedIndex]?.click?.();
       }
+
+      if (action === "back") {
+        event.preventDefault();
+        event.stopPropagation();
+        if (onBack) {
+          onBack();
+        } else {
+          window.history.back();
+        }
+      }
+
+      if (action === "home") {
+        event.preventDefault();
+        event.stopPropagation();
+        onHome?.();
+      }
+
+      if (action === "menu") {
+        event.preventDefault();
+        event.stopPropagation();
+        onMenu?.();
+      }
+
+      if (action === "info") {
+        event.preventDefault();
+        event.stopPropagation();
+        onInfo?.();
+      }
+
+      if (action === "channelUp") {
+        event.preventDefault();
+        event.stopPropagation();
+        onChannelUp?.();
+      }
+
+      if (action === "channelDown") {
+        event.preventDefault();
+        event.stopPropagation();
+        onChannelDown?.();
+      }
+
+      if (action === "volumeUp") {
+        event.preventDefault();
+        event.stopPropagation();
+        onVolumeUp?.();
+      }
+
+      if (action === "volumeDown") {
+        event.preventDefault();
+        event.stopPropagation();
+        onVolumeDown?.();
+      }
+
+      if (action === "mute") {
+        event.preventDefault();
+        event.stopPropagation();
+        onMute?.();
+      }
+
+      if (action === "play") {
+        event.preventDefault();
+        event.stopPropagation();
+        onPlay?.();
+      }
+
+      if (action === "pause") {
+        event.preventDefault();
+        event.stopPropagation();
+        onPause?.();
+      }
+
+      if (action === "playPause") {
+        event.preventDefault();
+        event.stopPropagation();
+        onPlayPause?.();
+      }
+
+      if (action === "stop") {
+        event.preventDefault();
+        event.stopPropagation();
+        onStop?.();
+      }
+
+      if (action === "fastForward") {
+        event.preventDefault();
+        event.stopPropagation();
+        onFastForward?.();
+      }
+
+      if (action === "rewind") {
+        event.preventDefault();
+        event.stopPropagation();
+        onRewind?.();
+      }
+
+      if (action === "red" || action === "green" || action === "yellow" || action === "blue") {
+        event.preventDefault();
+        event.stopPropagation();
+        onColor?.(action);
+      }
     };
 
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [focusedIndex, clamp, orientation, onSelect]);
+  }, [
+    focusedIndex,
+    clamp,
+    orientation,
+    onSelect,
+    onBack,
+    onHome,
+    onMenu,
+    onInfo,
+    onChannelUp,
+    onChannelDown,
+    onVolumeUp,
+    onVolumeDown,
+    onMute,
+    onPlay,
+    onPause,
+    onPlayPause,
+    onStop,
+    onFastForward,
+    onRewind,
+    onColor,
+  ]);
 
   const registerItem = useCallback(
     (index) => (el) => {
@@ -114,7 +340,27 @@ export const useRemoteNavigation = (
 export const useGridNavigation = (
   itemCount,
   columnsCount = 4,
-  { onSelect, loop = false, enabled = true } = {}
+  {
+    onSelect,
+    onBack,
+    onHome,
+    onMenu,
+    onInfo,
+    onChannelUp,
+    onChannelDown,
+    onVolumeUp,
+    onVolumeDown,
+    onMute,
+    onPlay,
+    onPause,
+    onPlayPause,
+    onStop,
+    onFastForward,
+    onRewind,
+    onColor,
+    loop = false,
+    enabled = true,
+  } = {}
 ) => {
   const [focusedIndex, setFocusedIndex] = useState(0);
   const refs = useRef([]);
@@ -171,11 +417,13 @@ export const useGridNavigation = (
       if (isInputFocused()) return;
 
       const { key } = event;
+      const action = getRemoteAction(event);
       const { row, col } = getRowCol(focusedIndex);
       let nextIndex = null;
 
-      switch (key) {
+      switch (action || key) {
         case "ArrowRight":
+        case "right":
           if (col < columnsCount - 1 || loop) {
             nextIndex = getIndex(row, col + 1);
             if (nextIndex >= itemCount) {
@@ -185,6 +433,7 @@ export const useGridNavigation = (
           break;
 
         case "ArrowLeft":
+        case "left":
           if (col > 0 || loop) {
             nextIndex = getIndex(row, col - 1);
             if (nextIndex < 0) {
@@ -194,6 +443,7 @@ export const useGridNavigation = (
           break;
 
         case "ArrowDown":
+        case "down":
           nextIndex = getIndex(row + 1, col);
           if (nextIndex >= itemCount) {
             nextIndex = loop ? getIndex(0, col) : focusedIndex;
@@ -201,6 +451,7 @@ export const useGridNavigation = (
           break;
 
         case "ArrowUp":
+        case "up":
           if (row > 0 || loop) {
             nextIndex = getIndex(row - 1, col);
             if (nextIndex < 0) {
@@ -208,6 +459,23 @@ export const useGridNavigation = (
               nextIndex = loop ? getIndex(lastRow, col) : focusedIndex;
             }
           }
+          break;
+        case "channelUp":
+          if (row > 0 || loop) {
+            nextIndex = getIndex(row - 1, col);
+            if (nextIndex < 0) {
+              const lastRow = Math.floor((itemCount - 1) / columnsCount);
+              nextIndex = loop ? getIndex(lastRow, col) : focusedIndex;
+            }
+          }
+          break;
+        case "channelDown":
+          nextIndex = getIndex(row + 1, col);
+          if (nextIndex >= itemCount) {
+            nextIndex = loop ? getIndex(0, col) : focusedIndex;
+          }
+          break;
+        default:
           break;
       }
 
@@ -218,23 +486,143 @@ export const useGridNavigation = (
         return;
       }
 
-      if (OK_KEYS.has(key) || key === "Enter") {
+      if (action === "enter" || OK_KEYS.has(key) || key === "Enter") {
         event.preventDefault();
         event.stopPropagation();
         onSelect?.(focusedIndex);
         refs.current[focusedIndex]?.click?.();
       }
 
-      // Back button support
-      if (key === "Backspace" || key === "Back" || key === "Escape") {
+      if (action === "back") {
         event.preventDefault();
-        window.history.back();
+        event.stopPropagation();
+        if (onBack) {
+          onBack();
+        } else {
+          window.history.back();
+        }
+      }
+
+      if (action === "home") {
+        event.preventDefault();
+        event.stopPropagation();
+        onHome?.();
+      }
+
+      if (action === "menu") {
+        event.preventDefault();
+        event.stopPropagation();
+        onMenu?.();
+      }
+
+      if (action === "info") {
+        event.preventDefault();
+        event.stopPropagation();
+        onInfo?.();
+      }
+
+      if (action === "channelUp") {
+        event.preventDefault();
+        event.stopPropagation();
+        onChannelUp?.();
+      }
+
+      if (action === "channelDown") {
+        event.preventDefault();
+        event.stopPropagation();
+        onChannelDown?.();
+      }
+
+      if (action === "volumeUp") {
+        event.preventDefault();
+        event.stopPropagation();
+        onVolumeUp?.();
+      }
+
+      if (action === "volumeDown") {
+        event.preventDefault();
+        event.stopPropagation();
+        onVolumeDown?.();
+      }
+
+      if (action === "mute") {
+        event.preventDefault();
+        event.stopPropagation();
+        onMute?.();
+      }
+
+      if (action === "play") {
+        event.preventDefault();
+        event.stopPropagation();
+        onPlay?.();
+      }
+
+      if (action === "pause") {
+        event.preventDefault();
+        event.stopPropagation();
+        onPause?.();
+      }
+
+      if (action === "playPause") {
+        event.preventDefault();
+        event.stopPropagation();
+        onPlayPause?.();
+      }
+
+      if (action === "stop") {
+        event.preventDefault();
+        event.stopPropagation();
+        onStop?.();
+      }
+
+      if (action === "fastForward") {
+        event.preventDefault();
+        event.stopPropagation();
+        onFastForward?.();
+      }
+
+      if (action === "rewind") {
+        event.preventDefault();
+        event.stopPropagation();
+        onRewind?.();
+      }
+
+      if (action === "red" || action === "green" || action === "yellow" || action === "blue") {
+        event.preventDefault();
+        event.stopPropagation();
+        onColor?.(action);
       }
     };
 
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [focusedIndex, columnsCount, getRowCol, getIndex, itemCount, onSelect, loop, clamp, enabled]);
+  }, [
+    focusedIndex,
+    columnsCount,
+    getRowCol,
+    getIndex,
+    itemCount,
+    onSelect,
+    onBack,
+    onHome,
+    onMenu,
+    onInfo,
+    onChannelUp,
+    onChannelDown,
+    onVolumeUp,
+    onVolumeDown,
+    onMute,
+    onPlay,
+    onPause,
+    onPlayPause,
+    onStop,
+    onFastForward,
+    onRewind,
+    onColor,
+    loop,
+    clamp,
+    enabled,
+  ]);
 
   const registerItem = useCallback(
     (index) => (el) => {

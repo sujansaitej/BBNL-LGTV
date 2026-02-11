@@ -1,35 +1,40 @@
 import PropTypes from "prop-types";
 import { Box, Typography } from "@mui/material";
+import { TV_TYPOGRAPHY, TV_SPACING, TV_RADIUS, TV_SHADOWS, TV_FOCUS, TV_TIMING, TV_COLORS } from "../styles/tvConstants";
 
 const ChannelBox = ({ logo, name, channelNo, onClick, focused }) => (
   <Box>
     <Box
       sx={{
-        width: 280,
-        height: 160,
+        width: "18rem",
+        height: "10rem",
         background: "#fff",
-        borderRadius: "18px",
+        borderRadius: TV_RADIUS.xl,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         position: "relative",
         cursor: onClick ? "pointer" : "default",
-        border: focused ? "5px solid #667eea" : "5px solid transparent",
-        transform: focused ? "scale(1.06)" : "scale(1)",
-        transition: "transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease",
-        boxShadow: focused ? "0 12px 32px rgba(102, 126, 234, 0.5)" : "0 2px 8px rgba(0, 0, 0, 0.15)",
+        border: focused ? `4px solid ${TV_COLORS.accent.primary}` : "4px solid transparent",
+        transform: focused ? "scale(1.08)" : "scale(1)",
+        transition: `transform ${TV_TIMING.fast} ease, border-color ${TV_TIMING.fast} ease, box-shadow ${TV_TIMING.fast} ease`,
+        boxShadow: focused ? `${TV_SHADOWS.focusGlow}, ${TV_SHADOWS.lg}` : TV_SHADOWS.md,
         zIndex: focused ? 10 : 1,
-        padding: "10px",
+        padding: TV_SPACING.md,
       }}
       role={onClick ? "button" : undefined}
       tabIndex={onClick ? 0 : undefined}
       onClick={onClick}
     >
-
       <img
         src={logo}
         alt={name}
-        style={{ width: "92%", height: "92%", objectFit: "contain" }}
+        style={{ 
+          width: "94%", 
+          height: "94%", 
+          objectFit: "contain",
+          filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.1))",
+        }}
         onError={(e) =>
           (e.target.src =
             "http://124.40.244.211/netmon/assets/site_images/chnlnoimage.jpg")
@@ -42,18 +47,16 @@ const ChannelBox = ({ logo, name, channelNo, onClick, focused }) => (
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        mt: 2,
-        gap: 0.5,
+        mt: TV_SPACING.md,
+        gap: TV_SPACING.sm,
       }}
     >
       <Typography
         sx={{
-          color: "#fff",
-          fontSize: 20,
+          ...TV_TYPOGRAPHY.body2,
+          color: TV_COLORS.text.primary,
           fontWeight: 600,
           lineHeight: 1.3,
-          letterSpacing: "0.3px",
-          textRendering: "optimizeLegibility",
           flex: 1,
         }}
       >
@@ -62,11 +65,10 @@ const ChannelBox = ({ logo, name, channelNo, onClick, focused }) => (
       {channelNo && (
         <Typography
           sx={{
-            color: "rgba(255, 255, 255, 0.75)",
-            fontSize: 18,
-            fontWeight: 600,
-            letterSpacing: "0.2px",
-            minWidth: 36,
+            ...TV_TYPOGRAPHY.body2,
+            color: TV_COLORS.text.secondary,
+            fontWeight: 700,
+            minWidth: "2.5rem",
             textAlign: "right",
           }}
         >

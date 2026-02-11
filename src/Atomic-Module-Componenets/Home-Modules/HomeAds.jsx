@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Box } from "@mui/material";
 import useHomeAdsStore from "../../Global-storage/ChannelsSearchStore";
+import { TV_SPACING, TV_RADIUS, TV_SHADOWS, TV_COLORS, TV_TYPOGRAPHY } from "../../styles/tvConstants";
 
 const HomeAds = (props) => {
   const {
@@ -53,15 +54,14 @@ const HomeAds = (props) => {
       <Box
         sx={{
           width: "100%",
-          height: 540,
-          borderRadius: "28px",
-          background: "#0a0a0a",
-          mb: 6,
+          height: "33rem",
+          borderRadius: "1.75rem",
+          background: "#121212",
           display: "flex",
           justifyContent: "center",
           alignItems: "center",
-          color: "#8bdcff",
-          fontSize: "20px",
+          fontSize: "1.5rem",
+          color: "#2196f3",
           fontWeight: 600,
         }}
       >
@@ -75,15 +75,14 @@ const HomeAds = (props) => {
       <Box
         sx={{
           width: "100%",
-          height: 540,
-          borderRadius: "28px",
-          background: "#0a0a0a",
-          mb: 6,
+          height: "33rem",
+          borderRadius: "1.75rem",
+          background: "#121212",
           display: "flex",
           justifyContent: "center",
           alignItems: "center",
-          color: "#aaa",
-          fontSize: "18px",
+          fontSize: "1.25rem",
+          color: "rgba(255,255,255,0.6)",
         }}
       >
         {error}
@@ -95,13 +94,13 @@ const HomeAds = (props) => {
     <Box
       sx={{
         width: "100%",
-        height: 540,
-        borderRadius: "28px",
+        height: "33rem",
+        borderRadius: "1.75rem",
         overflow: "hidden",
-        background: "#0a0a0a",
-        mb: 6,
+        background: "#121212",
         position: "relative",
         display: "block",
+        boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
       }}
     >
       {ads.map((url, index) => (

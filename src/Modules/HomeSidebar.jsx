@@ -1,7 +1,7 @@
 import { Box, List, ListItemButton, ListItemIcon } from "@mui/material";
 import { useRemoteNavigation } from "../Atomic-Common-Componenets/useRemoteNavigation";
 import { useNavigate } from "react-router-dom";
-
+import { TV_SPACING, TV_RADIUS, TV_SHADOWS, TV_BLUR, TV_COLORS, TV_FOCUS, TV_TIMING, TV_SIZES } from "../styles/tvConstants";
 
 // Icons
 import HomeIcon from "@mui/icons-material/Home";
@@ -40,24 +40,21 @@ const SidebarGlass = () => {
   return (
     <Box
       sx={{
-        width: 90,
-        height: "49vh",
+        width: "6rem",
+        height: "calc(100vh - 20vh)",
         position: "fixed",
-        left: 16,
-        top: 0,
+        left: TV_SPACING.lg,
+        top: "10vh",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        bgcolor: "rgba(255,255,255,0.06)",
-        backdropFilter: "blur(18px)",
-        borderRadius: "20px",
-        border: "1px solid rgba(255,255,255,0.5)",
-        boxShadow: "0px 20px 40px rgba(0,0,0,0.45)",
-        pt: 3,
-        pb: 3,
+        bgcolor: TV_COLORS.glass.light,
+        backdropFilter: TV_BLUR.lg,
+        borderRadius: TV_RADIUS.xxl,
+        border: "2px solid rgba(255,255,255,0.2)",
+        boxShadow: TV_SHADOWS.xl,
+        py: TV_SPACING.lg,
         zIndex: 1000,
-        mt: "10vh",
-        mr: "3vh",
       }}
     >
       {/* -------- TOP SPACER -------- */}
@@ -74,30 +71,31 @@ const SidebarGlass = () => {
               {...props}
               onClick={() => item.path && navigate(item.path)}
               sx={{
-                mb: 1.2,
-                borderRadius: "14px",
+                mb: TV_SPACING.md,
+                borderRadius: TV_RADIUS.xl,
                 justifyContent: "center",
                 minWidth: 0,
-                p: 1.6,
+                p: TV_SPACING.md,
                 bgcolor: props["data-focused"] ? "#ffffff" : "transparent",
-                border: props["data-focused"] ? "2px solid #ffffff" : "1px solid transparent",
+                border: props["data-focused"] ? "3px solid #ffffff" : "3px solid transparent",
                 outline: "none",
-                transition: "all 0.25s ease",
+                transform: props["data-focused"] ? "scale(1.1)" : "scale(1)",
+                transition: `all ${TV_TIMING.fast} ease`,
+                boxShadow: props["data-focused"] ? TV_SHADOWS.md : "none",
                 "&:hover": {
                   bgcolor: "transparent",
                 },
                 "&:focus": {
                   outline: "none",
-                  border: props["data-focused"] ? "2px solid #ffffff" : "1px solid transparent",
                 },
               }}
             >
               <ListItemIcon
                 sx={{
-                  color: props["data-focused"] ? "#000" : "#fff",
+                  color: props["data-focused"] ? "#000" : TV_COLORS.text.primary,
                   minWidth: 0,
-                  fontSize: 28,
-                  transition: "color 0.25s ease"
+                  fontSize: TV_SIZES.icon.large,
+                  transition: `color ${TV_TIMING.fast} ease`,
                 }}
               >
                 {item.icon}

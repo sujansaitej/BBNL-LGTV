@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Box, Typography } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { DEFAULT_USER } from "../../Api/config";
 import useLanguageStore from "../../Global-storage/LivePlayersStore";
+import { useGridNavigation } from "../../Atomic-Common-Componenets/useRemoteNavigation";
+import { TV_TYPOGRAPHY, TV_SPACING, TV_RADIUS, TV_SHADOWS, TV_TIMING, TV_COLORS, TV_GRID } from "../../styles/tvConstants";
 
 const ChannelsView = () => {
 	const navigate = useNavigate();
@@ -31,25 +33,53 @@ const ChannelsView = () => {
 	const languages = langEntry.data || [];
 	const loading = langEntry.isLoading;
 
+	const columnsCount = useMemo(() => TV_GRID.getColumns(window.innerWidth), []);
+	const { getItemProps: getLanguageProps } = useGridNavigation(
+		languages.length,
+		columnsCount,
+		{
+			loop: false,
+			onSelect: (index) => {
+				const lang = languages[index];
+				if (lang) {
+					handleLanguageClick(lang.langid);
+				}
+			},
+		}
+	);
+
 	// Handle language card click
 	const handleLanguageClick = (langid) => {
 		navigate("/live-channels", { state: { filterByLanguage: langid } });
 	};
 
 	return (
-		<Box sx={{ mb: 6 }}>
-			<Typography sx={{ fontSize: 22, fontWeight: 700, mb: 3, color: "#fff" }}>
+		<Box sx={{ mb: "3rem" }}>
+			<Typography sx={{ 
+				fontSize: "2rem",
+				fontWeight: 700,
+				mb: "2rem",
+				color: "#fff",
+			}}>
 				TV CHANNELS
 			</Typography>
 
 			{/* ================= LOADING STATE ================= */}
 			{loading && (
-				<Typography sx={{ color: "#999" }}>Loading channels...</Typography>
+				<Typography sx={{ 
+					fontSize: "1.25rem",
+					color: "rgba(255,255,255,0.6)",
+				}}>
+					Loading channels...
+				</Typography>
 			)}
 
 			{/* ================= ERROR STATE ================= */}
 			{error && error !== "NO_LOGIN" && (
-				<Typography sx={{ color: "#ff6b6b" }}>
+				<Typography sx={{ 
+					fontSize: "1.25rem",
+					color: "#f44336",
+				}}>
 					{error}
 				</Typography>
 			)}
@@ -59,30 +89,46 @@ const ChannelsView = () => {
 				<Box
 					sx={{
 						display: "grid",
-						gridTemplateColumns: "repeat(5, 240px)",
-						gap: "125px",
+						gridTemplateColumns: "repeat(auto-fill, minmax(15rem, 1fr))",
+						gap: "3rem",
 					}}
 				>
 					{languages.length === 0 ? (
-						<Typography sx={{ color: "#888" }}>No channels available</Typography>
+						<Typography sx={{ 
+							fontSize: "1.25rem",
+							color: "rgba(255,255,255,0.6)",
+						}}>
+							No channels available
+						</Typography>
 					) : (
-						languages.map((lang, index) => (
-							<Box
+						languages.map((lang, index) => {
+							const props = getLanguageProps(index);
+							return (
+								<Box
 								key={index}
-								onClick={() => handleLanguageClick(lang.langid)}
+									{...props}
+									data-focusable="true"
+									onClick={() => handleLanguageClick(lang.langid)}
 								sx={{
-									width: "240px",
-									borderRadius: "14px",
+									width: "15rem",
+									borderRadius: "1rem",
 									cursor: "pointer",
 									transition: "all 0.3s ease",
 									display: "flex",
 									flexDirection: "column",
 									alignItems: "center",
 									justifyContent: "center",
-									gap: 1,
+										outline: "none",
+										boxShadow: props["data-focused"] ? TV_SHADOWS.focusGlow : "none",
+										transform: props["data-focused"] ? "scale(1.06)" : "scale(1)",
 									"&:hover": {
 										transform: "scale(1.05)",
-										boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+										boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+									},
+									"&:focus": {
+										transform: "scale(1.08)",
+										outline: "4px solid #667eea",
+										boxShadow: "0 0 24px rgba(102, 126, 234, 0.6)",
 									},
 								}}
 							>
@@ -90,16 +136,17 @@ const ChannelsView = () => {
 								{lang.langlogo && (
 									<Box
 										sx={{
-											width: "240px",
-											height: "195px",
+											width: "15rem",
+											height: "12rem",
 											overflow: "hidden",
-											borderRadius: "14px",
+											borderRadius: "1rem",
 											position: "relative",
-											background: "#111",
+											background: "#121212",
 											backgroundImage: `url(${lang.langlogo})`,
 											backgroundSize: "cover",
 											backgroundPosition: "center",
 											backgroundRepeat: "no-repeat",
+											boxShadow: "0 4px 16px rgba(0, 0, 0, 0.3)",
 										}}
 									>
 										<Box
@@ -122,7 +169,8 @@ const ChannelsView = () => {
 									</Box>
 								)}
 							</Box>
-						))
+						);
+						})
 					)}
 				</Box>
 			)}

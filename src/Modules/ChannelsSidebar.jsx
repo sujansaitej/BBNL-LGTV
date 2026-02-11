@@ -4,6 +4,7 @@ import SearchIcon from "@mui/icons-material/Search";
 import { useRemoteNavigation } from "../Atomic-Common-Componenets/useRemoteNavigation";
 import { DEFAULT_USER } from "../Api/config";
 import useLiveChannelsStore from "../Global-storage/LiveChannelsStore";
+import { TV_TYPOGRAPHY, TV_SPACING, TV_RADIUS, TV_SHADOWS, TV_BLUR, TV_COLORS, TV_FOCUS, TV_TIMING, TV_SIZES } from "../styles/tvConstants";
 
 const ChannelsSidebar = ({ onChannelSelect, currentChannel }) => {
   const [channels, setChannels] = useState([]);
@@ -103,48 +104,49 @@ const ChannelsSidebar = ({ onChannelSelect, currentChannel }) => {
   return (
     <Box
       sx={{
-        width: 380,
+        width: "28rem",
         height: "100vh",
-        bgcolor: "rgba(0, 0, 0, 0.85)",
-        backdropFilter: "blur(20px)",
-        borderRight: "1px solid rgba(255, 255, 255, 0.1)",
+        bgcolor: TV_COLORS.background.overlay,
+        backdropFilter: TV_BLUR.xl,
+        borderRight: "2px solid rgba(255, 255, 255, 0.15)",
         display: "flex",
         flexDirection: "column",
-        color: "#fff",
+        color: TV_COLORS.text.primary,
       }}
     >
-      {/* -------- HEADER WITH NOW PLAYING -------- */}
+      {/* -------- HEADER WITH SEARCH -------- */}
       <Box
         sx={{
-          p: 2.5,
-          borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
+          px: TV_SPACING.lg,
+          py: TV_SPACING.lg,
+          borderBottom: "2px solid rgba(255, 255, 255, 0.15)",
         }}
       >
-
         {/* -------- SEARCH BAR -------- */}
         <Box
           sx={{
             display: "flex",
             alignItems: "center",
-            gap: 1,
-            bgcolor: "rgba(255, 255, 255, 0.08)",
-            border: "1px solid rgba(255, 255, 255, 0.15)",
-            borderRadius: "24px",
-            px: 2,
-            py: 1.2,
+            gap: TV_SPACING.sm,
+            bgcolor: TV_COLORS.glass.light,
+            border: "2px solid rgba(255, 255, 255, 0.2)",
+            borderRadius: TV_RADIUS.pill,
+            px: TV_SPACING.lg,
+            py: TV_SPACING.md,
+            height: TV_SIZES.input.height,
           }}
         >
-          <SearchIcon sx={{ color: "rgba(255, 255, 255, 0.5)", fontSize: 20 }} />
+          <SearchIcon sx={{ color: TV_COLORS.text.tertiary, fontSize: TV_SIZES.icon.medium }} />
           <InputBase
             placeholder="Search Channel"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             fullWidth
             sx={{
-              color: "#fff",
-              fontSize: 13,
+              color: TV_COLORS.text.primary,
+              ...TV_TYPOGRAPHY.body2,
               "& input::placeholder": {
-                color: "rgba(255, 255, 255, 0.5)",
+                color: TV_COLORS.text.tertiary,
               },
             }}
             inputProps={{ "aria-label": "Search Channel" }}
@@ -155,9 +157,9 @@ const ChannelsSidebar = ({ onChannelSelect, currentChannel }) => {
       {/* -------- CATEGORY TABS -------- */}
       <Box
         sx={{
-          px: 2,
-          pt: 2,
-          borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
+          px: TV_SPACING.lg,
+          py: TV_SPACING.md,
+          borderBottom: "2px solid rgba(255, 255, 255, 0.15)",
         }}
       >
         <Tabs
@@ -166,21 +168,25 @@ const ChannelsSidebar = ({ onChannelSelect, currentChannel }) => {
           variant="scrollable"
           scrollButtons="auto"
           sx={{
-            minHeight: 40,
+            minHeight: "3rem",
             "& .MuiTab-root": {
-              minHeight: 36,
-              minWidth: 80,
-              fontSize: 12,
-              fontWeight: 600,
-              color: "rgba(255, 255, 255, 0.6)",
+              minHeight: "2.75rem",
+              minWidth: "5.5rem",
+              ...TV_TYPOGRAPHY.body2,
+              color: TV_COLORS.text.tertiary,
               textTransform: "none",
-              borderRadius: "20px",
-              px: 2.5,
-              py: 0.8,
-              mr: 1,
+              borderRadius: TV_RADIUS.pill,
+              px: TV_SPACING.lg,
+              py: TV_SPACING.sm,
+              mr: TV_SPACING.sm,
+              transition: `all ${TV_TIMING.fast}`,
               "&.Mui-selected": {
                 color: "#000",
                 bgcolor: "#fff",
+                fontWeight: 700,
+              },
+              "&:focus": {
+                ...TV_FOCUS.primary,
               },
             },
             "& .MuiTabs-indicator": {
@@ -195,14 +201,14 @@ const ChannelsSidebar = ({ onChannelSelect, currentChannel }) => {
       </Box>
 
       {/* -------- CHANNEL LIST -------- */}
-      <Box sx={{ flex: 1, overflowY: "auto", px: 1.5, pt: 1 }}>
+      <Box sx={{ flex: 1, overflowY: "auto", px: TV_SPACING.md, py: TV_SPACING.md }}>
         {loading && (
           <Typography
             sx={{
               textAlign: "center",
-              color: "rgba(255, 255, 255, 0.5)",
-              fontSize: 13,
-              mt: 3,
+              ...TV_TYPOGRAPHY.body2,
+              color: TV_COLORS.text.tertiary,
+              mt: TV_SPACING.xl,
             }}
           >
             Loading channels...
@@ -213,10 +219,10 @@ const ChannelsSidebar = ({ onChannelSelect, currentChannel }) => {
           <Typography
             sx={{
               textAlign: "center",
-              color: "#ff6b6b",
-              fontSize: 12,
-              mt: 3,
-              px: 2,
+              ...TV_TYPOGRAPHY.body2,
+              color: TV_COLORS.accent.error,
+              mt: TV_SPACING.xl,
+              px: TV_SPACING.lg,
             }}
           >
             {error}
@@ -227,9 +233,9 @@ const ChannelsSidebar = ({ onChannelSelect, currentChannel }) => {
           <Typography
             sx={{
               textAlign: "center",
-              color: "rgba(255, 255, 255, 0.5)",
-              fontSize: 13,
-              mt: 3,
+              ...TV_TYPOGRAPHY.body2,
+              color: TV_COLORS.text.tertiary,
+              mt: TV_SPACING.xl,
             }}
           >
             No channels found
@@ -250,19 +256,22 @@ const ChannelsSidebar = ({ onChannelSelect, currentChannel }) => {
                 sx={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 2,
-                  borderRadius: "12px",
-                  p: 1.5,
-                  mb: 0.5,
+                  gap: TV_SPACING.md,
+                  borderRadius: TV_RADIUS.xl,
+                  px: TV_SPACING.md,
+                  py: TV_SPACING.md,
+                  mb: TV_SPACING.sm,
                   bgcolor: isActive
-                    ? "rgba(255, 255, 255, 0.15)"
+                    ? "rgba(255, 255, 255, 0.18)"
                     : isFocused
-                    ? "rgba(255, 255, 255, 0.1)"
+                    ? "rgba(255, 255, 255, 0.12)"
                     : "transparent",
                   border: isFocused
-                    ? "2px solid rgba(255, 255, 255, 0.3)"
-                    : "2px solid transparent",
-                  transition: "all 0.2s ease",
+                    ? "3px solid rgba(255, 255, 255, 0.4)"
+                    : "3px solid transparent",
+                  transform: isFocused ? "scale(1.02)" : "scale(1)",
+                  transition: `all ${TV_TIMING.fast}`,
+                  boxShadow: isFocused ? TV_SHADOWS.md : "none",
                   "&:hover": {
                     bgcolor: "rgba(255, 255, 255, 0.08)",
                   },
@@ -271,16 +280,17 @@ const ChannelsSidebar = ({ onChannelSelect, currentChannel }) => {
                 <Avatar
                   src={channel.chlogo}
                   sx={{
-                    width: 50,
-                    height: 50,
+                    width: "4rem",
+                    height: "4rem",
                     bgcolor: "#fff",
-                    border: "1px solid rgba(255, 255, 255, 0.1)",
+                    borderRadius: TV_RADIUS.lg,
+                    border: "2px solid rgba(255, 255, 255, 0.15)",
                   }}
                 />
                 <Box sx={{ flex: 1, minWidth: 0 }}>
                   <Typography
                     sx={{
-                      fontSize: 14,
+                      ...TV_TYPOGRAPHY.body2,
                       fontWeight: 600,
                       whiteSpace: "nowrap",
                       overflow: "hidden",
@@ -292,9 +302,9 @@ const ChannelsSidebar = ({ onChannelSelect, currentChannel }) => {
                 </Box>
                 <Typography
                   sx={{
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: "rgba(255, 255, 255, 0.7)",
+                    ...TV_TYPOGRAPHY.body2,
+                    fontWeight: 700,
+                    color: TV_COLORS.text.secondary,
                   }}
                 >
                   {channel.channelno}

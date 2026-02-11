@@ -3,6 +3,7 @@ import SearchIcon from "@mui/icons-material/Search";
 import SettingsIcon from "@mui/icons-material/Settings";
 import { useRemoteNavigation } from "./useRemoteNavigation";
 import { useNavigate } from "react-router-dom";
+import { TV_TYPOGRAPHY, TV_SPACING, TV_RADIUS, TV_COLORS, TV_FOCUS, TV_TIMING, TV_SIZES, TV_SHADOWS } from "../styles/tvConstants";
 
 const Header = () => {
   const navigate = useNavigate();
@@ -17,12 +18,12 @@ const Header = () => {
     },
   });
   const iconButtonSx = {
-    bgcolor: "#0e0e0e",
-    border: "1px solid #1c1c1c",
-    color: "#e8e8e8",
-    width: 42,
-    height: 42,
-    "&:hover": { bgcolor: "#141414" },
+    bgcolor: TV_COLORS.background.tertiary,
+    border: `2px solid ${TV_COLORS.glass.light}`,
+    color: TV_COLORS.text.primary,
+    width: TV_SIZES.icon.large,
+    height: TV_SIZES.icon.large,
+    "&:hover": { bgcolor: TV_COLORS.glass.light },
   };
 
   return (
@@ -30,13 +31,21 @@ const Header = () => {
       position="static"
       elevation={0}
       sx={{
-        bgcolor: "#050505",
-        borderBottom: "1px solid #111",
+        bgcolor: TV_COLORS.background.secondary,
+        borderBottom: `2px solid ${TV_COLORS.glass.light}`,
       }}
     >
-      <Toolbar sx={{ display: "flex", gap: 3, px: 3 }}>
-        <Box display="flex" alignItems="center" gap={1.5} minWidth={160}>
-          <Typography variant="h6" fontWeight={700} letterSpacing={0.5} sx={{ color: "#fff" }}>
+      <Toolbar sx={{ display: "flex", gap: TV_SPACING.lg, px: TV_SPACING.lg, py: TV_SPACING.sm }}>
+        <Box display="flex" alignItems="center" gap={TV_SPACING.md} minWidth="12rem">
+          <Typography 
+            variant="h6" 
+            fontWeight={700} 
+            letterSpacing={0.5} 
+            sx={{ 
+              ...TV_TYPOGRAPHY.h3,
+              color: TV_COLORS.text.primary,
+            }}
+          >
             BBNL
           </Typography>
         </Box>
@@ -44,45 +53,57 @@ const Header = () => {
         <Box flex={1} display="flex" alignItems="center">
           <Box
             {...getItemProps(0)}
+            data-focus-id="header-search"
             sx={{
               display: "flex",
               alignItems: "center",
-              gap: 1,
-              bgcolor: "#0d0d0d",
-              border: getItemProps(0)["data-focused"] ? "2px solid #667eea" : "1px solid #1e1e1e",
-              borderRadius: 3,
-              px: 2,
-              py: 1,
+              gap: TV_SPACING.md,
+              bgcolor: TV_COLORS.glass.light,
+              border: getItemProps(0)["data-focused"] 
+                ? `3px solid ${TV_COLORS.accent.primary}` 
+                : `2px solid ${TV_COLORS.glass.medium}`,
+              borderRadius: TV_RADIUS.pill,
+              px: TV_SPACING.xl,
+              py: TV_SPACING.sm,
+              height: "3rem",
               width: "100%",
-              maxWidth: 620,
+              maxWidth: "42rem",
               transform: getItemProps(0)["data-focused"] ? "scale(1.02)" : "scale(1)",
+              transition: `all ${TV_TIMING.fast}`,
+              boxShadow: getItemProps(0)["data-focused"] ? TV_SHADOWS.focus : "none",
             }}
           >
-            <SearchIcon sx={{ color: "#8a8a8a" }} />
+            <SearchIcon sx={{ color: TV_COLORS.text.tertiary, fontSize: TV_SIZES.icon.medium }} />
             <InputBase
               placeholder="Search for movies, TV shows..."
               fullWidth
               sx={{
-                color: "#fff",
-                "& input::placeholder": { color: "#7a7a7a" },
+                color: TV_COLORS.text.primary,
+                ...TV_TYPOGRAPHY.body1,
+                "& input::placeholder": { color: TV_COLORS.text.tertiary },
               }}
               inputProps={{ "aria-label": "Search" }}
             />
           </Box>
         </Box>
 
-        <Box display="flex" alignItems="center" gap={1.75}>
+        <Box display="flex" alignItems="center" gap={TV_SPACING.md}>
           <IconButton 
             {...getItemProps(2)}
+            data-focus-id="header-settings"
             onClick={() => navigate("/settings")}
             sx={{
               ...iconButtonSx,
-              border: getItemProps(2)["data-focused"] ? "2px solid #667eea" : iconButtonSx.border,
+              border: getItemProps(2)["data-focused"] 
+                ? `3px solid ${TV_COLORS.accent.primary}` 
+                : iconButtonSx.border,
               transform: getItemProps(2)["data-focused"] ? "scale(1.1)" : "scale(1)",
+              transition: `all ${TV_TIMING.fast}`,
+              boxShadow: getItemProps(2)["data-focused"] ? TV_SHADOWS.focus : "none",
             }}
             aria-label="Settings"
           >
-            <SettingsIcon />
+            <SettingsIcon sx={{ fontSize: TV_SIZES.icon.medium }} />
           </IconButton>
         </Box>
       </Toolbar>
