@@ -1,12 +1,100 @@
 import React, { useEffect, useRef, useState } from "react";
 import Hls from "hls.js";
 
+const MEDIA_KEY_MAP = new Map([
+  ["MediaPlay", "play"],
+  ["MediaPause", "pause"],
+  ["MediaPlayPause", "playPause"],
+  ["Play", "play"],
+  ["Pause", "pause"],
+  ["Stop", "stop"],
+  ["MediaStop", "stop"],
+  ["FastForward", "fastForward"],
+  ["MediaFastForward", "fastForward"],
+  ["Rewind", "rewind"],
+  ["MediaRewind", "rewind"],
+]);
+
+const MEDIA_KEYCODE_MAP = new Map([
+  [415, "play"],
+  [19, "pause"],
+  [179, "playPause"],
+  [413, "stop"],
+  [417, "fastForward"],
+  [412, "rewind"],
+]);
+
+const getMediaAction = (event) => {
+  if (!event) return null;
+  const fromKey = MEDIA_KEY_MAP.get(event.key);
+  if (fromKey) return fromKey;
+  if (typeof event.keyCode === "number") {
+    return MEDIA_KEYCODE_MAP.get(event.keyCode) || null;
+  }
+  return null;
+};
+
 const HLSPlayer = ({ src, autoPlay = true }) => {
   const videoRef = useRef(null);
   const hlsRef = useRef(null);
   const [playbackError, setPlaybackError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [showLoader, setShowLoader] = useState(false);
+
+  useEffect(() => {
+    const handleMediaKeys = (event) => {
+      const action = getMediaAction(event);
+      if (!action) return;
+      const video = videoRef.current;
+      if (!video) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (action === "play") {
+        video.play().catch(() => {});
+        return;
+      }
+
+      if (action === "pause") {
+        video.pause();
+        return;
+      }
+
+      if (action === "playPause") {
+        if (video.paused) {
+          video.play().catch(() => {});
+        } else {
+          video.pause();
+        }
+        return;
+      }
+
+      if (action === "stop") {
+        video.pause();
+        if (Number.isFinite(video.duration)) {
+          video.currentTime = 0;
+        }
+        return;
+      }
+
+      if (action === "fastForward") {
+        if (Number.isFinite(video.duration)) {
+          video.currentTime = Math.min(video.duration, video.currentTime + 10);
+        }
+        return;
+      }
+
+      if (action === "rewind") {
+        if (Number.isFinite(video.duration)) {
+          video.currentTime = Math.max(0, video.currentTime - 10);
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleMediaKeys, true);
+    return () => window.removeEventListener("keydown", handleMediaKeys, true);
+  }, []);
 
   useEffect(() => {
     const video = videoRef.current;

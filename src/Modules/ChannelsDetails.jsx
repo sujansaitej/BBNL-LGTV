@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Box, Typography, Avatar } from "@mui/material";
+import { TV_TYPOGRAPHY, TV_SPACING, TV_RADIUS, TV_SHADOWS, TV_BLUR, TV_COLORS, TV_TIMING } from "../styles/tvConstants";
 
 const ChannelsDetails = ({ channel, visible = false }) => {
 	const [now, setNow] = useState(new Date());
@@ -33,67 +34,126 @@ const ChannelsDetails = ({ channel, visible = false }) => {
 		<Box
 			sx={{
 				position: "absolute",
-				top: 0,
-				left: 0,
-				width: "100%",
-				height: 96,
-				px: 4,
+				bottom: TV_SPACING.xl,
+				left: "50%",
+				transform: visible ? "translate(-50%, 0)" : "translate(-50%, 1rem)",
+				width: "80%",
+				maxWidth: "1200px",
+				minHeight: "7rem",
+				px: TV_SPACING.xl,
+				py: TV_SPACING.lg,
 				display: "flex",
 				alignItems: "center",
 				justifyContent: "space-between",
-				color: "#fff",
-				background: "rgba(0,0,0,0.55)",
-				backdropFilter: "blur(18px)",
+				gap: TV_SPACING.lg,
+				color: TV_COLORS.text.primary,
+				background: TV_COLORS.background.overlay,
+				backdropFilter: TV_BLUR.lg,
+				border: "2px solid rgba(255,255,255,0.2)",
+				borderRadius: TV_RADIUS.xxl,
+				boxShadow: TV_SHADOWS.xl,
 				opacity: visible ? 1 : 0,
-				transform: visible ? "translateY(0)" : "translateY(-10px)",
-				transition: "opacity 0.25s ease, transform 0.25s ease",
+				transition: `opacity ${TV_TIMING.normal} ease, transform ${TV_TIMING.normal} ease`,
 				pointerEvents: "none",
 				zIndex: 30,
 			}}
 		>
-			<Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+			<Box sx={{ display: "flex", alignItems: "center", gap: TV_SPACING.lg }}>
 				<Avatar
 					src={channel.chlogo}
 					variant="rounded"
-					sx={{ width: 58, height: 58, bgcolor: "#fff" }}
+					sx={{ 
+						width: "5rem", 
+						height: "5rem", 
+						bgcolor: "#fff",
+						borderRadius: TV_RADIUS.lg,
+						boxShadow: TV_SHADOWS.md,
+					}}
 				/>
 				<Box>
-					<Typography sx={{ fontSize: 16, fontWeight: 700, letterSpacing: "0.3px" }}>
+					<Typography sx={{ 
+						...TV_TYPOGRAPHY.body2,
+						fontWeight: 700,
+						opacity: 0.9,
+					}}>
 						{String(channel.channelno || "--").padStart(3, "0")}
 					</Typography>
-					<Typography sx={{ fontSize: 18, fontWeight: 700 }}>
+					<Typography sx={{ 
+						...TV_TYPOGRAPHY.h3,
+						mt: 0.5,
+					}}>
 						{channel.chtitle || "Unknown Channel"}
 					</Typography>
-					<Typography sx={{ fontSize: 13, opacity: 0.8 }}>{expiryText}</Typography>
+					<Typography sx={{ 
+						...TV_TYPOGRAPHY.caption,
+						opacity: 0.75,
+						mt: 0.5,
+					}}>
+						{expiryText}
+					</Typography>
 				</Box>
 			</Box>
 
-			<Box sx={{ display: "flex", gap: 4, alignItems: "center" }}>
+			<Box sx={{ display: "flex", gap: TV_SPACING.xl, alignItems: "center" }}>
 				<Box sx={{ textAlign: "left" }}>
-					<Typography sx={{ fontSize: 12, opacity: 0.7 }}>Channels Price $:</Typography>
-					<Typography sx={{ fontSize: 14, fontWeight: 700 }}>
+					<Typography sx={{ 
+						...TV_TYPOGRAPHY.label,
+						opacity: 0.7,
+						mb: 0.5,
+					}}>
+						Channel Price $:
+					</Typography>
+					<Typography sx={{ 
+						...TV_TYPOGRAPHY.body2,
+						fontWeight: 700,
+					}}>
 						{channel.chprice || "N/A"}
 					</Typography>
 				</Box>
 				<Box sx={{ textAlign: "left" }}>
-					<Typography sx={{ fontSize: 12, opacity: 0.7 }}>Device ID:</Typography>
-					<Typography sx={{ fontSize: 14, fontWeight: 700 }}>
+					<Typography sx={{ 
+						...TV_TYPOGRAPHY.label,
+						opacity: 0.7,
+						mb: 0.5,
+					}}>
+						Device ID:
+					</Typography>
+					<Typography sx={{ 
+						...TV_TYPOGRAPHY.body2,
+						fontWeight: 700,
+					}}>
 						{deviceId}
 					</Typography>
 				</Box>
 				<Box sx={{ textAlign: "left" }}>
-					<Typography sx={{ fontSize: 12, opacity: 0.7 }}>Subscribed:</Typography>
-					<Typography sx={{ fontSize: 14, fontWeight: 700 }}>
+					<Typography sx={{ 
+						...TV_TYPOGRAPHY.label,
+						opacity: 0.7,
+						mb: 0.5,
+					}}>
+						Subscribed:
+					</Typography>
+					<Typography sx={{ 
+						...TV_TYPOGRAPHY.body2,
+						fontWeight: 700,
+					}}>
 						{channel.subscribed ? channel.subscribed.toUpperCase() : "N/A"}
 					</Typography>
 				</Box>
 			</Box>
 
 			<Box sx={{ textAlign: "right" }}>
-				<Typography sx={{ fontSize: 14, fontWeight: 700 }}>
+				<Typography sx={{ 
+					...TV_TYPOGRAPHY.h3,
+					fontWeight: 700,
+				}}>
 					{now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
 				</Typography>
-				<Typography sx={{ fontSize: 12, opacity: 0.7 }}>
+				<Typography sx={{ 
+					...TV_TYPOGRAPHY.caption,
+					opacity: 0.75,
+					mt: 0.5,
+				}}>
 					{now.toLocaleDateString("en-US", {
 						day: "2-digit",
 						month: "short",

@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+
 import { Box, Typography, ButtonBase, Button, InputAdornment, IconButton, Skeleton } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import ClearIcon from "@mui/icons-material/Clear";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+
 import { useGridNavigation, useInputFocusHandler, useRemoteNavigation } from "../Atomic-Common-Componenets/useRemoteNavigation";
 import { DEFAULT_USER } from "../Api/config";
 import SearchTextField from "../Atomic-Reusable-Componenets/Search";
 import ChannelBox from "../Atomic-Reusable-Componenets/ChannelBox";
 import useLiveChannelsStore from "../Global-storage/LiveChannelsStore";
 import useLanguageStore from "../Global-storage/LivePlayersStore";
-import {  TV_TYPOGRAPHY,  TV_SPACING,  TV_RADIUS, TV_COLORS,  TV_SIZES, TV_GRID,TV_SAFE_ZONE } from "../styles/tvConstants";
 
 const LiveChannels = () => {
   const location = useLocation();
@@ -22,28 +23,16 @@ const LiveChannels = () => {
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [selectedLanguageId, setSelectedLanguageId] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
-  const [channelJumpBuffer, setChannelJumpBuffer] = useState("");
-  const {
-    categories,
-    channelsCache,
-    isLoadingCategories,
-    error,
-    fetchCategories,
-    fetchChannels,
-    clearError,
-  } = useLiveChannelsStore();
+  const { categories, channelsCache,error,fetchCategories,fetchChannels,clearError,} = useLiveChannelsStore();
   const { languagesCache, fetchLanguages } = useLanguageStore();
   const lastAutoPlayKey = useRef("");
-  const numberBufferRef = useRef("");
-  const numberTimerRef = useRef(null);
 
-  // Get userid + mobile
+  // Get userid + mobile (safe for environments without localStorage)
   const userid = localStorage.getItem("userId") || DEFAULT_USER.userid;
   const mobile = localStorage.getItem("userPhone") || "";
   const channelsKey = `${userid}|${mobile}|`;
   const channelsEntry = channelsCache[channelsKey] || {};
   const channels = channelsEntry.data || [];
-  const isLoadingChannels = !!channelsEntry.isLoading;
 
   const langKey = `${userid}|${mobile}`;
   const langEntry = languagesCache[langKey] || {};
@@ -52,7 +41,11 @@ const LiveChannels = () => {
   // Calculate columns dynamically based on viewport width
   const getColumnsCount = () => {
     const width = window.innerWidth;
-    return TV_GRID.getColumns(width);
+    const cardWidth = 280;
+    const gap = 32; // 8 units = 8 * 4px = 32px
+    const padding = 40; // 5 units padding on each side
+    const availableWidth = width - padding * 2;
+    return Math.max(3, Math.floor(availableWidth / (cardWidth + gap)));
   };
 
   const [columnsCount, setColumnsCount] = useState(getColumnsCount());
@@ -135,9 +128,6 @@ const LiveChannels = () => {
     if (activeFilter !== "All Channels") {
       if (activeFilter === "Subscribed Channels") {
         baseChannels = channels.filter((c) => c.subscribed === "yes");
-      } else if (activeFilter === "Language") {
-        // Language filter is handled separately by selectedLanguageId below
-        baseChannels = channels;
       } else {
         const selectedCategory = categories.find((cat) => cat.title === activeFilter);
         if (selectedCategory) {
@@ -165,16 +155,6 @@ const LiveChannels = () => {
     });
   }, [activeFilter, categories, channels, debouncedSearchTerm, languages, selectedLanguageId]);
 
-  // Enhanced categories with custom filters
-  const enhancedCategories = useMemo(() => {
-    const customCategories = [
-      { title: "All Channels", grid: "all" },
-      { title: "Subscribed Channels", grid: "subscribed" },
-      { title: "Language", grid: "language" },
-    ];
-    return [...customCategories, ...categories];
-  }, [categories]);
-
   // Use grid navigation for channel cards
   const { focusedIndex, getItemProps: getChannelProps } = useGridNavigation(
     filteredChannels.length,
@@ -192,12 +172,12 @@ const LiveChannels = () => {
 
   // Use horizontal navigation for category filters
   const { getItemProps: getCategoryProps } = useRemoteNavigation(
-    enhancedCategories.length,
+    categories.length,
     {
       orientation: "horizontal",
       enabled: !isSearchFocused,
       onSelect: (index) => {
-        handleFilter(enhancedCategories[index]);
+        handleFilter(categories[index]);
       },
     }
   );
@@ -221,6 +201,7 @@ const LiveChannels = () => {
     setSearchTerm("");
   };
 
+
   useEffect(() => {
     if (!mobile) {
       setAuthError("NO_LOGIN");
@@ -235,17 +216,9 @@ const LiveChannels = () => {
 
   // ================= FILTER HANDLER =================
   const handleFilter = (cat) => {
-    if (cat.title === "Language") {
-      navigate("/languagechannels");
-      return;
-    }
     setActiveFilter(cat.title);
     setSearchTerm(""); // Clear search when changing category
     setLocalError("");
-    
-    // If Language tab is selected and we have a selectedLanguageId, keep it
-    // Otherwise, reset the language filter when switching to other tabs
-    setSelectedLanguageId("");
   };
 
   // Auto-play when the search matches a single channel
@@ -268,69 +241,6 @@ const LiveChannels = () => {
     }
   }, [filteredChannels, debouncedSearchTerm]);
 
-  // ================= NUMERIC CHANNEL JUMP (IPTV FEATURE) =================
-  useEffect(() => {
-    const getDigitFromEvent = (event) => {
-      if (/^[0-9]$/.test(event.key)) return event.key;
-      if (event.code && event.code.startsWith("Digit")) return event.code.replace("Digit", "");
-      const code = event.keyCode;
-      if (code >= 48 && code <= 57) return String(code - 48);
-      if (code >= 96 && code <= 105) return String(code - 96);
-      return "";
-    };
-
-    const commitChannelJump = () => {
-      const value = numberBufferRef.current;
-      if (!value) return;
-      setChannelJumpBuffer("");
-      numberBufferRef.current = "";
-      if (numberTimerRef.current) {
-        clearTimeout(numberTimerRef.current);
-        numberTimerRef.current = null;
-      }
-
-      const target = filteredChannels.find((item) => {
-        const rawNo = item.channelno || item.channel_no || item.chno || "";
-        if (String(rawNo).trim() === String(value).trim()) return true;
-        const parsedRaw = parseInt(rawNo, 10);
-        const parsedValue = parseInt(value, 10);
-        if (!Number.isNaN(parsedRaw) && !Number.isNaN(parsedValue)) {
-          return parsedRaw === parsedValue;
-        }
-        return false;
-      });
-
-      if (target) {
-        setLocalError("");
-        handleChannelSelect(target);
-      } else {
-        setLocalError(`Channel ${value} not found.`);
-      }
-    };
-
-    const handleKey = (event) => {
-      const digit = getDigitFromEvent(event);
-      if (digit && !isSearchFocused) {
-        event.preventDefault();
-        event.stopPropagation();
-        numberBufferRef.current = `${numberBufferRef.current}${digit}`.slice(0, 4);
-        setChannelJumpBuffer(numberBufferRef.current);
-        if (numberTimerRef.current) {
-          clearTimeout(numberTimerRef.current);
-        }
-        numberTimerRef.current = setTimeout(commitChannelJump, 1000);
-      }
-    };
-
-    window.addEventListener("keydown", handleKey, true);
-    return () => {
-      window.removeEventListener("keydown", handleKey, true);
-      if (numberTimerRef.current) {
-        clearTimeout(numberTimerRef.current);
-      }
-    };
-  }, [filteredChannels, isSearchFocused]);
-
   // Handle channel selection
   const handleChannelSelect = (ch) => {
     // Try to find any stream URL
@@ -345,38 +255,39 @@ const LiveChannels = () => {
     }
   };
 
+  // ================= CHANNEL CARD =================
+
   // Show login required message
   if (authError === "NO_LOGIN") {
     return (
       <Box
         sx={{
-          background: TV_COLORS.background.primary,
+          background: "#000",
           minHeight: "100vh",
-          color: TV_COLORS.text.primary,
-          px: TV_SAFE_ZONE.horizontal,
-          py: TV_SAFE_ZONE.vertical,
+          color: "#fff",
+          p: 4,
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
         }}
       >
-        <Typography sx={{ ...TV_TYPOGRAPHY.h1, mb: TV_SPACING.lg }}>
+        <Typography sx={{ fontSize: 28, fontWeight: 700, mb: 2 }}>
           Login Required
         </Typography>
-        <Typography sx={{ ...TV_TYPOGRAPHY.body1, mb: TV_SPACING.md, color: TV_COLORS.text.tertiary }}>
+        <Typography sx={{ fontSize: 16, mb: 1, color: "#999" }}>
           Please log in with your phone number to view TV channels.
         </Typography>
         <Button
           variant="contained"
           onClick={() => navigate("/login")}
           sx={{
-            ...TV_SIZES.button.large,
-            ...TV_TYPOGRAPHY.button,
-            background: `linear-gradient(135deg, ${TV_COLORS.accent.primary} 0%, ${TV_COLORS.accent.secondary} 100%)`,
-            borderRadius: TV_RADIUS.xl,
+            px: 4,
+            py: 1.5,
+            fontSize: 16,
+            background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
             "&:hover": {
-              background: `linear-gradient(135deg, ${TV_COLORS.accent.secondary} 0%, ${TV_COLORS.accent.primary} 100%)`,
+              background: "linear-gradient(135deg, #764ba2 0%, #667eea 100%)",
             },
           }}
         >
@@ -392,69 +303,41 @@ const LiveChannels = () => {
         background: "#000",
         minHeight: "100vh",
         color: "#fff",
-        px: "4rem",
-        py: "3rem",
+        p: 5,
         fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
         textRendering: "optimizeLegibility",
         WebkitFontSmoothing: "antialiased",
         MozOsxFontSmoothing: "grayscale",
-        position: "relative",
+        letterSpacing: "0.3px",
       }}
     >
-      {/* ================= CHANNEL JUMP HUD ================= */}
-      {channelJumpBuffer && (
-        <Box
-          sx={{
-            position: "fixed",
-            top: "2rem",
-            right: "2rem",
-            bgcolor: "#667eea",
-            color: "#fff",
-            px: "2rem",
-            py: "1rem",
-            borderRadius: "0.75rem",
-            fontSize: "1.75rem",
-            fontWeight: 700,
-            boxShadow: "0 0 20px rgba(102, 126, 234, 0.5)",
-            zIndex: 100,
-            animation: "pulse 0.6s ease",
-            "@keyframes pulse": {
-              "0%, 100%": { opacity: 1 },
-              "50%": { opacity: 0.7 },
-            },
-          }}
-        >
-          Channel: {channelJumpBuffer}
-        </Box>
-      )}
       {/* ================= HEADER WITH BACK BUTTON AND TITLE ================= */}
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: "3rem" }}>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 5 }}>
         {/* Back Button */}
         <IconButton
           onClick={() => navigate(-1)}
           sx={{
             color: "#fff",
             border: "2px solid rgba(255,255,255,0.4)",
-            borderRadius: "0.75rem",
-            width: "3.5rem",
-            height: "3.5rem",
+            borderRadius: "10px",
+            padding: "12px",
             "&:hover": {
-              background: "rgba(255,255,255,0.1)",
+              background: "rgba(255,255,255,0.15)",
             },
           }}
         >
-          <ArrowBackIcon sx={{ fontSize: "2rem" }} />
+          <ArrowBackIcon sx={{ fontSize: 28 }} />
         </IconButton>
 
-        {/* Title */}
-        <Typography sx={{ fontSize: "2.5rem", fontWeight: 700, lineHeight: 1.2 }}>
+        {/* Title on Right */}
+        <Typography sx={{ fontSize: 38, fontWeight: 700, lineHeight: 1.1, letterSpacing: "0.5px" }}>
           TV Channels
         </Typography>
 
         {/* Search Bar */}
         <Box
           sx={{
-            width: "26rem",
+            width: 420,
             display: "flex",
             alignItems: "center",
           }}
@@ -473,7 +356,7 @@ const LiveChannels = () => {
                 color: "#fff",
                 background: "rgba(255,255,255,0.08)",
                 borderRadius: "28px",
-                minHeight: "3.5rem",
+                minHeight: 56,
                 "& fieldset": {
                   borderColor: "rgba(255,255,255,0.3)",
                   borderWidth: "2px",
@@ -487,8 +370,8 @@ const LiveChannels = () => {
                 },
               },
               "& .MuiInputBase-input": {
-                fontSize: "1.25rem",
-                padding: "0.875rem 1rem",
+                fontSize: 20,
+                padding: "14px 16px",
                 fontWeight: 500,
               },
               "& .MuiInputBase-input::placeholder": {
@@ -499,7 +382,7 @@ const LiveChannels = () => {
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
-                  <SearchIcon sx={{ color: "rgba(255,255,255,0.5)", fontSize: "1.5rem" }} />
+                  <SearchIcon sx={{ color: "rgba(255,255,255,0.5)" }} />
                 </InputAdornment>
               ),
               endAdornment: searchTerm && (
@@ -514,104 +397,128 @@ const LiveChannels = () => {
         </Box>
       </Box>
 
-      {/* ================= CATEGORY FILTER TABS ================= */}
-      <Box sx={{ mb: "2.5rem", display: "flex", gap: "1rem", flexWrap: "wrap" }}>
-        {isLoadingCategories
-          ? Array.from({ length: 4 }).map((_, index) => (
-              <Skeleton
-                key={`cat-skel-${index}`}
-                variant="rounded"
-                sx={{ width: "10rem", height: "2.75rem", borderRadius: "9999px" }}
-              />
-            ))
-          : enhancedCategories.map((cat, index) => {
-              const props = getCategoryProps(index);
-              const isActive = activeFilter === cat.title;
-              const isFocused = props["data-focused"];
+      {/* ================= ERROR BOX ================= */}
+      {(localError || error) && authError !== "NO_LOGIN" && (
+        <Box
+          sx={{
+            mb: 3,
+            p: 2,
+            borderRadius: 2,
+            border: "1px solid red",
+            background: "rgba(255,0,0,0.15)",
+            color: "#ff9a9a",
+          }}
+        >
+          {localError || error}
+        </Box>
+      )}
 
-              return (
-                <ButtonBase
-                  key={cat.grid || index}
-                  {...props}
-                  onClick={() => handleFilter(cat)}
-                  sx={{
-                    fontSize: "1.125rem",
-                    fontWeight: 600,
-                    px: "2rem",
-                    py: "0.75rem",
-                    borderRadius: "9999px",
-                    bgcolor: isActive ? "#fff" : "rgba(255,255,255,0.08)",
-                    color: isActive ? "#000" : "#fff",
-                    border: isFocused 
-                      ? "3px solid #667eea" 
-                      : "3px solid transparent",
-                    transform: isFocused ? "scale(1.05)" : "scale(1)",
-                    transition: "all 0.2s",
-                    boxShadow: isFocused ? "0 0 0 4px rgba(102, 126, 234, 0.4)" : "none",
-                    "&:hover": {
-                      bgcolor: isActive ? "#fff" : "rgba(255,255,255,0.12)",
-                    },
-                  }}
-                >
-                  {cat.title}
-                </ButtonBase>
-              );
-            })}
+      {/* ================= CATEGORY FILTERS ================= */}
+      <Box sx={{ display: "flex", gap: 2.5, mb: 5, flexWrap: "wrap", overflowX: "auto", pb: 2 }}>
+        {categories.map((cat, i) => {
+          const categoryProps = !isSearchFocused ? getCategoryProps(i) : {};
+          return (
+            <ButtonBase
+              key={i}
+              {...categoryProps}
+              onClick={() => handleFilter(cat)}
+              sx={{
+                px: 5,
+                py: 1.75,
+                borderRadius: "26px",
+                border: activeFilter === cat.title ? "none" : "2px solid rgba(255,255,255,0.3)",
+                color: "#fff",
+                fontSize: 19,
+                fontWeight: 600,
+                letterSpacing: "0.3px",
+                background: activeFilter === cat.title 
+                  ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" 
+                  : "rgba(255,255,255,0.08)",
+                transition: "all 0.25s ease",
+                outline: categoryProps["data-focused"] ? "3px solid #667eea" : "none",
+                outlineOffset: "3px",
+                minHeight: 52,
+                "&:hover": {
+                  background: activeFilter === cat.title
+                    ? "linear-gradient(135deg, #764ba2 0%, #667eea 100%)"
+                    : "rgba(255,255,255,0.15)",
+                  transform: "translateY(-2px)",
+                },
+              }}
+            >
+              {cat.title}
+            </ButtonBase>
+          );
+        })}
+        
+        {/* Language Filter Button */}
+        <ButtonBase
+          onClick={() => navigate("/languagechannels")}
+          sx={{
+            px: 5,
+            py: 1.75,
+            borderRadius: "26px",
+            border: activeFilter === "Language" ? "none" : "2px solid rgba(255,255,255,0.3)",
+            color: "#fff",
+            fontSize: 19,
+            fontWeight: 600,
+            letterSpacing: "0.3px",
+            background: activeFilter === "Language" 
+              ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" 
+              : "rgba(255,255,255,0.08)",
+            transition: "all 0.25s ease",
+            minHeight: 52,
+            "&:hover": {
+              background: activeFilter === "Language"
+                ? "linear-gradient(135deg, #764ba2 0%, #667eea 100%)"
+                : "rgba(255,255,255,0.15)",
+              transform: "translateY(-2px)",
+            },
+          }}
+        >
+          Language
+        </ButtonBase>
       </Box>
 
-      {/* ================= ERROR/LOADING STATES ================= */}
-      {error && (
-        <Typography sx={{ fontSize: "1.25rem", color: "#f44336", mb: "1.5rem" }}>
-          {error}
-        </Typography>
-      )}
-
-      {localError && (
-        <Typography sx={{ fontSize: "1.25rem", color: "#ff9800", mb: "1.5rem" }}>
-          {localError}
-        </Typography>
-      )}
-
-      {/* ================= CHANNELS GRID ================= */}
+      {/* ================= CHANNEL GRID ================= */}
       <Box
         sx={{
           display: "grid",
-          gridTemplateColumns: `repeat(${columnsCount}, 1fr)` ,
-          gap: "3rem",
+          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+          gap: 8,
+          pb: 5,
+          alignContent: "start",
+          justifyContent: "start",
+          width: "100%",
         }}
       >
-        {isLoadingChannels
-          ? Array.from({ length: columnsCount * 2 }).map((_, index) => (
-              <Skeleton
-                key={`channel-skel-${index}`}
-                variant="rounded"
-                sx={{ width: "100%", height: "9rem", borderRadius: "1rem" }}
-              />
-            ))
-          : filteredChannels.length === 0 ? (
-              <Box sx={{ gridColumn: "1 / -1", textAlign: "center", py: "4rem" }}>
-                <Typography sx={{ fontSize: "1.75rem", fontWeight: 600, color: "rgba(255,255,255,0.6)" }}>
-                  No channels found
-                </Typography>
+        {channelsEntry.isLoading
+          ? Array.from({ length: channelsEntry.count || 100}).map((_, i) => (
+              <Box key={`skeleton-${i}`}>
+                <Skeleton
+                  variant="rectangular"
+                  width={280}
+                  height={160}
+                  sx={{ borderRadius: "18px", mb: 2, bgcolor: "rgba(255, 255, 255, 0.57)" }}
+                />
+                <Skeleton width="70%" height={24} sx={{ bgcolor: "rgba(255, 255, 255, 0.6)" }} />
               </Box>
-            ) : (
-              filteredChannels.map((channel, index) => {
-                const props = getChannelProps(index);
-                const isFocused = props["data-focused"];
-
-                return (
-                  <Box key={`${channel.channelno}-${index}`} {...props}>
-                    <ChannelBox
-                      logo={channel.chlogo}
-                      name={channel.chtitle}
-                      channelNo={channel.channelno}
-                      onClick={() => handleChannelSelect(channel)}
-                      focused={isFocused}
-                    />
-                  </Box>
-                );
-              })
-            )}
+            ))
+          : filteredChannels.map((ch, i) => {
+              const channelProps = !isSearchFocused ? getChannelProps(i) : {};
+              return (
+                <Box key={i} {...channelProps}>
+                  <ChannelBox
+                    logo={ch.chlogo}
+                    name={ch.chtitle}
+                    channelNo={ch.channelno}
+                    subscribed={ch.subscribed}
+                    focused={channelProps["data-focused"] && !isSearchFocused}
+                    onClick={() => handleChannelSelect(ch)}
+                  />
+                </Box>
+              );
+            })}
       </Box>
     </Box>
   );

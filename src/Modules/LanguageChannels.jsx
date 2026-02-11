@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Box, Typography, Button, IconButton } from "@mui/material";
+import { Box, Typography, Button, IconButton, Skeleton } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 
 import { fetchLanguages } from "../Api/modules-api/LanguageChannelsApi";
@@ -183,15 +183,19 @@ const LanguageChannels = () => {
       {loading && (
         <Box
           sx={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            minHeight: "60vh",
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+            gap: 3,
+            pb: 4,
           }}
         >
-          <Typography sx={{ fontSize: 18, color: "#999" }}>
-            Loading languages...
-          </Typography>
+          {Array.from({ length: 8 }).map((_, index) => (
+            <Skeleton
+              key={`lang-skel-${index}`}
+              variant="rounded"
+              sx={{ width: "100%", height: "280px", borderRadius: "20px" }}
+            />
+          ))}
         </Box>
       )}
 
