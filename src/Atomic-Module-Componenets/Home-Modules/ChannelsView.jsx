@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Box, Typography } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { DEFAULT_USER } from "../../Api/config";
 import useLanguageStore from "../../Global-storage/LivePlayersStore";
-import { useGridNavigation } from "../../Atomic-Common-Componenets/useRemoteNavigation";
-import { TV_TYPOGRAPHY, TV_SPACING, TV_RADIUS, TV_SHADOWS, TV_TIMING, TV_COLORS, TV_GRID } from "../../styles/tvConstants";
+import { TV_TYPOGRAPHY, TV_SPACING, TV_RADIUS, TV_SHADOWS, TV_TIMING, TV_COLORS } from "../../styles/tvConstants";
 
 const ChannelsView = () => {
 	const navigate = useNavigate();
@@ -32,21 +31,6 @@ const ChannelsView = () => {
 	const langEntry = languagesCache[langKey] || {};
 	const languages = langEntry.data || [];
 	const loading = langEntry.isLoading;
-
-	const columnsCount = useMemo(() => TV_GRID.getColumns(window.innerWidth), []);
-	const { getItemProps: getLanguageProps } = useGridNavigation(
-		languages.length,
-		columnsCount,
-		{
-			loop: false,
-			onSelect: (index) => {
-				const lang = languages[index];
-				if (lang) {
-					handleLanguageClick(lang.langid);
-				}
-			},
-		}
-	);
 
 	// Handle language card click
 	const handleLanguageClick = (langid) => {
@@ -101,14 +85,18 @@ const ChannelsView = () => {
 							No channels available
 						</Typography>
 					) : (
-						languages.map((lang, index) => {
-							const props = getLanguageProps(index);
-							return (
-								<Box
+						languages.map((lang, index) => (
+							<Box
 								key={index}
-									{...props}
-									data-focusable="true"
-									onClick={() => handleLanguageClick(lang.langid)}
+								tabIndex={0}
+								role="button"
+								onClick={() => handleLanguageClick(lang.langid)}
+								onKeyDown={(event) => {
+									if (event.key === "Enter" || event.key === " ") {
+										event.preventDefault();
+										handleLanguageClick(lang.langid);
+									}
+								}}
 								sx={{
 									width: "15rem",
 									borderRadius: "1rem",
@@ -118,17 +106,15 @@ const ChannelsView = () => {
 									flexDirection: "column",
 									alignItems: "center",
 									justifyContent: "center",
-										outline: "none",
-										boxShadow: props["data-focused"] ? TV_SHADOWS.focusGlow : "none",
-										transform: props["data-focused"] ? "scale(1.06)" : "scale(1)",
+									outline: "none",
 									"&:hover": {
 										transform: "scale(1.05)",
 										boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
 									},
-									"&:focus": {
+									"&:focus-visible": {
 										transform: "scale(1.08)",
 										outline: "4px solid #667eea",
-										boxShadow: "0 0 24px rgba(102, 126, 234, 0.6)",
+										boxShadow: TV_SHADOWS.focusGlow,
 									},
 								}}
 							>
@@ -169,8 +155,7 @@ const ChannelsView = () => {
 									</Box>
 								)}
 							</Box>
-						);
-						})
+						))
 					)}
 				</Box>
 			)}

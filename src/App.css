@@ -1,12 +1,212 @@
+/* ==================== ROOT CONTAINER - GLOBALLY RESPONSIVE ==================== */
 #root {
   width: 100%;
+  width: 100vw;
   height: 100vh;
   overflow: hidden;
   background: #000;
+  position: relative;
+  
+  /* Ensure proper scaling on all TV sizes */
+  transform-origin: top left;
+  
+  /* Hardware acceleration for smooth rendering on TV */
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  will-change: transform;
 }
 
+/* ==================== UNIVERSAL BOX MODEL ==================== */
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+}
+
+/* ==================== RESPONSIVE CONTAINER QUERIES ==================== */
+/* Auto-scale containers based on viewport */
+.container {
+  width: 100%;
+  max-width: 100vw;
+  margin: 0 auto;
+  padding: calc(var(--tv-safe-zone-x, 5%));
+}
+
+/* ==================== RESPONSIVE LAYOUT HELPERS ==================== */
+.tv-layout-main {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+.tv-layout-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+}
+
+/* ==================== RESPONSIVE HEADER/FOOTER ==================== */
+.tv-header {
+  height: calc(5rem * var(--tv-scale, 1));
+  flex-shrink: 0;
+}
+
+.tv-footer {
+  height: calc(4rem * var(--tv-scale, 1));
+  flex-shrink: 0;
+}
+
+/* ==================== RESPONSIVE SIDEBAR ==================== */
+.tv-sidebar {
+  width: calc(24rem * var(--tv-scale, 1));
+  height: 100vh;
+  flex-shrink: 0;
+  overflow-y: auto;
+}
+
+.tv-sidebar-collapsed {
+  width: calc(6rem * var(--tv-scale, 1));
+}
+
+/* ==================== RESPONSIVE CARDS ==================== */
+.tv-card {
+  border-radius: calc(1rem * var(--tv-scale, 1));
+  padding: calc(1.5rem * var(--tv-spacing-scale, 1));
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+/* ==================== RESPONSIVE MEDIA CONTAINERS ==================== */
+.tv-media-container {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+}
+
+.tv-media-container img,
+.tv-media-container video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ==================== RESPONSIVE ASPECT RATIOS ==================== */
+.tv-aspect-16-9 {
+  position: relative;
+  padding-bottom: 56.25%; /* 16:9 aspect ratio */
+  height: 0;
+  overflow: hidden;
+}
+
+.tv-aspect-16-9 > * {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.tv-aspect-4-3 {
+  position: relative;
+  padding-bottom: 75%; /* 4:3 aspect ratio */
+  height: 0;
+  overflow: hidden;
+}
+
+.tv-aspect-4-3 > * {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* ==================== PERFORMANCE OPTIMIZATIONS ==================== */
+/* Hardware acceleration for smooth animations on TV */
+.tv-accelerated {
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  perspective: 1000px;
+  -webkit-perspective: 1000px;
+}
+
+/* ==================== TEXT OVERFLOW HANDLING ==================== */
+.tv-text-ellipsis {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tv-text-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tv-text-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ==================== VISIBILITY HELPERS ==================== */
+/* Hide on small TVs (32" and smaller) */
+@media (max-width: 1365px) {
+  .tv-hide-small { display: none !important; }
+}
+
+/* Hide on medium TVs (42"-50") */
+@media (min-width: 1366px) and (max-width: 1919px) {
+  .tv-hide-medium { display: none !important; }
+}
+
+/* Hide on large TVs (55"-65") */
+@media (min-width: 1920px) and (max-width: 2559px) {
+  .tv-hide-large { display: none !important; }
+}
+
+/* Hide on xlarge TVs (70"-77") */
+@media (min-width: 2560px) and (max-width: 3839px) {
+  .tv-hide-xlarge { display: none !important; }
+}
+
+/* Hide on xxlarge TVs (86"+) */
+@media (min-width: 3840px) {
+  .tv-hide-xxlarge { display: none !important; }
+}
+
+/* Show only on specific sizes */
+.tv-show-small { display: none !important; }
+@media (max-width: 1365px) {
+  .tv-show-small { display: block !important; }
+}
+
+.tv-show-medium { display: none !important; }
+@media (min-width: 1366px) and (max-width: 1919px) {
+  .tv-show-medium { display: block !important; }
+}
+
+.tv-show-large { display: none !important; }
+@media (min-width: 1920px) and (max-width: 2559px) {
+  .tv-show-large { display: block !important; }
+}
+
+.tv-show-xlarge { display: none !important; }
+@media (min-width: 2560px) and (max-width: 3839px) {
+  .tv-show-xlarge { display: block !important; }
+}
+
+.tv-show-xxlarge { display: none !important; }
+@media (min-width: 3840px) {
+  .tv-show-xxlarge { display: block !important; }
 }

@@ -1,12 +1,238 @@
+/* ==================== GLOBAL CSS VARIABLES ==================== */
+/* Base scale factor for responsive sizing across all TV screens */
+:root {
+  /* Default base (Full HD 1920x1080 - 55"-65" TVs) */
+  --tv-scale: 1;
+  --tv-font-scale: 1;
+  --tv-spacing-scale: 1;
+  --tv-safe-zone-x: 5%;
+  --tv-safe-zone-y: 5%;
+}
+
+/* ==================== TV SIZE BREAKPOINTS ==================== */
+/* Small TVs: 32" and smaller (HD Ready 768px-1366px) */
+@media (max-width: 1365px) {
+  :root {
+    --tv-scale: 0.75;
+    --tv-font-scale: 0.85;
+    --tv-spacing-scale: 0.8;
+  }
+}
+
+/* Medium TVs: 42"-50" (HD/Full HD 1366px-1919px) */
+@media (min-width: 1366px) and (max-width: 1919px) {
+  :root {
+    --tv-scale: 0.9;
+    --tv-font-scale: 0.95;
+    --tv-spacing-scale: 0.9;
+  }
+}
+
+/* Large TVs: 55"-65" (Full HD 1920px-2559px) - DEFAULT */
+@media (min-width: 1920px) and (max-width: 2559px) {
+  :root {
+    --tv-scale: 1;
+    --tv-font-scale: 1;
+    --tv-spacing-scale: 1;
+  }
+}
+
+/* XLarge TVs: 70"-77" (QHD 2560px-3839px) */
+@media (min-width: 2560px) and (max-width: 3839px) {
+  :root {
+    --tv-scale: 1.2;
+    --tv-font-scale: 1.15;
+    --tv-spacing-scale: 1.2;
+  }
+}
+
+/* XXLarge TVs: 86"+ (4K UHD 3840px+) */
+@media (min-width: 3840px) {
+  :root {
+    --tv-scale: 1.5;
+    --tv-font-scale: 1.3;
+    --tv-spacing-scale: 1.4;
+  }
+}
+
+/* ==================== GLOBAL RESPONSIVE STYLES ==================== */
+* {
+  /* Smooth scaling transitions */
+  transition-property: transform, font-size, padding, margin;
+  transition-duration: 0.2s;
+  transition-timing-function: ease-in-out;
+}
+
+html {
+  /* Base font size for rem calculations - scales with TV size */
+  font-size: calc(16px * var(--tv-font-scale));
+  
+  /* Optimize for TV viewing */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  
+  /* Prevent text size adjustment on orientation change */
+  -webkit-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
+  padding: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: black;
+  background-color: #000;
+  
+  /* Prevent horizontal scroll on smaller screens */
+  overflow-x: hidden;
+  
+  /* Improve performance on TV */
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
+
+/* ==================== RESPONSIVE IMAGE SCALING ==================== */
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  /* Sharp scaling for images */
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+}
+
+/* ==================== RESPONSIVE VIDEO SCALING ==================== */
+video {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* ==================== FOCUS STYLES - SCALE WITH TV SIZE ==================== */
+*:focus-visible {
+  outline: none;
+  border-width: calc(4px * var(--tv-scale));
+  box-shadow: 0 0 0 calc(4px * var(--tv-scale)) rgba(102, 126, 234, 0.3);
+  transform: scale(calc(1.05 * var(--tv-scale)));
+}
+
+/* ==================== BUTTON RESPONSIVE SCALING ==================== */
+button,
+[role="button"] {
+  /* Minimum touch target size scales with TV */
+  min-width: calc(44px * var(--tv-scale));
+  min-height: calc(44px * var(--tv-scale));
+  cursor: pointer;
+}
+
+/* ==================== INPUT RESPONSIVE SCALING ==================== */
+input,
+select,
+textarea {
+  font-size: calc(1rem * var(--tv-font-scale));
+  padding: calc(0.5rem * var(--tv-spacing-scale)) calc(1rem * var(--tv-spacing-scale));
+}
+
+/* ==================== SCROLLBAR STYLING FOR TV ==================== */
+::-webkit-scrollbar {
+  width: calc(12px * var(--tv-scale));
+  height: calc(12px * var(--tv-scale));
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: calc(6px * var(--tv-scale));
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: calc(6px * var(--tv-scale));
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* ==================== TV-SAFE AREA CONTAINERS ==================== */
+.tv-safe-container {
+  padding-left: var(--tv-safe-zone-x);
+  padding-right: var(--tv-safe-zone-x);
+  padding-top: var(--tv-safe-zone-y);
+  padding-bottom: var(--tv-safe-zone-y);
+  box-sizing: border-box;
+}
+
+/* ==================== RESPONSIVE GRID HELPERS ==================== */
+.tv-grid {
+  display: grid;
+  gap: calc(2rem * var(--tv-spacing-scale));
+}
+
+/* Small TVs: 3 columns */
+@media (max-width: 1365px) {
+  .tv-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* Medium TVs: 4 columns */
+@media (min-width: 1366px) and (max-width: 1919px) {
+  .tv-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* Large TVs: 5 columns */
+@media (min-width: 1920px) and (max-width: 2559px) {
+  .tv-grid {
+    grid-template-columns: repeat(5, 1fr);
+  }
+}
+
+/* XLarge TVs: 6 columns */
+@media (min-width: 2560px) and (max-width: 3839px) {
+  .tv-grid {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
+
+/* XXLarge TVs: 7 columns */
+@media (min-width: 3840px) {
+  .tv-grid {
+    grid-template-columns: repeat(7, 1fr);
+  }
+}
+
+/* ==================== RESPONSIVE FLEX HELPERS ==================== */
+.tv-flex {
+  display: flex;
+  gap: calc(1rem * var(--tv-spacing-scale));
+}
+
+/* ==================== RESPONSIVE SPACING UTILITIES ==================== */
+.tv-spacing-xs { padding: calc(0.5rem * var(--tv-spacing-scale)); }
+.tv-spacing-sm { padding: calc(1rem * var(--tv-spacing-scale)); }
+.tv-spacing-md { padding: calc(1.5rem * var(--tv-spacing-scale)); }
+.tv-spacing-lg { padding: calc(2rem * var(--tv-spacing-scale)); }
+.tv-spacing-xl { padding: calc(3rem * var(--tv-spacing-scale)); }
+.tv-spacing-xxl { padding: calc(4rem * var(--tv-spacing-scale)); }
+
+/* ==================== RESPONSIVE TEXT SCALING ==================== */
+.tv-text-hero { font-size: calc(3.5rem * var(--tv-font-scale)); }
+.tv-text-h1 { font-size: calc(2.75rem * var(--tv-font-scale)); }
+.tv-text-h2 { font-size: calc(2.25rem * var(--tv-font-scale)); }
+.tv-text-h3 { font-size: calc(1.875rem * var(--tv-font-scale)); }
+.tv-text-body1 { font-size: calc(1.5rem * var(--tv-font-scale)); }
+.tv-text-body2 { font-size: calc(1.25rem * var(--tv-font-scale)); }
+.tv-text-button { font-size: calc(1.375rem * var(--tv-font-scale)); }
+.tv-text-caption { font-size: calc(1.125rem * var(--tv-font-scale)); }
 
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',

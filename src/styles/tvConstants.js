@@ -332,6 +332,151 @@ export const tvUtils = {
   
   // Media query helper
   mediaQuery: (breakpoint) => `@media (min-width: ${TV_BREAKPOINTS[breakpoint]})`,
+  
+  // CSS variable scaling functions for responsive sizing
+  scale: (value) => `calc(${value} * var(--tv-scale, 1))`,
+  scaleFont: (value) => `calc(${value} * var(--tv-font-scale, 1))`,
+  scaleSpacing: (value) => `calc(${value} * var(--tv-spacing-scale, 1))`,
+  
+  // Get responsive value based on screen size
+  getResponsiveValue: (small, medium, large, xlarge, xxlarge) => ({
+    '@media (max-width: 1365px)': small,
+    '@media (min-width: 1366px) and (max-width: 1919px)': medium,
+    '@media (min-width: 1920px) and (max-width: 2559px)': large,
+    '@media (min-width: 2560px) and (max-width: 3839px)': xlarge,
+    '@media (min-width: 3840px)': xxlarge,
+  }),
+  
+  // Apply responsive scaling to MUI sx prop
+  responsiveSx: (styles) => ({
+    ...styles,
+    fontSize: styles.fontSize ? `calc(${styles.fontSize} * var(--tv-font-scale, 1))` : undefined,
+    padding: styles.padding ? `calc(${styles.padding} * var(--tv-spacing-scale, 1))` : undefined,
+    margin: styles.margin ? `calc(${styles.margin} * var(--tv-spacing-scale, 1))` : undefined,
+    width: styles.width && typeof styles.width === 'string' && styles.width.includes('rem') 
+      ? `calc(${styles.width} * var(--tv-scale, 1))` : styles.width,
+    height: styles.height && typeof styles.height === 'string' && styles.height.includes('rem')
+      ? `calc(${styles.height} * var(--tv-scale, 1))` : styles.height,
+  }),
+};
+
+// ==================== CSS VARIABLE EXPORTS ====================
+// Export CSS custom properties as strings for easy component usage
+export const TV_CSS_VARS = {
+  scale: 'var(--tv-scale, 1)',
+  fontScale: 'var(--tv-font-scale, 1)',
+  spacingScale: 'var(--tv-spacing-scale, 1)',
+  safeZoneX: 'var(--tv-safe-zone-x, 5%)',
+  safeZoneY: 'var(--tv-safe-zone-y, 5%)',
+};
+
+// ==================== RESPONSIVE SIZE PRESETS ====================
+// Pre-calculated responsive sizes for common UI elements
+export const TV_RESPONSIVE_SIZES = {
+  // Buttons with automatic scaling
+  button: {
+    small: {
+      height: `calc(3rem * var(--tv-scale, 1))`,
+      px: `calc(2rem * var(--tv-spacing-scale, 1))`,
+      fontSize: `calc(1.125rem * var(--tv-font-scale, 1))`,
+    },
+    medium: {
+      height: `calc(3.5rem * var(--tv-scale, 1))`,
+      px: `calc(2.5rem * var(--tv-spacing-scale, 1))`,
+      fontSize: `calc(1.375rem * var(--tv-font-scale, 1))`,
+    },
+    large: {
+      height: `calc(4rem * var(--tv-scale, 1))`,
+      px: `calc(3rem * var(--tv-spacing-scale, 1))`,
+      fontSize: `calc(1.5rem * var(--tv-font-scale, 1))`,
+    },
+  },
+  
+  // Icons with automatic scaling
+  icon: {
+    small: `calc(2rem * var(--tv-scale, 1))`,
+    medium: `calc(2.5rem * var(--tv-scale, 1))`,
+    large: `calc(3rem * var(--tv-scale, 1))`,
+    xlarge: `calc(4rem * var(--tv-scale, 1))`,
+  },
+  
+  // Cards with automatic scaling
+  card: {
+    padding: `calc(1.5rem * var(--tv-spacing-scale, 1))`,
+    borderRadius: `calc(1rem * var(--tv-scale, 1))`,
+    gap: `calc(2rem * var(--tv-spacing-scale, 1))`,
+  },
+  
+  // Header with automatic scaling
+  header: {
+    height: `calc(5rem * var(--tv-scale, 1))`,
+    padding: `calc(1rem * var(--tv-spacing-scale, 1))`,
+  },
+  
+  // Sidebar with automatic scaling
+  sidebar: {
+    collapsed: `calc(6rem * var(--tv-scale, 1))`,
+    expanded: `calc(24rem * var(--tv-scale, 1))`,
+  },
+};
+
+// ==================== RESPONSIVE TYPOGRAPHY EXPORTS ====================
+// Typography with CSS variable scaling applied
+export const TV_RESPONSIVE_TYPOGRAPHY = {
+  hero: {
+    fontSize: `calc(3.5rem * var(--tv-font-scale, 1))`,
+    fontWeight: 700,
+    lineHeight: 1.1,
+    letterSpacing: '0.02em',
+  },
+  h1: {
+    fontSize: `calc(2.75rem * var(--tv-font-scale, 1))`,
+    fontWeight: 700,
+    lineHeight: 1.2,
+    letterSpacing: '0.01em',
+  },
+  h2: {
+    fontSize: `calc(2.25rem * var(--tv-font-scale, 1))`,
+    fontWeight: 600,
+    lineHeight: 1.25,
+    letterSpacing: '0.01em',
+  },
+  h3: {
+    fontSize: `calc(1.875rem * var(--tv-font-scale, 1))`,
+    fontWeight: 600,
+    lineHeight: 1.3,
+    letterSpacing: '0.01em',
+  },
+  body1: {
+    fontSize: `calc(1.5rem * var(--tv-font-scale, 1))`,
+    fontWeight: 400,
+    lineHeight: 1.5,
+    letterSpacing: '0.02em',
+  },
+  body2: {
+    fontSize: `calc(1.25rem * var(--tv-font-scale, 1))`,
+    fontWeight: 400,
+    lineHeight: 1.5,
+    letterSpacing: '0.02em',
+  },
+  button: {
+    fontSize: `calc(1.375rem * var(--tv-font-scale, 1))`,
+    fontWeight: 600,
+    lineHeight: 1.4,
+    letterSpacing: '0.03em',
+  },
+  caption: {
+    fontSize: `calc(1.125rem * var(--tv-font-scale, 1))`,
+    fontWeight: 400,
+    lineHeight: 1.4,
+    letterSpacing: '0.02em',
+  },
+  label: {
+    fontSize: `calc(1rem * var(--tv-font-scale, 1))`,
+    fontWeight: 500,
+    lineHeight: 1.5,
+    letterSpacing: '0.03em',
+  },
 };
 
 export default {
@@ -348,5 +493,8 @@ export default {
   TV_Z_INDEX,
   TV_SHADOWS,
   TV_BLUR,
+  TV_CSS_VARS,
+  TV_RESPONSIVE_SIZES,
+  TV_RESPONSIVE_TYPOGRAPHY,
   tvUtils,
 };

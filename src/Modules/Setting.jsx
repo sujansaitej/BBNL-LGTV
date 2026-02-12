@@ -3,7 +3,6 @@ import {Box,List,ListItemButton,ListItemIcon,ListItemText,Typography,Button,Card
 import { useNavigate } from "react-router-dom";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import InfoIcon from "@mui/icons-material/Info";
-import { useRemoteNavigation } from "../Atomic-Common-Componenets/useRemoteNavigation";
 import { useDeviceInformation } from "../Api/Deviceinformaction/LG-Devicesinformaction";
 import { DEFAULT_USER } from "../Api/config";
 import useAppVersionStore from "../Global-storage/LogineOttp";
@@ -23,15 +22,6 @@ const Setting = () => {
     { id: "device", label: "Device Info", icon: <InfoIcon /> },
   ];
 
-  const { getItemProps: getMenuProps } = useRemoteNavigation(
-    menuItems.length,
-    {
-      orientation: "vertical",
-      onSelect: (index) => {
-        setCurrentPage(menuItems[index].id);
-      },
-    }
-  );
 
   // Fetch app version on component mount
   useEffect(() => {
@@ -125,14 +115,12 @@ const Setting = () => {
         }}
       >
         <List sx={{ width: "100%", p: 0 }}>
-          {menuItems.map((item, index) => {
-            const props = getMenuProps(index);
+          {menuItems.map((item) => {
             const isActive = currentPage === item.id;
 
             return (
               <ListItemButton
                 key={item.id}
-                {...props}
                 onClick={() => setCurrentPage(item.id)}
                 sx={{
                   mb: 2,
@@ -147,6 +135,10 @@ const Setting = () => {
                     bgcolor: isActive
                       ? "rgba(255, 255, 255, 0.12)"
                       : "rgba(255, 255, 255, 0.05)",
+                  },
+                  "&:focus-visible": {
+                    border: "2px solid rgba(255, 255, 255, 0.6)",
+                    boxShadow: "0 0 0 4px rgba(255, 255, 255, 0.15)",
                   },
                 }}
               >

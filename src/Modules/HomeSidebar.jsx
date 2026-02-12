@@ -1,5 +1,4 @@
 import { Box, List, ListItemButton, ListItemIcon } from "@mui/material";
-import { useRemoteNavigation } from "../Atomic-Common-Componenets/useRemoteNavigation";
 import { useNavigate } from "react-router-dom";
 import { TV_SPACING, TV_RADIUS, TV_SHADOWS, TV_BLUR, TV_COLORS, TV_FOCUS, TV_TIMING, TV_SIZES } from "../styles/tvConstants";
 
@@ -25,17 +24,6 @@ const menuItems = [
 const SidebarGlass = () => {
   const navigate = useNavigate();
 
-  // Remote navigation for menu items
-  const { getItemProps: getMenuProps } = useRemoteNavigation(
-    menuItems.length,
-    {
-      orientation: "vertical",
-      onSelect: (index) => {
-        const item = menuItems[index];
-        if (item?.path) navigate(item.path);
-      },
-    }
-  );
 
   return (
     <Box
@@ -62,47 +50,47 @@ const SidebarGlass = () => {
 
       {/* -------- MAIN MENU -------- */}
       <List sx={{ width: "100%", p: 0 }}>
-        {menuItems.map((item, index) => {
-          const props = getMenuProps(index);
-
-          return (
-            <ListItemButton
-              key={item.path || index}
-              {...props}
-              onClick={() => item.path && navigate(item.path)}
+        {menuItems.map((item, index) => (
+          <ListItemButton
+            key={item.path || index}
+            onClick={() => item.path && navigate(item.path)}
+            sx={{
+              mb: TV_SPACING.md,
+              borderRadius: TV_RADIUS.xl,
+              justifyContent: "center",
+              minWidth: 0,
+              p: TV_SPACING.md,
+              bgcolor: "transparent",
+              border: "3px solid transparent",
+              outline: "none",
+              transition: `all ${TV_TIMING.fast} ease`,
+              boxShadow: "none",
+              "&:hover": {
+                bgcolor: "transparent",
+              },
+              "&:focus-visible": {
+                bgcolor: "#ffffff",
+                border: "3px solid #ffffff",
+                transform: "scale(1.1)",
+                boxShadow: TV_SHADOWS.md,
+              },
+            }}
+          >
+            <ListItemIcon
               sx={{
-                mb: TV_SPACING.md,
-                borderRadius: TV_RADIUS.xl,
-                justifyContent: "center",
+                color: TV_COLORS.text.primary,
                 minWidth: 0,
-                p: TV_SPACING.md,
-                bgcolor: props["data-focused"] ? "#ffffff" : "transparent",
-                border: props["data-focused"] ? "3px solid #ffffff" : "3px solid transparent",
-                outline: "none",
-                transform: props["data-focused"] ? "scale(1.1)" : "scale(1)",
-                transition: `all ${TV_TIMING.fast} ease`,
-                boxShadow: props["data-focused"] ? TV_SHADOWS.md : "none",
-                "&:hover": {
-                  bgcolor: "transparent",
-                },
-                "&:focus": {
-                  outline: "none",
+                fontSize: TV_SIZES.icon.large,
+                transition: `color ${TV_TIMING.fast} ease`,
+                ".MuiListItemButton-root:focus-visible &": {
+                  color: "#000",
                 },
               }}
             >
-              <ListItemIcon
-                sx={{
-                  color: props["data-focused"] ? "#000" : TV_COLORS.text.primary,
-                  minWidth: 0,
-                  fontSize: TV_SIZES.icon.large,
-                  transition: `color ${TV_TIMING.fast} ease`,
-                }}
-              >
-                {item.icon}
-              </ListItemIcon>
-            </ListItemButton>
-          );
-        })}
+              {item.icon}
+            </ListItemIcon>
+          </ListItemButton>
+        ))}
       </List>
 
       {/* -------- BOTTOM SPACER -------- */}
