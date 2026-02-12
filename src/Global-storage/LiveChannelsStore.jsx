@@ -13,6 +13,18 @@ const buildChannelsKey = (payload) => {
 	return `${user}|${mobile}|${grid}`;
 };
 
+const buildChannelMaps = (channels = []) => {
+	const byNumber = {};
+	const byId = {};
+	channels.forEach((ch) => {
+		const num = (ch.channelno || ch.channel_no || ch.chno || ch.channelNumber || ch.channelid || ch.chid || "").toString().trim();
+		if (num) byNumber[num] = ch;
+		if (ch.channelid) byId[String(ch.channelid)] = ch;
+		if (ch.chid) byId[String(ch.chid)] = ch;
+	});
+	return { byNumber, byId };
+};
+
 const useLiveChannelsStore = create((set, get) => ({
 	categories: [],
 	categoriesLoadedAt: 0,
@@ -24,6 +36,19 @@ const useLiveChannelsStore = create((set, get) => ({
 	},
 
 	clearError: () => set({ error: "" }),
+
+	getCachedEntry: (payload) => {
+		const key = buildChannelsKey(payload);
+		return get().channelsCache[key];
+	},
+
+	getChannelByNumber: (payload, value) => {
+		const key = buildChannelsKey(payload);
+		const entry = get().channelsCache[key];
+		if (!entry?.byNumber) return null;
+		const trimmed = (value || "").toString().trim();
+		return entry.byNumber[trimmed] || null;
+	},
 
 	fetchCategories: async (payload, options = {}) => {
 		const { force = false } = options;
@@ -115,6 +140,7 @@ const useLiveChannelsStore = create((set, get) => ({
 			}
 
 			const channels = data?.body || [];
+			const maps = buildChannelMaps(channels);
 			set((prev) => ({
 				channelsCache: {
 					...prev.channelsCache,
@@ -125,6 +151,8 @@ const useLiveChannelsStore = create((set, get) => ({
 						isLoading: false,
 						error: "",
 						fetchMs: Math.round(nowMs() - startedAt),
+						byNumber: maps.byNumber,
+						byId: maps.byId,
 					},
 				},
 			}));

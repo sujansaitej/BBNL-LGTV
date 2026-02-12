@@ -1,16 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Box, Typography, ButtonBase, Button, InputAdornment, IconButton, Skeleton } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import ClearIcon from "@mui/icons-material/Clear";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { useInputFocusHandler, useRemoteNavigation } from "../Atomic-Common-Componenets/useRemoteNavigation";
+import { useInputFocusHandler, useRemoteNavigation, useGridNavigation } from "../Atomic-Common-Componenets/useRemoteNavigation";
 import { DEFAULT_USER } from "../Api/config";
 import SearchTextField from "../Atomic-Reusable-Componenets/Search";
 import ChannelBox from "../Atomic-Reusable-Componenets/ChannelBox";
 import useLiveChannelsStore from "../Global-storage/LiveChannelsStore";
 import useLanguageStore from "../Global-storage/LivePlayersStore";
 import {  TV_TYPOGRAPHY,  TV_SPACING,  TV_RADIUS, TV_COLORS,  TV_SIZES, TV_GRID, TV_SAFE_ZONE, TV_SHADOWS } from "../styles/tvConstants";
+import "../styles/focus.css";
 
 const LiveChannels = () => {
   const location = useLocation();
@@ -22,6 +23,7 @@ const LiveChannels = () => {
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [selectedLanguageId, setSelectedLanguageId] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [isChannelsFocused, setIsChannelsFocused] = useState(false);
   const [channelJumpBuffer, setChannelJumpBuffer] = useState("");
   const {
     categories,
@@ -42,12 +44,12 @@ const LiveChannels = () => {
   const mobile = localStorage.getItem("userPhone") || "";
   const channelsKey = `${userid}|${mobile}|`;
   const channelsEntry = channelsCache[channelsKey] || {};
-  const channels = channelsEntry.data || [];
+  const channels = useMemo(() => channelsEntry.data || [], [channelsEntry.data]);
   const isLoadingChannels = !!channelsEntry.isLoading;
 
   const langKey = `${userid}|${mobile}`;
   const langEntry = languagesCache[langKey] || {};
-  const languages = langEntry.data || [];
+  const languages = useMemo(() => langEntry.data || [], [langEntry.data]);
 
   // Calculate columns dynamically based on viewport width
   const getColumnsCount = () => {
@@ -172,19 +174,33 @@ const LiveChannels = () => {
       { title: "Subscribed Channels", grid: "subscribed" },
       { title: "Language", grid: "language" },
     ];
-    return [...customCategories, ...categories];
+    const normalized = [...customCategories, ...categories];
+    const seen = new Set();
+
+    return normalized.filter((cat) => {
+      const key = String(cat.title || "").trim().toLowerCase();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   }, [categories]);
 
-  const tabCategories = useMemo(
-    () => enhancedCategories.filter((cat) => cat.title !== "Language"),
-    [enhancedCategories]
-  );
+  // Include Language in remote navigation category list
+  const navCategories = useMemo(() => enhancedCategories, [enhancedCategories]);
 
-  const { getItemProps: getCategoryProps } = useRemoteNavigation(tabCategories.length, {
+  const { getItemProps: getCategoryProps } = useRemoteNavigation(navCategories.length, {
     orientation: "horizontal",
-    enabled: !isSearchFocused,
+    enabled: !isSearchFocused && !isChannelsFocused,
     onSelect: (index) => {
-      handleFilter(tabCategories[index]);
+      handleFilter(navCategories[index]);
+    },
+  });
+
+  const { getItemProps: getChannelProps } = useGridNavigation(filteredChannels.length, columnsCount || 5, {
+    enabled: !isSearchFocused && isChannelsFocused,
+    onSelect: (index) => {
+      const ch = filteredChannels[index];
+      if (ch) handleChannelSelect(ch);
     },
   });
 
@@ -195,6 +211,38 @@ const LiveChannels = () => {
     userid,
     mobile,
   };
+
+  const focusFirstChannel = () => {
+    requestAnimationFrame(() => {
+      const el = document.querySelector(".channel-card");
+      if (el) el.focus();
+    });
+  };
+
+  const handleCategoryKeyDown = (event, index) => {
+    if (index !== navCategories.length - 1) return;
+
+    const key = event.key;
+    if (key === "ArrowRight" || key === "ArrowDown" || key === "Right" || key === "Down") {
+      event.preventDefault();
+      event.stopPropagation();
+      focusFirstChannel();
+    }
+  };
+
+  // Handle channel selection (memoized for remote navigation + effects)
+  const handleChannelSelect = useCallback((ch) => {
+    // Try to find any stream URL
+    let streamUrl = ch.streamlink || ch.stream_link || ch.streamurl || ch.stream_url ||
+                    ch.url || ch.link || ch.videourl || ch.video_url ||
+                    ch.hlsurl || ch.hls_url || ch.manifest || ch.manifesturl;
+
+    if (streamUrl) {
+      navigate("/player", { state: { streamlink: streamUrl, title: ch.chtitle, channelData: ch } });
+    } else {
+      setLocalError(`No stream URL found for channel: ${ch.chtitle}`);
+    }
+  }, [navigate]);
 
   // Handle search input change
   const handleSearchChange = (event) => {
@@ -221,16 +269,17 @@ const LiveChannels = () => {
 
   // ================= FILTER HANDLER =================
   const handleFilter = (cat) => {
+
+    setActiveFilter(cat.title);
+    setSearchTerm(""); // Clear search when changing category
+    setLocalError("");
+
     if (cat.title === "Language") {
       navigate("/languagechannels");
       return;
     }
-    setActiveFilter(cat.title);
-    setSearchTerm(""); // Clear search when changing category
-    setLocalError("");
-    
-    // If Language tab is selected and we have a selectedLanguageId, keep it
-    // Otherwise, reset the language filter when switching to other tabs
+
+    // Reset language selection when leaving language tab
     setSelectedLanguageId("");
   };
 
@@ -252,7 +301,7 @@ const LiveChannels = () => {
       lastAutoPlayKey.current = autoPlayKey;
       handleChannelSelect(match);
     }
-  }, [filteredChannels, debouncedSearchTerm]);
+  }, [filteredChannels, debouncedSearchTerm, searchTerm, handleChannelSelect]);
 
   // ================= NUMERIC CHANNEL JUMP (IPTV FEATURE) =================
   useEffect(() => {
@@ -315,22 +364,9 @@ const LiveChannels = () => {
         clearTimeout(numberTimerRef.current);
       }
     };
-  }, [filteredChannels, isSearchFocused]);
+  }, [filteredChannels, isSearchFocused, handleChannelSelect]);
 
   // Handle channel selection
-  const handleChannelSelect = (ch) => {
-    // Try to find any stream URL
-    let streamUrl = ch.streamlink || ch.stream_link || ch.streamurl || ch.stream_url || 
-                    ch.url || ch.link || ch.videourl || ch.video_url || 
-                    ch.hlsurl || ch.hls_url || ch.manifest || ch.manifesturl;
-    
-    if (streamUrl) {
-      navigate("/player", { state: { streamlink: streamUrl, title: ch.chtitle, channelData: ch } });
-    } else {
-      setLocalError(`No stream URL found for channel: ${ch.chtitle}`);
-    }
-  };
-
   // Show login required message
   if (authError === "NO_LOGIN") {
     return (
@@ -379,7 +415,8 @@ const LiveChannels = () => {
         minHeight: "100vh",
         color: "#fff",
         px: "4rem",
-        py: "3rem",
+        pt: "4.5rem",
+        pb: "3rem",
         fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
         textRendering: "optimizeLegibility",
         WebkitFontSmoothing: "antialiased",
@@ -414,7 +451,7 @@ const LiveChannels = () => {
         </Box>
       )}
       {/* ================= HEADER WITH BACK BUTTON AND TITLE ================= */}
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: "3rem" }}>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: "1.25rem" }}>
         {/* Back Button */}
         <IconButton
           onClick={() => navigate(-1)}
@@ -500,8 +537,8 @@ const LiveChannels = () => {
         </Box>
       </Box>
 
-      {/* ================= CATEGORY FILTER TABS ================= */}
-      <Box sx={{ mb: "2.5rem", display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+      {/* ================= CATEGORY FILTER TABS (WITH LANGUAGE) ================= */}
+      <Box className="cat-titlel" sx={{ mb: "2.5rem", display: "flex", gap: "1rem", flexWrap: "wrap", width: "100%", px: "4rem", py: "1rem", background: "#000" }}>
         {isLoadingCategories
           ? Array.from({ length: 4 }).map((_, index) => (
               <Skeleton
@@ -510,7 +547,7 @@ const LiveChannels = () => {
                 sx={{ width: "10rem", height: "2.75rem", borderRadius: "9999px" }}
               />
             ))
-          : tabCategories.map((cat, index) => {
+          : navCategories.map((cat, index) => {
               const isActive = activeFilter === cat.title;
               const categoryProps = !isSearchFocused ? getCategoryProps(index) : {};
 
@@ -519,6 +556,11 @@ const LiveChannels = () => {
                   key={cat.grid || index}
                   {...categoryProps}
                   onClick={() => handleFilter(cat)}
+                  onKeyDown={(event) => handleCategoryKeyDown(event, index)}
+                  onFocus={(event) => {
+                    categoryProps.onFocus?.(event);
+                    setIsChannelsFocused(false);
+                  }}
                   sx={{
                     fontSize: "1.125rem",
                     fontWeight: 600,
@@ -544,30 +586,6 @@ const LiveChannels = () => {
                 </ButtonBase>
               );
             })}
-
-        <ButtonBase
-          onClick={() => navigate("/languagechannels")}
-          sx={{
-            fontSize: "1.125rem",
-            fontWeight: 600,
-            px: "2rem",
-            py: "0.75rem",
-            borderRadius: "9999px",
-            bgcolor: activeFilter === "Language" ? "#fff" : "rgba(255,255,255,0.08)",
-            color: activeFilter === "Language" ? "#000" : "#fff",
-            transition: "all 0.2s",
-            "&:hover": {
-              bgcolor: activeFilter === "Language" ? "#fff" : "rgba(255,255,255,0.12)",
-            },
-            "&:focus-visible": {
-              border: "3px solid #667eea",
-              transform: "scale(1.05)",
-              boxShadow: "0 0 0 4px rgba(102, 126, 234, 0.4)",
-            },
-          }}
-        >
-          Language
-        </ButtonBase>
       </Box>
 
       {/* ================= ERROR/LOADING STATES ================= */}
@@ -587,12 +605,12 @@ const LiveChannels = () => {
       <Box
         sx={{
           display: "grid",
-          gridTemplateColumns: `repeat(${columnsCount}, 1fr)` ,
-          gap: "3rem",
+          gridTemplateColumns: `repeat(${columnsCount || 5}, 1fr)` ,
+          gap: "2.5rem",
         }}
       >
         {isLoadingChannels
-          ? Array.from({ length: columnsCount * 2 }).map((_, index) => (
+          ? Array.from({ length: 10 }).map((_, index) => (
               <Skeleton
                 key={`channel-skel-${index}`}
                 variant="rounded"
@@ -606,34 +624,48 @@ const LiveChannels = () => {
                 </Typography>
               </Box>
             ) : (
-              filteredChannels.map((channel, index) => (
-                <Box
-                  key={`${channel.channelno}-${index}`}
-                  tabIndex={0}
-                  role="button"
-                  onClick={() => handleChannelSelect(channel)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      handleChannelSelect(channel);
-                    }
-                  }}
-                  sx={{
-                    outline: "none",
-                    "&:focus-visible": {
-                      borderRadius: TV_RADIUS.xl,
-                      boxShadow: TV_SHADOWS.focusGlow,
-                    },
-                  }}
-                >
-                  <ChannelBox
-                    logo={channel.chlogo}
-                    name={channel.chtitle}
-                    channelNo={channel.channelno}
+              filteredChannels.map((channel, index) => {
+                const channelProps = getChannelProps(index);
+                return (
+                  <Box
+                    key={`${channel.channelno}-${index}`}
+                    {...channelProps}
+                    tabIndex={0}
+                    className="channel-card"
+                    role="button"
                     onClick={() => handleChannelSelect(channel)}
-                  />
-                </Box>
-              ))
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        handleChannelSelect(channel);
+                      }
+                    }}
+                    onFocus={(event) => {
+                      channelProps.onFocus?.(event);
+                      setIsChannelsFocused(true);
+                    }}
+                    sx={{
+                      outline: "none",
+                      "&:focus-visible": {
+                        borderRadius: TV_RADIUS.xl,
+                        boxShadow: "none",
+                      },
+                      "&:focus-visible .channel-thumb": {
+                        border: "3px solid #667eea",
+                        boxShadow: "0 0 0 4px rgba(102, 126, 234, 0.4)",
+                        transform: "scale(1.05)",
+                      },
+                    }}
+                  >
+                    <ChannelBox
+                      logo={channel.chlogo}
+                      name={channel.chtitle}
+                      channelNo={channel.channelno}
+                      onClick={() => handleChannelSelect(channel)}
+                    />
+                  </Box>
+                );
+              })
             )}
       </Box>
     </Box>

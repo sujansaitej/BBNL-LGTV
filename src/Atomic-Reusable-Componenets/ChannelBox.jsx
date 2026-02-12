@@ -3,8 +3,9 @@ import { Box, Typography } from "@mui/material";
 import { TV_TYPOGRAPHY, TV_SPACING, TV_RADIUS, TV_SHADOWS, TV_FOCUS, TV_TIMING, TV_COLORS } from "../styles/tvConstants";
 
 const ChannelBox = ({ logo, name, channelNo, onClick, focused }) => (
-  <Box>
+  <Box sx={{ width: "18rem" }}>
     <Box
+      className="channel-thumb"
       sx={{
         width: "18rem",
         height: "10rem",
@@ -15,15 +16,14 @@ const ChannelBox = ({ logo, name, channelNo, onClick, focused }) => (
         justifyContent: "center",
         position: "relative",
         cursor: onClick ? "pointer" : "default",
-        border: focused ? `4px solid ${TV_COLORS.accent.primary}` : "4px solid transparent",
-        transform: focused ? "scale(1.08)" : "scale(1)",
+        border: focused ? `3px solid #667eea` : "3px solid transparent",
+        transform: focused ? "scale(1.05)" : "scale(1)",
         transition: `transform ${TV_TIMING.fast} ease, border-color ${TV_TIMING.fast} ease, box-shadow ${TV_TIMING.fast} ease`,
-        boxShadow: focused ? `${TV_SHADOWS.focusGlow}, ${TV_SHADOWS.lg}` : TV_SHADOWS.md,
+        boxShadow: focused ? "0 0 0 4px rgba(102, 126, 234, 0.4), " + TV_SHADOWS.lg : TV_SHADOWS.md,
         zIndex: focused ? 10 : 1,
         padding: TV_SPACING.md,
+        outline: "none",
       }}
-      role={onClick ? "button" : undefined}
-      tabIndex={onClick ? 0 : undefined}
       onClick={onClick}
     >
       <img
@@ -47,8 +47,9 @@ const ChannelBox = ({ logo, name, channelNo, onClick, focused }) => (
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        mt: TV_SPACING.md,
-        gap: TV_SPACING.sm,
+        mt: TV_SPACING.sm,
+        gap: TV_SPACING.xs,
+        width: "100%",
       }}
     >
       <Typography
@@ -68,7 +69,7 @@ const ChannelBox = ({ logo, name, channelNo, onClick, focused }) => (
             ...TV_TYPOGRAPHY.body2,
             color: TV_COLORS.text.secondary,
             fontWeight: 700,
-            minWidth: "2.5rem",
+            minWidth: "2rem",
             textAlign: "right",
           }}
         >

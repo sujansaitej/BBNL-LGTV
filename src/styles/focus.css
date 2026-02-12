@@ -1,0 +1,77 @@
+/* focus.css - Extracted focus styles for TV remote navigation performance */
+
+/* Channel List Item Focus Styles */
+.channel-item {
+  transition: none !important;
+  transform: none !important;
+  outline: none;
+}
+
+.channel-item:focus-visible {
+  will-change: box-shadow, border-color;
+  box-shadow:
+    0 0 0 3px rgba(255, 255, 255, 0.9),
+    0 8px 24px rgba(0, 0, 0, 0.5);
+  border: 2px solid rgba(255, 255, 255, 0.95);
+  background-color: rgba(255, 255, 255, 0.08);
+  z-index: 2;
+}
+
+.channel-item.active {
+  background-color: rgba(255, 255, 255, 0.12);
+  border: 2px solid rgba(255, 255, 255, 0.6);
+}
+
+.channel-item.active:focus-visible {
+  background-color: rgba(255, 255, 255, 0.15);
+  border: 2px solid rgba(255, 255, 255, 1);
+}
+
+.category-tab {
+  transition: none !important;
+  outline: none;
+}
+
+.category-tab:focus-visible {
+  will-change: box-shadow;
+  box-shadow:
+    0 0 0 3px rgba(255, 255, 255, 0.9),
+    0 4px 12px rgba(0, 0, 0, 0.4);
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.search-input:focus-visible {
+  will-change: box-shadow, border-color;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.8);
+  border: 2px solid rgba(255, 255, 255, 0.9);
+}
+
+.MuiListItemButton-root .MuiTouchRipple-root {
+  display: none;
+}
+
+.MuiTab-root .MuiTouchRipple-root {
+  display: none;
+}
+
+.channel-item,
+.category-tab,
+.search-input {
+  box-sizing: border-box;
+}
+
+.channel-item:focus-visible,
+.category-tab:focus-visible {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* Fixed category bar for LiveChannels */
+.cat-titlel {
+  position: sticky;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: #000;
+}

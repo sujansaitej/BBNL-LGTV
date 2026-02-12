@@ -1,11 +1,14 @@
 /* ==================== ROOT CONTAINER - GLOBALLY RESPONSIVE ==================== */
 #root {
-  width: 100%;
   width: 100vw;
   height: 100vh;
   overflow: hidden;
   background: #000;
-  position: relative;
+  position: fixed;
+  top: 0;
+  left: 0;
+  margin: 0;
+  padding: 0;
   
   /* Ensure proper scaling on all TV sizes */
   transform-origin: top left;
