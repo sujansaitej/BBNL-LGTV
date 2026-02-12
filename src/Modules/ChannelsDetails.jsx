@@ -36,13 +36,13 @@ const ChannelsDetails = ({ channel, visible = false }) => {
 				position: "absolute",
 				bottom: TV_SPACING.xl,
 				left: "50%",
-				transform: visible ? "translate(-50%, 0)" : "translate(-50%, 1rem)",
+				transform: "translate(-50%, 0) translateZ(0)",
 				width: "80%",
 				maxWidth: "1200px",
 				minHeight: "7rem",
 				px: TV_SPACING.xl,
 				py: TV_SPACING.lg,
-				display: "flex",
+				display: visible ? "flex" : "none",
 				alignItems: "center",
 				justifyContent: "space-between",
 				gap: TV_SPACING.lg,
@@ -52,10 +52,9 @@ const ChannelsDetails = ({ channel, visible = false }) => {
 				border: "2px solid rgba(255,255,255,0.2)",
 				borderRadius: TV_RADIUS.xxl,
 				boxShadow: TV_SHADOWS.xl,
-				opacity: visible ? 1 : 0,
-				transition: `opacity ${TV_TIMING.normal} ease, transform ${TV_TIMING.normal} ease`,
 				pointerEvents: "none",
 				zIndex: 30,
+				willChange: "display",
 			}}
 		>
 			<Box sx={{ display: "flex", alignItems: "center", gap: TV_SPACING.lg }}>
