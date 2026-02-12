@@ -4,7 +4,7 @@ import { Box, Typography, ButtonBase, Button, InputAdornment, IconButton, Skelet
 import SearchIcon from "@mui/icons-material/Search";
 import ClearIcon from "@mui/icons-material/Clear";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { useInputFocusHandler } from "../Atomic-Common-Componenets/useRemoteNavigation";
+import { useInputFocusHandler, useRemoteNavigation } from "../Atomic-Common-Componenets/useRemoteNavigation";
 import { DEFAULT_USER } from "../Api/config";
 import SearchTextField from "../Atomic-Reusable-Componenets/Search";
 import ChannelBox from "../Atomic-Reusable-Componenets/ChannelBox";
@@ -174,6 +174,19 @@ const LiveChannels = () => {
     ];
     return [...customCategories, ...categories];
   }, [categories]);
+
+  const tabCategories = useMemo(
+    () => enhancedCategories.filter((cat) => cat.title !== "Language"),
+    [enhancedCategories]
+  );
+
+  const { getItemProps: getCategoryProps } = useRemoteNavigation(tabCategories.length, {
+    orientation: "horizontal",
+    enabled: !isSearchFocused,
+    onSelect: (index) => {
+      handleFilter(tabCategories[index]);
+    },
+  });
 
   // Handle input focus to prevent scroll issues
   useInputFocusHandler();
@@ -497,12 +510,14 @@ const LiveChannels = () => {
                 sx={{ width: "10rem", height: "2.75rem", borderRadius: "9999px" }}
               />
             ))
-          : enhancedCategories.map((cat, index) => {
+          : tabCategories.map((cat, index) => {
               const isActive = activeFilter === cat.title;
+              const categoryProps = !isSearchFocused ? getCategoryProps(index) : {};
 
               return (
                 <ButtonBase
                   key={cat.grid || index}
+                  {...categoryProps}
                   onClick={() => handleFilter(cat)}
                   sx={{
                     fontSize: "1.125rem",
@@ -513,6 +528,8 @@ const LiveChannels = () => {
                     bgcolor: isActive ? "#fff" : "rgba(255,255,255,0.08)",
                     color: isActive ? "#000" : "#fff",
                     transition: "all 0.2s",
+                    outline: categoryProps["data-focused"] ? "3px solid #667eea" : "none",
+                    outlineOffset: "3px",
                     "&:hover": {
                       bgcolor: isActive ? "#fff" : "rgba(255,255,255,0.12)",
                     },
@@ -527,6 +544,30 @@ const LiveChannels = () => {
                 </ButtonBase>
               );
             })}
+
+        <ButtonBase
+          onClick={() => navigate("/languagechannels")}
+          sx={{
+            fontSize: "1.125rem",
+            fontWeight: 600,
+            px: "2rem",
+            py: "0.75rem",
+            borderRadius: "9999px",
+            bgcolor: activeFilter === "Language" ? "#fff" : "rgba(255,255,255,0.08)",
+            color: activeFilter === "Language" ? "#000" : "#fff",
+            transition: "all 0.2s",
+            "&:hover": {
+              bgcolor: activeFilter === "Language" ? "#fff" : "rgba(255,255,255,0.12)",
+            },
+            "&:focus-visible": {
+              border: "3px solid #667eea",
+              transform: "scale(1.05)",
+              boxShadow: "0 0 0 4px rgba(102, 126, 234, 0.4)",
+            },
+          }}
+        >
+          Language
+        </ButtonBase>
       </Box>
 
       {/* ================= ERROR/LOADING STATES ================= */}
