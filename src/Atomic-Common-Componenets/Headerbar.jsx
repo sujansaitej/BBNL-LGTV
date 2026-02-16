@@ -1,22 +1,35 @@
 import {AppBar, Toolbar, Typography, IconButton, Box, InputBase,} from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import SettingsIcon from "@mui/icons-material/Settings";
-import { useRemoteNavigation } from "./useRemoteNavigation";
+import { useEnhancedRemoteNavigation } from "./useMagicRemote";
 import { useNavigate } from "react-router-dom";
 import { TV_TYPOGRAPHY, TV_SPACING, TV_RADIUS, TV_COLORS, TV_FOCUS, TV_TIMING, TV_SIZES, TV_SHADOWS } from "../styles/tvConstants";
 
 const Header = () => {
   const navigate = useNavigate();
   
-  // Remote navigation for header buttons: Search, Network, Settings
-  const { getItemProps } = useRemoteNavigation(3, {
+  // Magic Remote navigation for header items: Search, Settings
+  const headerItems = [
+    { id: 'search', type: 'input' },
+    { id: 'settings', type: 'button', action: () => navigate("/settings") }
+  ];
+
+  const { 
+    focusedIndex, 
+    hoveredIndex,
+    getItemProps, 
+    magicRemoteReady 
+  } = useEnhancedRemoteNavigation(headerItems, {
     orientation: "horizontal",
+    useMagicRemotePointer: true,
+    focusThreshold: 120,
     onSelect: (index) => {
-      if (index === 2) {
+      if (index === 1) { // Settings button
         navigate("/settings");
       }
     },
   });
+
   const iconButtonSx = {
     bgcolor: TV_COLORS.background.tertiary,
     border: `2px solid ${TV_COLORS.glass.light}`,
@@ -54,12 +67,13 @@ const Header = () => {
           <Box
             {...getItemProps(0)}
             data-focus-id="header-search"
+            className={`focusable-input ${focusedIndex === 0 ? 'focused' : ''} ${hoveredIndex === 0 ? 'hovered' : ''}`}
             sx={{
               display: "flex",
               alignItems: "center",
               gap: TV_SPACING.md,
               bgcolor: TV_COLORS.glass.light,
-              border: getItemProps(0)["data-focused"] 
+              border: focusedIndex === 0
                 ? `3px solid ${TV_COLORS.accent.primary}` 
                 : `2px solid ${TV_COLORS.glass.medium}`,
               borderRadius: TV_RADIUS.pill,
@@ -68,9 +82,10 @@ const Header = () => {
               height: "3rem",
               width: "100%",
               maxWidth: "42rem",
-              transform: getItemProps(0)["data-focused"] ? "scale(1.02)" : "scale(1)",
+              transform: focusedIndex === 0 ? "scale(1.02)" : "scale(1)",
               transition: `all ${TV_TIMING.fast}`,
-              boxShadow: getItemProps(0)["data-focused"] ? TV_SHADOWS.focus : "none",
+              boxShadow: focusedIndex === 0 ? TV_SHADOWS.focus : "none",
+              outline: "none",
             }}
           >
             <SearchIcon sx={{ color: TV_COLORS.text.tertiary, fontSize: TV_SIZES.icon.medium }} />
@@ -89,22 +104,39 @@ const Header = () => {
 
         <Box display="flex" alignItems="center" gap={TV_SPACING.md}>
           <IconButton 
-            {...getItemProps(2)}
+            {...getItemProps(1)}
             data-focus-id="header-settings"
+            className={`focusable-icon-button ${focusedIndex === 1 ? 'focused' : ''} ${hoveredIndex === 1 ? 'hovered' : ''}`}
             onClick={() => navigate("/settings")}
             sx={{
               ...iconButtonSx,
-              border: getItemProps(2)["data-focused"] 
+              border: focusedIndex === 1
                 ? `3px solid ${TV_COLORS.accent.primary}` 
                 : iconButtonSx.border,
-              transform: getItemProps(2)["data-focused"] ? "scale(1.1)" : "scale(1)",
+              transform: focusedIndex === 1 ? "scale(1.15)" : "scale(1)",
               transition: `all ${TV_TIMING.fast}`,
-              boxShadow: getItemProps(2)["data-focused"] ? TV_SHADOWS.focus : "none",
+              boxShadow: focusedIndex === 1 ? TV_SHADOWS.focus : "none",
+              outline: "none",
             }}
             aria-label="Settings"
           >
             <SettingsIcon sx={{ fontSize: TV_SIZES.icon.medium }} />
           </IconButton>
+          
+          {/* Magic Remote Status Indicator */}
+          {magicRemoteReady && (
+            <Box
+              sx={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                bgcolor: '#43e97b',
+                boxShadow: '0 0 10px rgba(67, 233, 123, 0.8)',
+                animation: 'pulse-dot 1.5s ease-in-out infinite',
+              }}
+              title="Magic Remote Connected"
+            />
+          )}
         </Box>
       </Toolbar>
     </AppBar>

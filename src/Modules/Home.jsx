@@ -86,91 +86,26 @@ const Home = () => {
     };
   }, [channels, mobile, navigate]);
 
+  // NOTE: Custom keyboard navigation handlers disabled - Magic Remote navigation now handled by child components
+  // (Headerbar, HomeSidebar, ChannelsView all have their own useEnhancedRemoteNavigation)
   useEffect(() => {
-    const focusHeaderSearch = () => {
-      const searchEl = headerRef.current?.querySelector('[data-focus-id="header-search"]');
-      searchEl?.focus?.();
-    };
-
-    const focusHeaderSettings = () => {
-      const settingsEl = headerRef.current?.querySelector('[data-focus-id="header-settings"]');
-      settingsEl?.focus?.();
-    };
-
-    const focusSidebarFirst = () => {
-      const target = sidebarRef.current?.querySelector('[tabindex="0"], [role="button"], button, a[href]');
-      target?.focus?.();
-    };
-
-    const focusChannelsFirst = () => {
-      const target = contentRef.current?.querySelector('[data-focusable="true"], [tabindex="0"], [role="button"], button, a[href]');
-      target?.focus?.();
-    };
-
-    const handleKeyDown = (event) => {
-      // Cancel auto-play on any navigation
+    // Cancel auto-play on any user interaction
+    const handleUserInteraction = () => {
       if (autoPlayTimerRef.current) {
         console.log("[Home] User interaction detected - canceling auto-play");
         clearTimeout(autoPlayTimerRef.current);
         autoPlayTimerRef.current = null;
         hasAutoPlayedRef.current = true;
       }
-
-      const { key } = event;
-      const activeEl = document.activeElement;
-      if (!activeEl) return;
-
-      const inHeader = headerRef.current?.contains(activeEl);
-      const inSidebar = sidebarRef.current?.contains(activeEl);
-      const inContent = contentRef.current?.contains(activeEl);
-      const isSettings = activeEl.getAttribute("data-focus-id") === "header-settings";
-
-      if (key === "ArrowRight") {
-        if (inHeader && isSettings) {
-          event.preventDefault();
-          focusSidebarFirst();
-          return;
-        }
-
-        if (inSidebar) {
-          event.preventDefault();
-          focusChannelsFirst();
-          return;
-        }
-      }
-
-      if (key === "ArrowLeft") {
-        if (inContent) {
-          event.preventDefault();
-          focusSidebarFirst();
-          return;
-        }
-
-        if (inSidebar) {
-          event.preventDefault();
-          focusHeaderSettings();
-          return;
-        }
-      }
-
-      if (key === "ArrowDown") {
-        if (inHeader) {
-          event.preventDefault();
-          focusChannelsFirst();
-          return;
-        }
-      }
-
-      if (key === "ArrowUp") {
-        if (inContent) {
-          event.preventDefault();
-          focusHeaderSearch();
-        }
-      }
     };
 
-    window.addEventListener("keydown", handleKeyDown, true);
-    return () => window.removeEventListener("keydown", handleKeyDown, true);
+    window.addEventListener("keydown", handleUserInteraction, true);
+    window.addEventListener("click", handleUserInteraction, true);
+    
+    return () => {
+      window.removeEventListener("keydown", handleUserInteraction, true);
+      window.removeEventListener("click", handleUserInteraction, true);
+    };
   }, []);
 
   return (

@@ -1,199 +1,138 @@
-import { useEffect, useState } from "react";
-import { Box, Typography, Card, CardActionArea, CardContent, Avatar, IconButton } from "@mui/material";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import { Box, Typography, Button } from "@mui/material";
 import { useNavigate } from "react-router-dom";
-import { fetchOttApps } from "../Api/modules-api/OttAppsApi";
-import { DEFAULT_HEADERS, DEFAULT_USER } from "../Api/config";
-import { useGridNavigation } from "../Atomic-Common-Componenets/useRemoteNavigation";
+import ottComingSoonImage from "../Asset/Ott Comming Soon.svg";
+import { useEnhancedRemoteNavigation } from "../Atomic-Common-Componenets/useMagicRemote";
+import "../styles/focus.css";
 
-const cardStyle = {
-  background: "#111",
-  borderRadius: "14px",
-  width: "240px",
-  height: "150px",
-  color: "#fff",
-  border: "2px solid rgba(255,255,255,.2)",
-  transition: "all .2s",
-  cursor: "pointer",
+const MoviesOtt = () => {
+	const navigate = useNavigate();
 
-  "&:hover": {
-    border: "2px solid white",
-    transform: "translateY(-3px)",
-  },
-};
+	// Magic Remote Navigation for the single button
+	const {
+		focusedIndex,
+		hoveredIndex,
+		getItemProps,
+		magicRemoteReady,
+	} = useEnhancedRemoteNavigation([{ id: 'home-button' }], {
+		orientation: 'vertical',
+		useMagicRemotePointer: true,
+		focusThreshold: 150,
+		onSelect: () => {
+			navigate("/home");
+		},
+	});
 
-const avatarStyle = {
-  width: 100,
-  height: 100,
-  marginBottom: 1,
-  borderRadius: 3,
-};
+	return (
+		<Box
+			sx={{
+				minHeight: "100vh",
+				width: "100%",
+				bgcolor: "#808080",
+				display: "flex",
+				alignItems: "center",
+				justifyContent: "center",
+				p: 3,
+			}}
+		>
+			<Box
+				sx={{
+					width: "100%",
+					maxWidth: "760px",
+					bgcolor: "#2f2f36",
+					border: "1px solid rgba(255,255,255,0.55)",
+					borderRadius: "28px",
+					px: 4,
+					py: 3.5,
+					textAlign: "center",
+				}}
+			>
+				<Box
+					component="img"
+					src={ottComingSoonImage}
+					alt="Coming Soon Movie OTT"
+					sx={{
+						width: "100%",
+						maxHeight: "300px",
+						objectFit: "contain",
+						borderRadius: "20px",
+						mb: 3,
+						bgcolor: "#f0e9d6",
+					}}
+				/>
 
-const columnsCount = 5;
+				<Typography sx={{ color: "#fff", fontSize: "3rem", fontWeight: 700, lineHeight: 1.2, mb: 1.2 }}>
+					Coming Soon Movie OTT
+				</Typography>
 
-export const MoviesOtt = () => {
-  const navigate = useNavigate();
-  const [apps, setApps] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+				<Typography sx={{ color: "rgba(255,255,255,0.45)", fontSize: "1.6rem", mb: 3.4, fontWeight: 600 }}>
+					New OTT apps content dropping soon. Stay tuned!
+				</Typography>
 
-  // Get device info from config
-  const userid = localStorage.getItem("userId") || DEFAULT_USER.userid;
-  const mobile = localStorage.getItem("userPhone") || DEFAULT_USER.mobile;
+				{/* Magic Remote Status */}
+				{magicRemoteReady && (
+					<Box sx={{
+						display: 'flex',
+						alignItems: 'center',
+						justifyContent: 'center',
+						gap: '0.5rem',
+						mb: 2,
+					}}>
+						<Box sx={{
+							width: 8,
+							height: 8,
+							borderRadius: '50%',
+							bgcolor: '#43e97b',
+							boxShadow: '0 0 10px rgba(67, 233, 123, 0.8)',
+							animation: 'pulse-dot 1.5s ease-in-out infinite',
+						}} />
+						<Typography sx={{ fontSize: '0.875rem', color: '#43e97b', fontWeight: 600 }}>
+							Magic Remote Ready
+						</Typography>
+					</Box>
+				)}
 
-  const payloadBase = {
-    userid,
-    mobile,
-    ip_address: "192.168.101.110",
-    mac: "26:F2:AE:D8:3F:99",
-  };
-
-  const headers = {
-    ...DEFAULT_HEADERS,
-  };
-
-  // Use grid navigation
-  const { getItemProps } = useGridNavigation(
-    apps.length,
-    columnsCount,
-    {
-      onSelect: (index) => {
-        console.log("Selected app:", apps[index]);
-      },
-    }
-  );
-
-  // ================= FETCH OTT APPS =================
-  const handleFetchOttApps = async () => {
-    try {
-      setLoading(true);
-      const appsData = await fetchOttApps(payloadBase, headers);
-      setApps(appsData || []);
-    } catch (err) {
-      setError("Failed to load OTT apps");
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    handleFetchOttApps();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  return (
-    <Box sx={{ background: "#000", minHeight: "100vh", color: "#fff", p: 3 }}>
-      {/* ================= HEADER WITH BACK BUTTON AND TITLE ================= */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 3, mb: 4 }}>
-        {/* Back Button */}
-        <IconButton
-          onClick={() => navigate(-1)}
-          sx={{
-            color: "#fff",
-            border: "1px solid rgba(255,255,255,0.3)",
-            borderRadius: "8px",
-            "&:hover": {
-              background: "rgba(255,255,255,0.1)",
-            },
-          }}
-        >
-          <ArrowBackIcon />
-        </IconButton>
-
-        {/* Title */}
-        <Typography sx={{ fontSize: 28, fontWeight: 700 }}>
-          All OTT Apps
-        </Typography>
-      </Box>
-
-      {/* ================= ERROR BOX ================= */}
-      {error && (
-        <Box
-          sx={{
-            mb: 3,
-            p: 2,
-            borderRadius: 2,
-            border: "1px solid red",
-            background: "rgba(255,0,0,0.15)",
-            color: "#ff9a9a",
-          }}
-        >
-          {error}
-        </Box>
-      )}
-
-      {/* ================= LOADING STATE ================= */}
-      {loading && (
-        <Box
-          sx={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            minHeight: "60vh",
-          }}
-        >
-          <Typography sx={{ fontSize: 18, color: "#999" }}>
-            Loading OTT apps...
-          </Typography>
-        </Box>
-      )}
-
-      {/* ================= OTT APPS GRID ================= */}
-      {!loading && (
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: "repeat(5, 240px)",
-            gap: "26px",
-            pb: 4,
-          }}
-        >
-          {apps.length === 0 ? (
-            <Typography sx={{ color: "#888" }}>No OTT apps available</Typography>
-          ) : (
-            apps.map((app, idx) => {
-              const appProps = getItemProps(idx);
-              const isFocused = appProps["data-focused"];
-              return (
-                <Card
-                  key={idx}
-                  {...appProps}
-                  sx={{
-                    ...cardStyle,
-                    border: isFocused ? "3px solid #667eea" : "2px solid rgba(255,255,255,.2)",
-                    transform: isFocused ? "scale(1.08)" : "scale(1)",
-                    boxShadow: isFocused ? "0 8px 24px rgba(102, 126, 234, 0.4)" : "none",
-                    zIndex: isFocused ? 10 : 1,
-                  }}
-                >
-                  <CardActionArea
-                    sx={{
-                      height: "100%",
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Avatar src={app.icon} sx={avatarStyle} variant="rounded" />
-                    <CardContent sx={{ textAlign: "center", p: 0 }}>
-                      <Typography sx={{ fontWeight: 600, fontSize: 13 }}>
-                        {app.appname}
-                      </Typography>
-                      <Typography sx={{ color: "#888", fontSize: 11 }}>
-                        Streaming Service
-                      </Typography>
-                    </CardContent>
-                  </CardActionArea>
-                </Card>
-              );
-            })
-          )}
-        </Box>
-      )}
-    </Box>
-  );
+				<Button
+					{...getItemProps(0)}
+					className={`focusable-button ${focusedIndex === 0 ? 'focused' : ''} ${hoveredIndex === 0 ? 'hovered' : ''}`}
+					onClick={() => navigate("/home")}
+					onKeyDown={(event) => {
+						if (event.key === "Enter" || event.key === " ") {
+							event.preventDefault();
+							navigate("/home");
+						}
+					}}
+					sx={{
+						minWidth: "220px",
+						height: "56px",
+						borderRadius: "9999px",
+						bgcolor: "#f4bf1f",
+						color: "#000",
+						fontSize: "1.4rem",
+						fontWeight: 700,
+						textTransform: "none",
+						border: focusedIndex === 0 ? "3px solid #667eea" : "2px solid transparent",
+						transform: focusedIndex === 0 
+							? "scale(1.15)" 
+							: hoveredIndex === 0 
+							? "scale(1.08)" 
+							: "scale(1)",
+						transition: "all 0.25s ease",
+						boxShadow: focusedIndex === 0 
+							? "0 12px 30px rgba(102, 126, 234, 0.5)" 
+							: "none",
+						"&:hover": {
+							bgcolor: "#f4bf1f",
+						},
+						"&:focus-visible": {
+							outline: "none",
+						},
+					}}
+				>
+					Go to home
+				</Button>
+			</Box>
+		</Box>
+	);
 };
 
 export default MoviesOtt;

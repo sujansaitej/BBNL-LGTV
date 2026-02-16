@@ -10,6 +10,7 @@ export const DEFAULT_HEADERS = {
   Authorization: "Basic Zm9maWxhYkBnbWFpbC5jb206MTIzNDUtNTQzMjE=",
   devmac: "26:F2:AE:D8:3F:99",
   devslno: "FOFI20191129000336",
+  deviceID : "qwerty1"
 };
 
 // Default user information

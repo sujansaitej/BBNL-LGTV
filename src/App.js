@@ -8,6 +8,7 @@ import LiveChannels from './Modules/LiveChannels';
 import LanguageChannels from './Modules/LanguageChannels';
 import LivePlayer from './Modules/LivePlayer';
 import MoviesOtt from './Modules/MoviesOtt';
+import Favorites from './Modules/Favorites';
 import Feedback from './Modules/Feedback';
 import Setting from './Modules/Setting';
 import { initializeWebOSEnvironment, preventWebOSDefaults } from './utils/webos';
@@ -105,6 +106,16 @@ function App() {
             element={
               isAuthenticated ? (
                 <Feedback />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          />
+          <Route
+            path="/favorites"
+            element={
+              isAuthenticated ? (
+                <Favorites />
               ) : (
                 <Navigate to="/login" replace />
               )
