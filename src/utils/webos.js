@@ -13,9 +13,10 @@ export const isWebOSTV = () => {
     return true;
   }
 
-  // Fallback checks for detection
+  // Fallback checks for detection (including PalmServiceBridge on device)
   const checks = [
     !!window.PalmSystem,
+    !!window.PalmServiceBridge,
     navigator.userAgent.includes("Web0S"),
     navigator.userAgent.includes("webOS"),
     navigator.userAgent.includes("LG Browser"),
@@ -28,6 +29,56 @@ export const isWebOSTV = () => {
   }
 
   console.warn('⚠ webOS TV not detected. Make sure you are running on an LG TV and webOSTV.js is loaded.');
+  return false;
+};
+
+/**
+ * Ensure webOS.service.request exists; if not, shim using PalmServiceBridge (developer mode)
+ * Returns true if service.request is available after this call
+ */
+export const ensureWebOSService = () => {
+  if (window.webOS?.service?.request && typeof window.webOS.service.request === 'function') {
+    return true;
+  }
+
+  // Developer-mode fallback: create minimal webOS.service.request using PalmServiceBridge
+  if (typeof window.PalmServiceBridge === 'function') {
+    window.webOS = window.webOS || {};
+    window.webOS.service = window.webOS.service || {};
+
+    window.webOS.service.request = (uri, options = {}) => {
+      const bridge = new window.PalmServiceBridge();
+      const { method = 'get', parameters = {}, onSuccess, onFailure } = options;
+
+      const payload = typeof parameters === 'string' ? parameters : JSON.stringify(parameters);
+
+      bridge.onservicecallback = (msg) => {
+        try {
+          const res = typeof msg === 'string' ? JSON.parse(msg) : msg;
+          if (res?.returnValue === false || res?.errorCode) {
+            onFailure?.(res);
+          } else {
+            onSuccess?.(res);
+          }
+        } catch (e) {
+          onFailure?.({ errorText: e.message });
+        }
+      };
+
+      try {
+        bridge.call(`${uri}/${method}`, payload);
+      } catch (e) {
+        console.warn('⚠ PalmServiceBridge call failed:', e.message);
+        onFailure?.({ errorText: e.message });
+      }
+
+      return bridge;
+    };
+
+    console.log('✓ webOS.service.request shimmed via PalmServiceBridge');
+    return true;
+  }
+
   return false;
 };
 
@@ -87,6 +138,38 @@ export const getWebOSTVInfo = async () => {
       });
     } catch (error) {
       console.warn("Failed to get webOS TV info:", error);
+      resolve(null);
+    }
+  });
+};
+
+/**
+ * Get TV system properties (model, firmware, sdkVersion, boardType)
+ * Service: luna://com.webos.service.tv.systemproperty/getSystemInfo
+ */
+export const getWebOSSystemInfo = async (keys = ['modelName', 'firmwareVersion', 'sdkVersion', 'boardType']) => {
+  if (!isWebOSTV()) return null;
+  if (!ensureWebOSService()) return null;
+
+  return new Promise((resolve) => {
+    try {
+      window.webOS.service.request('luna://com.webos.service.tv.systemproperty', {
+        method: 'getSystemInfo',
+        parameters: { keys },
+        onSuccess: (resp) => {
+          if (resp?.returnValue === false) return resolve(null);
+          resolve({
+            modelName: resp?.modelName || null,
+            firmwareVersion: resp?.firmwareVersion || null,
+            sdkVersion: resp?.sdkVersion || null,
+            boardType: resp?.boardType || null,
+            raw: resp,
+          });
+        },
+        onFailure: () => resolve(null),
+      });
+    } catch (err) {
+      console.warn('⚠ getSystemInfo failed:', err.message);
       resolve(null);
     }
   });
@@ -226,40 +309,55 @@ export const logWebOSActivity = (activity) => {
 };
 
 /**
- * Get LG webOS Device Unique ID (LGUDID)
+ * Get LG webOS Device Unique ID (Hardware IDs)
  * Official API: luna://com.webos.service.sm/deviceid/getIDs
- * FAST VERSION - No retries, instant timeout
+ * Tries multiple idTypes and returns the most stable one
+ * Priority: NDUID → LGUDID → SERIALNUMBER → DID → WIFI_MAC → BLUETOOTH_MAC
  * 
- * @returns {Promise<string|null>} Device ID (LGUDID) or null if failed
+ * @returns {Promise<string|null>} Best hardware ID or null if not available
  */
 export const getWebOSDeviceID = () => {
   return new Promise((resolve) => {
-    // Check if running on webOS TV
     if (!isWebOSTV()) {
       console.warn('⚠ Not on webOS TV');
       return resolve(null);
     }
 
-    // Check if Luna service is properly available
-    if (!window.webOS?.service?.request || typeof window.webOS.service.request !== 'function') {
+    if (!ensureWebOSService()) {
       console.warn('⚠ Luna service.request not available - device ID will use fallback');
       return resolve(null);
     }
 
+    const idPriority = ['NDUID', 'LGUDID', 'SERIALNUMBER', 'DID', 'WIFI_MAC', 'BLUETOOTH_MAC'];
+
     try {
-      // Call Luna API immediately - NO RETRY LOGIC
       window.webOS.service.request('luna://com.webos.service.sm', {
         method: 'deviceid/getIDs',
-        parameters: { idType: ['LGUDID'] },
+        parameters: { idType: idPriority },
         onSuccess: (response) => {
-          if (response?.returnValue && response?.idList?.[0]?.idValue) {
-            console.log('✓ Device ID:', response.idList[0].idValue);
-            return resolve(response.idList[0].idValue);
+          if (!response?.returnValue || !Array.isArray(response?.idList)) {
+            console.warn('⚠ deviceid/getIDs returned empty');
+            return resolve(null);
           }
+
+          const byType = Object.fromEntries(
+            response.idList
+              .filter(item => item?.idType && item?.idValue)
+              .map(item => [item.idType.toUpperCase(), item.idValue])
+          );
+
+          for (const key of idPriority) {
+            if (byType[key]) {
+              console.log(`✓ Device ID (${key}):`, byType[key]);
+              return resolve(byType[key]);
+            }
+          }
+
+          console.warn('⚠ No usable ID found in deviceid/getIDs');
           return resolve(null);
         },
         onFailure: (error) => {
-          console.warn('⚠ Device ID Luna call failed:', error?.errorCode || 'unknown error');
+          console.warn('⚠ Device ID Luna call failed:', error?.errorCode || error?.errorText || 'unknown error');
           return resolve(null);
         }
       });
@@ -285,7 +383,7 @@ export const getWebOSNetworkInfo = () => {
     }
 
     // Check if Luna service is properly available
-    if (!window.webOS?.service?.request || typeof window.webOS.service.request !== 'function') {
+    if (!ensureWebOSService()) {
       console.warn('⚠ Luna service.request not available for network info');
       return resolve({ ipv4: null, ipv6: null, connectionType: 'Unknown' });
     }
@@ -350,20 +448,26 @@ export const formatMacAddress = (mac) => {
 
 /**
  * Get LG webOS MAC Addresses (Wired and WiFi)
- * Official API: luna://com.webos.service.connectionmanager/getStatus
+ * Tries multiple Luna services and response field combinations
  * Returns both wired and WiFi MAC addresses
  * 
  * @returns {Promise<Object>} MAC addresses object with wiredMac and wifiMac
  */
 export const getWebOSMacAddresses = () => {
   const extractMacs = (response) => {
+    console.log('🔍 Extracting MACs from response:', JSON.stringify(response, null, 2));
+    
     const wiredMac = formatMacAddress(
       response?.wiredInfo?.macAddress ||
       response?.wired?.macAddress ||
       response?.wired?.macaddress ||
       response?.wired?.mac ||
       response?.wired?.hardwareAddress ||
-      response?.wiredInfo?.hardwareAddress
+      response?.wiredInfo?.hardwareAddress ||
+      response?.ethernet?.macAddress ||
+      response?.ethernet?.mac ||
+      response?.wired?.hwAddress ||
+      response?.wired?.bssid
     );
     const wifiMac = formatMacAddress(
       response?.wifiInfo?.macAddress ||
@@ -371,72 +475,91 @@ export const getWebOSMacAddresses = () => {
       response?.wifi?.macaddress ||
       response?.wifi?.mac ||
       response?.wifi?.hardwareAddress ||
-      response?.wifiInfo?.hardwareAddress
+      response?.wifiInfo?.hardwareAddress ||
+      response?.wifi?.hwAddress ||
+      response?.wifi?.bssid
     );
+    
+    console.log('📋 Extracted - Wired:', wiredMac, 'WiFi:', wifiMac);
     return { wiredMac, wifiMac };
   };
 
-  const requestMacFromService = (serviceUri) => new Promise((resolve) => {
+  const requestMac = (serviceUri, method = 'getStatus', parameters = {}) => new Promise((resolve) => {
     try {
+      console.log(`🔍 Trying ${serviceUri}/${method}...`);
       window.webOS.service.request(serviceUri, {
-        method: 'getStatus',
-        parameters: { subscribe: false },
-        onSuccess: (response) => resolve(extractMacs(response)),
+        method,
+        parameters,
+        onSuccess: (response) => {
+          console.log(`✅ ${serviceUri}/${method} response:`, response);
+          resolve(extractMacs(response));
+        },
         onFailure: (error) => {
-          console.warn('⚠ MAC address call failed:', serviceUri, error?.errorCode || 'unknown error');
+          console.warn(`⚠ ${serviceUri}/${method} failed:`, error?.errorCode || error?.errorText || 'unknown error');
           resolve({ wiredMac: null, wifiMac: null });
         }
       });
     } catch (error) {
-      console.warn('⚠ MAC address exception:', serviceUri, error.message);
+      console.warn(`⚠ ${serviceUri}/${method} exception:`, error.message);
       resolve({ wiredMac: null, wifiMac: null });
     }
   });
 
+  // Dedicated call to get MAC by interface name if available
+  const requestMacByInterface = async (iface) => {
+    if (!iface) return { wiredMac: null, wifiMac: null };
+    const resp = await requestMac('luna://com.webos.service.connectionmanager', 'getMacAddress', { interfaceName: iface });
+    return resp;
+  };
+
   return new Promise(async (resolve) => {
     if (!isWebOSTV()) {
-      console.warn('⚠ Not on webOS TV');
+      console.warn('⚠ Not on webOS TV - MAC addresses not available');
       return resolve({ wiredMac: null, wifiMac: null });
     }
 
-    if (!window.webOS?.service?.request || typeof window.webOS.service.request !== 'function') {
+    if (!ensureWebOSService()) {
       console.warn('⚠ Luna service.request not available for MAC addresses');
       return resolve({ wiredMac: null, wifiMac: null });
     }
 
-    // Try official service first, then legacy palm service
-    const primary = await requestMacFromService('luna://com.webos.service.connectionmanager');
-    if (primary.wiredMac || primary.wifiMac) {
-      console.log('✓ MAC Addresses (primary) - Wired:', primary.wiredMac, 'WiFi:', primary.wifiMac);
-      return resolve(primary);
+    console.log('🔍 Starting MAC address detection...');
+
+    // First pass: getStatus to capture interface names
+    const status = await requestMac('luna://com.webos.service.connectionmanager', 'getStatus');
+    if (status.wiredMac || status.wifiMac) {
+      return resolve(status);
     }
 
-    const fallback = await requestMacFromService('luna://com.palm.connectionmanager');
-    if (fallback.wiredMac || fallback.wifiMac) {
-      console.log('✓ MAC Addresses (fallback) - Wired:', fallback.wiredMac, 'WiFi:', fallback.wifiMac);
-      return resolve(fallback);
+    // Try legacy palm connectionmanager
+    const palmStatus = await requestMac('luna://com.palm.connectionmanager', 'getStatus');
+    if (palmStatus.wiredMac || palmStatus.wifiMac) {
+      return resolve(palmStatus);
     }
 
-    // If still missing, log a trimmed snapshot to help diagnose field names
+    // Try wifi service getStatus
+    const wifiStatus = await requestMac('luna://com.webos.service.wifi', 'getStatus');
+    if (wifiStatus.wiredMac || wifiStatus.wifiMac) {
+      return resolve(wifiStatus);
+    }
+
+    // Try explicit getMacAddress calls if we have interface names
     try {
-      window.webOS.service.request('luna://com.webos.service.connectionmanager', {
-        method: 'getStatus',
-        parameters: { subscribe: false },
-        onSuccess: (resp) => {
-          const snapshot = {
-            wiredInfo: resp?.wiredInfo,
-            wired: resp?.wired,
-            wifiInfo: resp?.wifiInfo,
-            wifi: resp?.wifi,
-          };
-          console.warn('⚠ MAC address not found. Snapshot (trimmed):', JSON.stringify(snapshot, null, 2));
-          resolve({ wiredMac: null, wifiMac: null });
-        },
-        onFailure: () => resolve({ wiredMac: null, wifiMac: null })
-      });
-    } catch {
-      resolve({ wiredMac: null, wifiMac: null });
+      const ifaceStatus = await requestMac('luna://com.webos.service.connectionmanager', 'getStatus');
+      const wifiIface = ifaceStatus?.wifi?.interfaceName || 'wlan0';
+      const wiredIface = ifaceStatus?.wired?.interfaceName || 'eth0';
+
+      const wifiMacResp = await requestMacByInterface(wifiIface);
+      if (wifiMacResp.wifiMac || wifiMacResp.wiredMac) return resolve(wifiMacResp);
+
+      const wiredMacResp = await requestMacByInterface(wiredIface);
+      if (wiredMacResp.wiredMac || wiredMacResp.wifiMac) return resolve(wiredMacResp);
+    } catch (e) {
+      console.warn('⚠ getMacAddress by interface failed:', e.message);
     }
+
+    console.warn('❌ MAC addresses NOT FOUND in any Luna service');
+    resolve({ wiredMac: null, wifiMac: null });
   });
 };
 

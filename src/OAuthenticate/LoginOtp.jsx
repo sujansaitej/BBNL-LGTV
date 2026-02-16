@@ -1,9 +1,8 @@
 import { useState, useEffect } from "react";
-import {  Box,  Paper, Typography, Button, TextField,} from "@mui/material";
+import {  Box,  Paper, Typography, Button, TextField, CircularProgress} from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import NetworkErrorNotification from "../Atomic-ErrorThrow-Componenets/NetworkError";
 import useAuthStore from "../Global-storage/AuthStore";
-import { useInputFocusHandler } from "../Atomic-Common-Componenets/useRemoteNavigation";
 import SearchTextField from "../Atomic-Reusable-Componenets/Search";
 import { useDeviceInformation } from "../Api/Deviceinformaction/LG-Devicesinformaction";
 
@@ -24,9 +23,6 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
 
   // Fetch device information (IP address and Device ID)
   const deviceInfo = useDeviceInformation();
-
-  // Prevent scrolling issues with input focus on webOS TV
-  useInputFocusHandler();
 
   /* ---------------- TIMERS ---------------- */
   useEffect(() => {
@@ -253,14 +249,14 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
         elevation={24}
         sx={{
           width: "100%",
-          maxWidth: { xs: 420, sm: 480, md: 520 },
-          minHeight: 480,
-          p: { xs: 4, md: 6 },
+          maxWidth: { xs: 520, sm: 600, md: 680 },
+          minHeight: 520,
+          p: { xs: 5, md: 7 },
           borderRadius: "24px",
           bgcolor: "#0A0E1A",
           background: "linear-gradient(135deg, #0A0E1A 0%, #141B2D 100%)",
-          border: "1px solid rgba(59, 130, 246, 0.1)",
-          boxShadow: "0 25px 80px -15px rgba(0,0,0,0.8), 0 0 60px -10px rgba(59, 130, 246, 0.05)",
+          border: "1px solid rgba(59, 130, 246, 0.16)",
+          boxShadow: "0 30px 90px -20px rgba(0,0,0,0.85), 0 0 70px -12px rgba(59, 130, 246, 0.08)",
           position: "relative",
           overflow: "hidden",
           "&::before": {
@@ -270,7 +266,7 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
             left: 0,
             right: 0,
             height: "1px",
-            background: "linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.3), transparent)",
+            background: "linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.4), transparent)",
           },
         }}
       >
@@ -278,24 +274,24 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
         <Typography 
           align="center" 
           sx={{
-            fontSize: { xs: 26, md: 32 },
-            fontWeight: 700,
+            fontSize: { xs: 30, md: 36 },
+            fontWeight: 800,
             color: "#fff",
-            mb: 1.5,
+            mb: 2,
             letterSpacing: "-0.02em",
           }}
         >
-          {step === 1 ? "Welcome Back" : "Enter Verification Code"}
+          {step === 1 ? "Welcome" : "Enter Verification Code"}
         </Typography>
 
         {/* Subtitle */}
         <Typography 
           align="center" 
           sx={{
-            color: "#94A3B8",
-            fontSize: { xs: 13, md: 15 },
+            color: "#B3C1D6",
+            fontSize: { xs: 15, md: 17 },
             mb: 5,
-            fontWeight: 400,
+            fontWeight: 500,
           }}
         >
           {step === 1
@@ -309,8 +305,8 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
             display: "flex", 
             alignItems: "center",
             justifyContent: "center",
-            gap: 2,
-            mb: 5,
+            gap: 2.5,
+            mb: 5.5,
           }}
         >
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
@@ -322,7 +318,7 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
                 bgcolor: "#2563EB",
               }}
             />
-            <Typography sx={{ color: "#2563EB", fontSize: 14, fontWeight: 600 }}>
+            <Typography sx={{ color: "#2563EB", fontSize: 16, fontWeight: 700 }}>
               Phone
             </Typography>
           </Box>
@@ -350,8 +346,8 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
             <Typography 
               sx={{ 
                 color: step === 2 ? "#2563EB" : "#475569",
-                fontSize: 14,
-                fontWeight: 600,
+                fontSize: 16,
+                fontWeight: 700,
                 transition: "all 0.3s ease",
               }}
             >
@@ -365,13 +361,13 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
           <Box
             sx={{
               mb: 3,
-              p: 2,
+              p: 2.25,
               borderRadius: "12px",
               bgcolor: "rgba(239, 68, 68, 0.1)",
               border: "1px solid rgba(239, 68, 68, 0.2)",
             }}
           >
-            <Typography sx={{ color: "#F87171", fontSize: 14, textAlign: "center" }}>
+            <Typography sx={{ color: "#FCA5A5", fontSize: 16, textAlign: "center", fontWeight: 600 }}>
               ⚠ {error}
             </Typography>
           </Box>
@@ -382,13 +378,13 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
           <Box
             sx={{
               mb: 3,
-              p: 2,
+              p: 2.25,
               borderRadius: "12px",
               bgcolor: "rgba(34, 197, 94, 0.1)",
               border: "1px solid rgba(34, 197, 94, 0.2)",
             }}
           >
-            <Typography sx={{ color: "#4ADE80", fontSize: 14, textAlign: "center" }}>
+            <Typography sx={{ color: "#86EFAC", fontSize: 16, textAlign: "center", fontWeight: 600 }}>
               ✓ {success}
             </Typography>
           </Box>
@@ -400,9 +396,9 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
             <Typography 
               sx={{ 
                 color: "#E2E8F0",
-                fontSize: 14,
-                fontWeight: 500,
-                mb: 1.5,
+                fontSize: 16,
+                fontWeight: 700,
+                mb: 2,
               }}
             >
               Phone Number
@@ -412,13 +408,13 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
               sx={{ 
                 display: "flex", 
                 gap: 2,
-                mb: 4,
+                mb: 4.5,
               }}
             >
               <Box
                 sx={{
-                  width: 90,
-                  height: 56,
+                  width: 100,
+                  height: 60,
                   bgcolor: "#0F172A",
                   border: "1px solid #1E293B",
                   borderRadius: "14px",
@@ -426,8 +422,8 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontSize: 16,
-                  fontWeight: 600,
+                  fontSize: 18,
+                  fontWeight: 700,
                 }}
               >
                 +91
@@ -446,12 +442,12 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
               onClick={handleGetOtp}
               disabled={phone.length !== 10 || loading}
               sx={{
-                height: 56,
+                height: 60,
                 borderRadius: "14px",
                 bgcolor: phone.length === 10 ? "#2563EB" : "#1E293B",
                 color: "#fff",
-                fontSize: 16,
-                fontWeight: 600,
+                fontSize: 18,
+                fontWeight: 700,
                 textTransform: "none",
                 transition: "all 0.3s ease",
                 "&:hover": {
@@ -467,6 +463,55 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
             >
               {loading ? "Sending..." : "Get OTP"}
             </Button>
+
+            {/* Device Information Section */}
+            <Box
+              sx={{
+                mt: 4,
+                p: 3,
+                borderRadius: "14px",
+                bgcolor: "rgba(15, 23, 42, 0.6)",
+                border: "1px solid #1E293B",
+              }}
+            >
+              <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2.5 }}>
+                <Box>
+                  <Typography sx={{ fontSize: 12, color: "#64748B", fontWeight: 600, mb: 0.5 }}>
+                    DEVICE ID
+                  </Typography>
+                  <Typography sx={{ fontSize: 14, color: "#E2E8F0", fontWeight: 700 }}>
+                    {deviceInfo.loading ? <CircularProgress size={16} sx={{ color: "#fff" }} /> : (deviceInfo.deviceId || "STR-9872-7BED")}
+                  </Typography>
+                </Box>
+
+                <Box>
+                  <Typography sx={{ fontSize: 12, color: "#64748B", fontWeight: 600, mb: 0.5 }}>
+                    GATEWAY IP
+                  </Typography>
+                  <Typography sx={{ fontSize: 14, color: "#E2E8F0", fontWeight: 700 }}>
+                    {deviceInfo.loading ? <CircularProgress size={16} sx={{ color: "#fff" }} /> : (deviceInfo.publicIPv4 || "192.725.9.1")}
+                  </Typography>
+                </Box>
+
+                <Box>
+                  <Typography sx={{ fontSize: 12, color: "#64748B", fontWeight: 600, mb: 0.5 }}>
+                    TV MODEL NAME
+                  </Typography>
+                  <Typography sx={{ fontSize: 14, color: "#E2E8F0", fontWeight: 700 }}>
+                    {deviceInfo.loading ? <CircularProgress size={16} sx={{ color: "#fff" }} /> : (deviceInfo.modelName || "Not available")}
+                  </Typography>
+                </Box>
+
+                <Box>
+                  <Typography sx={{ fontSize: 12, color: "#64748B", fontWeight: 600, mb: 0.5 }}>
+                    IPV6
+                  </Typography>
+                  <Typography sx={{ fontSize: 14, color: "#E2E8F0", fontWeight: 700 }}>
+                    {deviceInfo.loading ? <CircularProgress size={16} sx={{ color: "#fff" }} /> : (deviceInfo.publicIPv6 || "fe80::1ff:fe73:7250:523b")}
+                  </Typography>
+                </Box>
+              </Box>
+            </Box>
           </Box>
         )}
 
@@ -480,8 +525,8 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
                 display: "flex",
                 justifyContent: "center",
                 alignItems: "center",
-                gap: { xs: 2, md: 3 },
-                mb: 5,
+                gap: { xs: 2.5, md: 3.5 },
+                mb: 5.5,
                 px: 2,
                 cursor: "text",
               }}
@@ -500,8 +545,8 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
                 >
                   <Typography
                     sx={{
-                      fontSize: { xs: 32, md: 40 },
-                      fontWeight: 700,
+                      fontSize: { xs: 36, md: 44 },
+                      fontWeight: 800,
                       color: otp[i] ? "#fff" : "#1E293B",
                       fontFamily: "monospace",
                       lineHeight: 1,
@@ -554,12 +599,12 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
               onClick={handleVerifyOtp}
               disabled={otp.length !== 4 || loading}
               sx={{
-                height: 56,
+                height: 60,
                 borderRadius: "14px",
                 bgcolor: otp.length === 4 ? "#2563EB" : "#1E293B",
                 color: "#fff",
-                fontSize: 16,
-                fontWeight: 600,
+                fontSize: 18,
+                fontWeight: 700,
                 textTransform: "none",
                 mb: 3,
                 transition: "all 0.3s ease",
@@ -577,10 +622,59 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
               {loading ? "Verifying..." : "Verify"}
             </Button>
 
+            {/* Device Information Section */}
+            <Box
+              sx={{
+                mb: 3,
+                p: 3,
+                borderRadius: "14px",
+                bgcolor: "rgba(15, 23, 42, 0.6)",
+                border: "1px solid #1E293B",
+              }}
+            >
+              <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2.5 }}>
+                <Box>
+                  <Typography sx={{ fontSize: 12, color: "#64748B", fontWeight: 600, mb: 0.5 }}>
+                    DEVICE ID
+                  </Typography>
+                  <Typography sx={{ fontSize: 14, color: "#E2E8F0", fontWeight: 700 }}>
+                    {deviceInfo.loading ? <CircularProgress size={16} sx={{ color: "#fff" }} /> : (deviceInfo.deviceId || "STR-9872-7BED")}
+                  </Typography>
+                </Box>
+
+                <Box>
+                  <Typography sx={{ fontSize: 12, color: "#64748B", fontWeight: 600, mb: 0.5 }}>
+                    GATEWAY IP
+                  </Typography>
+                  <Typography sx={{ fontSize: 14, color: "#E2E8F0", fontWeight: 700 }}>
+                    {deviceInfo.loading ? <CircularProgress size={16} sx={{ color: "#fff" }} /> : (deviceInfo.publicIPv4 || "192.725.9.1")}
+                  </Typography>
+                </Box>
+
+                <Box>
+                  <Typography sx={{ fontSize: 12, color: "#64748B", fontWeight: 600, mb: 0.5 }}>
+                    TV MODEL NAME
+                  </Typography>
+                  <Typography sx={{ fontSize: 14, color: "#E2E8F0", fontWeight: 700 }}>
+                    {deviceInfo.loading ? <CircularProgress size={16} sx={{ color: "#fff" }} /> : (deviceInfo.modelName || "Not available")}
+                  </Typography>
+                </Box>
+
+                <Box>
+                  <Typography sx={{ fontSize: 12, color: "#64748B", fontWeight: 600, mb: 0.5 }}>
+                    IPV6
+                  </Typography>
+                  <Typography sx={{ fontSize: 14, color: "#E2E8F0", fontWeight: 700 }}>
+                    {deviceInfo.loading ? <CircularProgress size={16} sx={{ color: "#fff" }} /> : (deviceInfo.publicIPv6 || "fe80::1ff:fe73:7250:523b")}
+                  </Typography>
+                </Box>
+              </Box>
+            </Box>
+
             {/* Resend Code Section */}
             <Box sx={{ textAlign: "center" }}>
               {isTimerRunning ? (
-                <Typography sx={{ color: "#64748B", fontSize: 14 }}>
+                <Typography sx={{ color: "#94A3B8", fontSize: 15, fontWeight: 500 }}>
                   Didn't receive the code? <strong>Resend Code</strong> in{" "}
                   <span style={{ color: "#2563EB", fontWeight: 600 }}>
                     00:{timer < 10 ? `0${timer}` : timer}
@@ -588,7 +682,7 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
                 </Typography>
               ) : (
                 <>
-                  <Typography sx={{ color: "#64748B", fontSize: 14, mb: 2 }}>
+                  <Typography sx={{ color: "#94A3B8", fontSize: 15, mb: 2, fontWeight: 500 }}>
                     Didn't receive the code?
                   </Typography>
                   <Button
@@ -596,12 +690,12 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
                     onClick={handleResendOtp}
                     disabled={loading}
                     sx={{
-                      height: 48,
+                      height: 52,
                       borderRadius: "12px",
                       border: "1px solid #2563EB",
                       color: "#2563EB",
-                      fontSize: 15,
-                      fontWeight: 600,
+                      fontSize: 16,
+                      fontWeight: 700,
                       textTransform: "none",
                       bgcolor: "transparent",
                       "&:hover": {
@@ -628,8 +722,8 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
               sx={{
                 mt: 2,
                 color: "#64748B",
-                fontSize: 14,
-                fontWeight: 500,
+                fontSize: 15,
+                fontWeight: 600,
                 textTransform: "none",
                 "&:hover": {
                   color: "#94A3B8",
@@ -642,37 +736,6 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
           </Box>
         )}
       </Paper>
-    </Box>
-    
-    {/* Device Information Display */}
-    <Box
-      sx={{
-        position: 'fixed',
-        bottom: 16,
-        right: 16,
-        bgcolor: 'rgba(0, 0, 0, 0.7)',
-        color: 'white',
-        padding: 2,
-        borderRadius: 2,
-        fontSize: 12,
-        maxWidth: 350,
-        backdropFilter: 'blur(10px)',
-      }}
-    >
-      <Typography variant="caption" sx={{ fontWeight: 'bold', display: 'block', mb: 1 }}>
-        Device Information
-      </Typography>
-      <Typography variant="caption" sx={{ display: 'block', opacity: 0.8 }}>
-        IP Address: {deviceInfo.loading ? 'Loading...' : deviceInfo.ipAddress}
-      </Typography>
-      <Typography variant="caption" sx={{ display: 'block', opacity: 0.8 }}>
-        Device ID: {deviceInfo.loading ? 'Loading...' : deviceInfo.deviceId}
-      </Typography>
-      {deviceInfo.error && (
-        <Typography variant="caption" sx={{ display: 'block', color: '#ff6b6b', mt: 1 }}>
-          Error: {deviceInfo.error}
-        </Typography>
-      )}
     </Box>
     </div>
   );

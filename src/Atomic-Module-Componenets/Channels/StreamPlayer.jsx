@@ -294,7 +294,8 @@ const HLSPlayer = ({ src, autoPlay = true }) => {
         setPlaybackError("");
         networkRetryRef.current = 0;
         if (autoPlay) {
-          video.muted = true;
+          video.muted = false;
+          video.volume = 1;
           video.play().catch((err) => {
             console.warn("Autoplay blocked, will retry on buffer:", err);
             // Don't set error immediately, wait for buffer to retry
@@ -307,7 +308,8 @@ const HLSPlayer = ({ src, autoPlay = true }) => {
         setShowLoader(false);
         networkRetryRef.current = 0;
         if (autoPlay && video.paused) {
-          video.muted = true;
+          video.muted = false;
+          video.volume = 1;
           video.play()
             .then(() => {
               setPlaybackError("");
@@ -443,7 +445,8 @@ const HLSPlayer = ({ src, autoPlay = true }) => {
         setIsLoading(false);
         setShowLoader(false);
         if (autoPlay) {
-          video.muted = true;
+          video.muted = false;
+          video.volume = 1;
           video.play().catch(() => {});
         }
       };
@@ -509,7 +512,7 @@ const HLSPlayer = ({ src, autoPlay = true }) => {
           padding: 0,
         }}
         playsInline
-        muted={true}
+        muted={false}
         controls={false}
       />
 
@@ -553,7 +556,8 @@ const HLSPlayer = ({ src, autoPlay = true }) => {
           onClick={() => {
             const video = videoRef.current;
             if (video) {
-              video.muted = true;
+              video.muted = false;
+              video.volume = 1;
               video.play()
                 .then(() => {
                   setPlaybackError("");

@@ -10,6 +10,7 @@
   "uiRevision": 2,
   "requiredPermissions": [
     "deviceid.query",
-    "networkconnection.query"
+    "networkconnection.query",
+    "mrcu.operation"
   ]
 }

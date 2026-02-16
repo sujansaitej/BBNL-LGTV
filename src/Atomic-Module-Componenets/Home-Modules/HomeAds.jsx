@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Box } from "@mui/material";
 import useHomeAdsStore from "../../Global-storage/ChannelsSearchStore";
-import { TV_SPACING, TV_RADIUS, TV_SHADOWS, TV_COLORS, TV_TYPOGRAPHY } from "../../styles/tvConstants";
 
 const HomeAds = (props) => {
   const {

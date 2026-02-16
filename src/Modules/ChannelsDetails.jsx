@@ -100,7 +100,7 @@ const ChannelsDetails = ({ channel, visible = false }) => {
 						opacity: 0.7,
 						mb: 0.5,
 					}}>
-						Channel Price $:
+						Channel Price:
 					</Typography>
 					<Typography sx={{ 
 						...TV_TYPOGRAPHY.body2,

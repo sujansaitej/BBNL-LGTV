@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from "react";
-import { Box, Typography, InputBase, List, ListItemButton, Avatar, Tabs, Tab,} from "@mui/material";
-import SearchIcon from "@mui/icons-material/Search";
+import { Box, Typography, List, ListItemButton, Avatar, Tabs, Tab } from "@mui/material";
 import { DEFAULT_USER } from "../Api/config";
 import useLiveChannelsStore from "../Global-storage/LiveChannelsStore";
-import { TV_TYPOGRAPHY, TV_SPACING, TV_RADIUS, TV_SHADOWS, TV_BLUR, TV_COLORS, TV_FOCUS, TV_TIMING, TV_SIZES } from "../styles/tvConstants";
+import { TV_TYPOGRAPHY, TV_SPACING, TV_RADIUS, TV_COLORS, TV_FOCUS, TV_TIMING } from "../styles/tvConstants";
+import { useEnhancedRemoteNavigation } from "../Atomic-Common-Componenets/useMagicRemote";
+import "../styles/focus.css";
 
 const ChannelsSidebar = ({ onChannelSelect, currentChannel }) => {
   const [channels, setChannels] = useState([]);
@@ -11,7 +12,6 @@ const ChannelsSidebar = ({ onChannelSelect, currentChannel }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const { categories: cachedCategories, channelsCache, fetchCategories, fetchChannels } = useLiveChannelsStore();
-  const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState(0);
 
   // Get device info from config
@@ -23,6 +23,14 @@ const ChannelsSidebar = ({ onChannelSelect, currentChannel }) => {
     mobile,
     ip_address: "192.168.101.110",
     mac: "26:F2:AE:D8:3F:99",
+  };
+
+  const formatPrice = (value) => {
+    if (value === undefined || value === null) return "";
+    const text = String(value).trim();
+    if (!text) return "";
+    if (text === "0" || text === "0.0" || text === "0.00") return "Free";
+    return /^[0-9]+(\.[0-9]+)?$/.test(text) ? `₹${text}` : text;
   };
 
   // Fetch categories on mount
@@ -74,81 +82,75 @@ const ChannelsSidebar = ({ onChannelSelect, currentChannel }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCategory, categories]);
 
-  // Fast filtering using useMemo
-  const filteredChannels = useMemo(() => {
-    if (!searchQuery.trim()) return channels;
+  // Magic Remote Navigation: Categories + Channels combined
+  const allNavigableItems = useMemo(() => {
+    return [...categories, ...channels];
+  }, [categories, channels]);
 
-    const query = searchQuery.toLowerCase().trim();
-    return channels.filter((channel) => {
-      const titleMatch = channel.chtitle?.toLowerCase().includes(query);
-      const numberMatch = channel.channelno?.toString().includes(query);
-      return titleMatch || numberMatch;
-    });
-  }, [channels, searchQuery]);
+  const {
+    focusedIndex,
+    hoveredIndex,
+    getItemProps,
+    magicRemoteReady,
+  } = useEnhancedRemoteNavigation(allNavigableItems, {
+    orientation: 'vertical',
+    useMagicRemotePointer: true,
+    focusThreshold: 150,
+    onSelect: (index) => {
+      if (index < categories.length) {
+        // Category selected
+        setSelectedCategory(index);
+      } else {
+        // Channel selected
+        const channelIndex = index - categories.length;
+        if (channels[channelIndex] && onChannelSelect) {
+          onChannelSelect(channels[channelIndex]);
+        }
+      }
+    },
+  });
 
 
   return (
     <Box
       sx={{
         width: "28rem",
+        bgcolor: "rgba(0, 0, 0, 0.7)",
         height: "100vh",
-        bgcolor: TV_COLORS.background.overlay,
-        backdropFilter: TV_BLUR.xl,
-        borderRight: "2px solid rgba(255, 255, 255, 0.15)",
         display: "flex",
         flexDirection: "column",
-        color: TV_COLORS.text.primary,
+        pt: TV_SPACING.xl,
+        px: TV_SPACING.lg,
       }}
     >
-      {/* -------- HEADER WITH SEARCH -------- */}
-      <Box
-        sx={{
-          px: TV_SPACING.lg,
-          py: TV_SPACING.lg,
-          borderBottom: "2px solid rgba(255, 255, 255, 0.15)",
-        }}
-      >
-        {/* -------- SEARCH BAR -------- */}
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: TV_SPACING.sm,
-            bgcolor: TV_COLORS.glass.light,
-            border: "2px solid rgba(255, 255, 255, 0.2)",
-            borderRadius: TV_RADIUS.pill,
-            px: TV_SPACING.lg,
-            py: TV_SPACING.md,
-            height: TV_SIZES.input.height,
-          }}
-        >
-          <SearchIcon sx={{ color: TV_COLORS.text.tertiary, fontSize: TV_SIZES.icon.medium }} />
-          <InputBase
-            placeholder="Search Channel"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            fullWidth
-            sx={{
-              color: TV_COLORS.text.primary,
-              ...TV_TYPOGRAPHY.body2,
-              "& input::placeholder": {
-                color: TV_COLORS.text.tertiary,
-              },
-            }}
-            inputProps={{ "aria-label": "Search Channel" }}
-          />
+      {/* Magic Remote Status */}
+      {magicRemoteReady && (
+        <Box sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+          mb: 2,
+          px: '0.75rem',
+          py: '0.5rem',
+          borderRadius: '8px',
+          bgcolor: 'rgba(67, 233, 123, 0.15)',
+          border: '2px solid rgba(67, 233, 123, 0.5)',
+        }}>
+          <Box sx={{
+            width: 6,
+            height: 6,
+            borderRadius: '50%',
+            bgcolor: '#43e97b',
+            boxShadow: '0 0 10px rgba(67, 233, 123, 0.8)',
+            animation: 'pulse-dot 1.5s ease-in-out infinite',
+          }} />
+          <Typography sx={{ fontSize: '0.75rem', color: '#43e97b', fontWeight: 600 }}>
+            Magic Remote
+          </Typography>
         </Box>
-      </Box>
+      )}
 
-      {/* -------- CATEGORY TABS -------- */}
-      <Box
-        sx={{
-          px: TV_SPACING.lg,
-          py: TV_SPACING.md,
-          borderBottom: "2px solid rgba(255, 255, 255, 0.15)",
-        }}
-      >
-        <Tabs
+      <Tabs
           value={selectedCategory}
           onChange={(e, newValue) => setSelectedCategory(newValue)}
           variant="scrollable"
@@ -180,11 +182,25 @@ const ChannelsSidebar = ({ onChannelSelect, currentChannel }) => {
             },
           }}
         >
-          {categories.map((cat, idx) => (
-            <Tab key={idx} label={cat.title} />
-          ))}
+          {categories.map((cat, idx) => {
+            const isFocused = focusedIndex === idx;
+            const isHovered = hoveredIndex === idx;
+            
+            return (
+              <Tab 
+                key={idx} 
+                label={cat.title}
+                {...getItemProps(idx)}
+                className={`focusable-category-tab ${isFocused ? 'focused' : ''} ${isHovered ? 'hovered' : ''}`}
+                sx={{
+                  border: isFocused ? "2px solid #667eea !important" : undefined,
+                  transform: isFocused ? "scale(1.08) !important" : isHovered ? "scale(1.03) !important" : undefined,
+                  boxShadow: isFocused ? "0 4px 12px rgba(102, 126, 234, 0.4) !important" : undefined,
+                }}
+              />
+            );
+          })}
         </Tabs>
-      </Box>
 
       {/* -------- CHANNEL LIST -------- */}
       <Box sx={{ flex: 1, overflowY: "auto", px: TV_SPACING.md, py: TV_SPACING.md }}>
@@ -193,7 +209,7 @@ const ChannelsSidebar = ({ onChannelSelect, currentChannel }) => {
             sx={{
               textAlign: "center",
               ...TV_TYPOGRAPHY.body2,
-              color: TV_COLORS.text.tertiary,
+              color: TV_COLORS.text.secondary,
               mt: TV_SPACING.xl,
             }}
           >
@@ -206,16 +222,15 @@ const ChannelsSidebar = ({ onChannelSelect, currentChannel }) => {
             sx={{
               textAlign: "center",
               ...TV_TYPOGRAPHY.body2,
-              color: TV_COLORS.accent.error,
+              color: TV_COLORS.error,
               mt: TV_SPACING.xl,
-              px: TV_SPACING.lg,
             }}
           >
             {error}
           </Typography>
         )}
 
-        {!loading && !error && filteredChannels.length === 0 && (
+        {!loading && !error && channels.length === 0 && (
           <Typography
             sx={{
               textAlign: "center",
@@ -229,13 +244,25 @@ const ChannelsSidebar = ({ onChannelSelect, currentChannel }) => {
         )}
 
         <List sx={{ p: 0 }}>
-          {filteredChannels.map((channel, index) => {
+          {channels.map((channel, index) => {
+            const globalIndex = categories.length + index;
+            const isFocused = focusedIndex === globalIndex;
+            const isHovered = hoveredIndex === globalIndex;
             const isActive = currentChannel?.channelno === channel.channelno;
+            const priceLabel = formatPrice(channel.chprice);
 
             return (
               <ListItemButton
                 key={`${channel.channelno}-${index}`}
+                {...getItemProps(globalIndex)}
+                className={`focusable-sidebar-item ${isFocused ? 'focused' : ''} ${isHovered ? 'hovered' : ''}`}
                 onClick={() => onChannelSelect && onChannelSelect(channel)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    if (onChannelSelect) onChannelSelect(channel);
+                  }
+                }}
                 sx={{
                   display: "flex",
                   alignItems: "center",
@@ -248,14 +275,22 @@ const ChannelsSidebar = ({ onChannelSelect, currentChannel }) => {
                     ? "rgba(255, 255, 255, 0.18)"
                     : "transparent",
                   transition: `all ${TV_TIMING.fast}`,
+                  border: isFocused 
+                    ? "3px solid #667eea" 
+                    : "2px solid transparent",
+                  transform: isFocused 
+                    ? "scale(1.05)" 
+                    : isHovered 
+                    ? "scale(1.02)" 
+                    : "scale(1)",
+                  boxShadow: isFocused 
+                    ? "0 6px 16px rgba(102, 126, 234, 0.4)" 
+                    : "none",
                   "&:hover": {
                     bgcolor: "rgba(255, 255, 255, 0.08)",
                   },
                   "&:focus-visible": {
-                    bgcolor: "rgba(255, 255, 255, 0.12)",
-                    border: "3px solid rgba(255, 255, 255, 0.4)",
-                    transform: "scale(1.02)",
-                    boxShadow: TV_SHADOWS.md,
+                    outline: "none",
                   },
                 }}
               >
@@ -281,6 +316,20 @@ const ChannelsSidebar = ({ onChannelSelect, currentChannel }) => {
                   >
                     {channel.chtitle}
                   </Typography>
+                  {priceLabel && (
+                    <Typography
+                      sx={{
+                        ...TV_TYPOGRAPHY.body2,
+                        color: TV_COLORS.text.tertiary,
+                        mt: 0.25,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {priceLabel}
+                    </Typography>
+                  )}
                 </Box>
                 <Typography
                   sx={{

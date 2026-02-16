@@ -7,7 +7,7 @@ import ChannelsDetails from "./ChannelsDetails";
 import ChannelNumberDisplay, { findChannelByNumber } from "./Lcn";
 import { DEFAULT_USER } from "../Api/config";
 import useLiveChannelsStore from "../Global-storage/LiveChannelsStore";
-import { useRemoteNavigation } from "../Atomic-Common-Componenets/useRemoteNavigation";
+import { useMagicRemote } from "../Atomic-Common-Componenets/useMagicRemote";
 
 const LivePlayer = () => {
   const location = useLocation();
@@ -119,15 +119,15 @@ const LivePlayer = () => {
     }
   }, [channelsList, currentChannel, showDetails, handleChannelSelect]);
 
-  // Integrate useRemoteNavigation for standardized remote control
-  useRemoteNavigation(1, {
+  // Integrate Magic Remote for standardized remote control
+  useMagicRemote({
     enabled: !isSidebarOpen,
-    onSelect: () => {
+    onOKKey: () => {
       if (!isSidebarOpen) {
         toggleDetails();
       }
     },
-    onBack: () => {
+    onBackKey: () => {
       if (isSidebarOpen) {
         setIsSidebarOpen(false);
       } else if (isDetailsVisible) {
@@ -140,11 +140,13 @@ const LivePlayer = () => {
         navigate(-1);
       }
     },
-    onHome: () => navigate("/home"),
-    onMenu: () => setIsSidebarOpen(prev => !prev),
-    onInfo: () => toggleDetails(),
-    onChannelUp: () => handleChannelStep(1),
-    onChannelDown: () => handleChannelStep(-1),
+    onArrowKey: (direction) => {
+      if (direction === 'up') {
+        handleChannelStep(1);
+      } else if (direction === 'down') {
+        handleChannelStep(-1);
+      }
+    }
   });
 
   const userid = localStorage.getItem("userId") || DEFAULT_USER.userid;
@@ -159,7 +161,7 @@ const LivePlayer = () => {
       }
     });
   }, [fetchChannels, userid, mobile]);
-// Handle numeric channel jump and left arrow separately (not handled by useRemoteNavigation)
+// Handle numeric channel jump (Magic Remote handles arrow keys)
   useEffect(() => {
     const getDigitFromEvent = (event) => {
       if (/^[0-9]$/.test(event.key)) return event.key;

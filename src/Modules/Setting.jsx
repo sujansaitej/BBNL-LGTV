@@ -6,6 +6,8 @@ import InfoIcon from "@mui/icons-material/Info";
 import { useDeviceInformation } from "../Api/Deviceinformaction/LG-Devicesinformaction";
 import { DEFAULT_USER } from "../Api/config";
 import useAppVersionStore from "../Global-storage/LogineOttp";
+import { useEnhancedRemoteNavigation } from "../Atomic-Common-Componenets/useMagicRemote";
+import "../styles/focus.css";
 
 const Setting = () => {
   const navigate = useNavigate();
@@ -61,6 +63,21 @@ const Setting = () => {
     navigate("/home");
   };
 
+  // Magic Remote Navigation for menu items
+  const {
+    focusedIndex,
+    hoveredIndex,
+    getItemProps,
+    magicRemoteReady,
+  } = useEnhancedRemoteNavigation(menuItems, {
+    orientation: 'vertical',
+    useMagicRemotePointer: true,
+    focusThreshold: 150,
+    onSelect: (index) => {
+      setCurrentPage(menuItems[index].id);
+    },
+  });
+
   return (
     <Box
       sx={{
@@ -114,31 +131,78 @@ const Setting = () => {
           mt: 10,
         }}
       >
+        {/* Magic Remote Status */}
+        {magicRemoteReady && (
+          <Box sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '0.5rem',
+            mb: 2,
+            px: '1rem',
+            py: '0.5rem',
+            borderRadius: '8px',
+            bgcolor: 'rgba(67, 233, 123, 0.15)',
+            border: '2px solid rgba(67, 233, 123, 0.5)',
+          }}>
+            <Box sx={{
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              bgcolor: '#43e97b',
+              boxShadow: '0 0 10px rgba(67, 233, 123, 0.8)',
+              animation: 'pulse-dot 1.5s ease-in-out infinite',
+            }} />
+            <Typography sx={{ fontSize: '0.875rem', color: '#43e97b', fontWeight: 600 }}>
+              Magic Remote
+            </Typography>
+          </Box>
+        )}
+
         <List sx={{ width: "100%", p: 0 }}>
-          {menuItems.map((item) => {
+          {menuItems.map((item, index) => {
             const isActive = currentPage === item.id;
+            const isFocused = focusedIndex === index;
+            const isHovered = hoveredIndex === index;
 
             return (
               <ListItemButton
                 key={item.id}
+                {...getItemProps(index)}
+                className={`focusable-settings-item ${isFocused ? 'focused' : ''} ${isHovered ? 'hovered' : ''}`}
                 onClick={() => setCurrentPage(item.id)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setCurrentPage(item.id);
+                  }
+                }}
                 sx={{
                   mb: 2,
                   borderRadius: "14px",
                   bgcolor: isActive ? "rgba(255, 255, 255, 0.12)" : "transparent",
-                  border: isActive
+                  border: isFocused
+                    ? "3px solid #667eea"
+                    : isActive
                     ? "2px solid rgba(255, 255, 255, 0.35)"
                     : "2px solid transparent",
                   transition: "all 0.25s ease",
                   p: 2.5,
+                  transform: isFocused 
+                    ? "scale(1.08)" 
+                    : isHovered 
+                    ? "scale(1.03)" 
+                    : "scale(1)",
+                  boxShadow: isFocused 
+                    ? "0 8px 20px rgba(102, 126, 234, 0.4)" 
+                    : "none",
                   "&:hover": {
                     bgcolor: isActive
                       ? "rgba(255, 255, 255, 0.12)"
                       : "rgba(255, 255, 255, 0.05)",
                   },
                   "&:focus-visible": {
-                    border: "2px solid rgba(255, 255, 255, 0.6)",
-                    boxShadow: "0 0 0 4px rgba(255, 255, 255, 0.15)",
+                    outline: "none",
                   },
                 }}
               >
@@ -322,177 +386,72 @@ const Setting = () => {
               View your device network and identification information
             </Typography>
 
-            {/* Public IPv4 Address */}
             <Box
               sx={{
                 bgcolor: "rgba(255, 255, 255, 0.06)",
                 border: "2px solid rgba(255, 255, 255, 0.15)",
                 borderRadius: "14px",
-                p: 4,
+                px: 4,
+                py: 3.5,
                 mb: 3,
               }}
             >
-              <Typography
-                sx={{
-                  fontSize: 18,
-                  color: "rgba(255, 255, 255, 0.65)",
-                  mb: 1,
-                  letterSpacing: "0.2px",
-                }}
-              >
-                Public IPv4 Address
+              <Typography sx={{ fontSize: 40, fontWeight: 700, mb: 2, letterSpacing: "0.2px" }}>
+                TV Information
               </Typography>
-              {deviceInfo.loading ? (
-                <CircularProgress size={24} sx={{ color: "#fff" }} />
-              ) : (
-                <Typography sx={{ fontSize: 22, fontWeight: 600, letterSpacing: "0.3px" }}>
-                  {deviceInfo.publicIPv4 || "Not available"}
+
+              <Box sx={{ display: "grid", gridTemplateColumns: "260px 1fr", rowGap: 2.2, columnGap: 2 }}>
+                <Typography sx={{ fontSize: 32, color: "rgba(255, 255, 255, 0.55)", fontWeight: 600 }}>
+                  TV Model Name
                 </Typography>
-              )}
+                <Typography sx={{ fontSize: 32, fontWeight: 700 }}>
+                  {deviceInfo.loading ? <CircularProgress size={24} sx={{ color: "#fff" }} /> : (deviceInfo.modelName || "Not available")}
+                </Typography>
+
+                <Typography sx={{ fontSize: 32, color: "rgba(255, 255, 255, 0.55)", fontWeight: 600 }}>
+                  Device ID
+                </Typography>
+                <Typography sx={{ fontSize: 32, fontWeight: 700 }}>
+                  {deviceInfo.loading ? <CircularProgress size={24} sx={{ color: "#fff" }} /> : (deviceInfo.deviceId || "Not available")}
+                </Typography>
+
+                <Typography sx={{ fontSize: 32, color: "rgba(255, 255, 255, 0.55)", fontWeight: 600 }}>
+                  Connection Type
+                </Typography>
+                <Typography sx={{ fontSize: 32, fontWeight: 700 }}>
+                  {deviceInfo.loading ? <CircularProgress size={24} sx={{ color: "#fff" }} /> : (deviceInfo.connectionType || "Unknown")}
+                </Typography>
+              </Box>
             </Box>
 
-            {/* Public IPv6 Address */}
             <Box
               sx={{
                 bgcolor: "rgba(255, 255, 255, 0.06)",
                 border: "2px solid rgba(255, 255, 255, 0.15)",
                 borderRadius: "14px",
-                p: 4,
-                mb: 3,
+                px: 4,
+                py: 3.5,
               }}
             >
-              <Typography
-                sx={{
-                  fontSize: 18,
-                  color: "rgba(255, 255, 255, 0.65)",
-                  mb: 1,
-                  letterSpacing: "0.2px",
-                }}
-              >
-                Public IPv6 Address
+              <Typography sx={{ fontSize: 40, fontWeight: 700, mb: 2, letterSpacing: "0.2px" }}>
+                Network Information
               </Typography>
-              {deviceInfo.loading ? (
-                <CircularProgress size={24} sx={{ color: "#fff" }} />
-              ) : (
-                <Typography sx={{ fontSize: 22, fontWeight: 600, letterSpacing: "0.3px" }}>
-                  {deviceInfo.publicIPv6 || "Not available"}
-                </Typography>
-              )}
-            </Box>
 
-            {/* Device ID */}
-            <Box
-              sx={{
-                bgcolor: "rgba(255, 255, 255, 0.06)",
-                border: "2px solid rgba(255, 255, 255, 0.15)",
-                borderRadius: "14px",
-                p: 4,
-                mb: 3,
-              }}
-            >
-              <Typography
-                sx={{
-                  fontSize: 18,
-                  color: "rgba(255, 255, 255, 0.65)",
-                  mb: 1,
-                  letterSpacing: "0.2px",
-                }}
-              >
-                Device ID
-              </Typography>
-              {deviceInfo.loading ? (
-                <CircularProgress size={24} sx={{ color: "#fff" }} />
-              ) : (
-                <Typography sx={{ fontSize: 22, fontWeight: 600, letterSpacing: "0.3px" }}>
-                  {deviceInfo.deviceId || "Not available"}
+              <Box sx={{ display: "grid", gridTemplateColumns: "260px 1fr", rowGap: 2.2, columnGap: 2 }}>
+                <Typography sx={{ fontSize: 32, color: "rgba(255, 255, 255, 0.55)", fontWeight: 600 }}>
+                  IP v4 Address
                 </Typography>
-              )}
-            </Box>
+                <Typography sx={{ fontSize: 32, fontWeight: 700 }}>
+                  {deviceInfo.loading ? <CircularProgress size={24} sx={{ color: "#fff" }} /> : (deviceInfo.publicIPv4 || "Not available")}
+                </Typography>
 
-            {/* Connection Type */}
-            <Box
-              sx={{
-                bgcolor: "rgba(255, 255, 255, 0.06)",
-                border: "2px solid rgba(255, 255, 255, 0.15)",
-                borderRadius: "14px",
-                p: 4,
-                mb: 3,
-              }}
-            >
-              <Typography
-                sx={{
-                  fontSize: 18,
-                  color: "rgba(255, 255, 255, 0.65)",
-                  mb: 1,
-                  letterSpacing: "0.2px",
-                }}
-              >
-                Connection Type
-              </Typography>
-              {deviceInfo.loading ? (
-                <CircularProgress size={24} sx={{ color: "#fff" }} />
-              ) : (
-                <Typography sx={{ fontSize: 22, fontWeight: 600, letterSpacing: "0.3px" }}>
-                  {deviceInfo.connectionType || "Unknown"}
+                <Typography sx={{ fontSize: 32, color: "rgba(255, 255, 255, 0.55)", fontWeight: 600 }}>
+                  IP v6 Address
                 </Typography>
-              )}
-            </Box>
-
-            {/* Wired MAC Address */}
-            <Box
-              sx={{
-                bgcolor: "rgba(255, 255, 255, 0.06)",
-                border: "2px solid rgba(255, 255, 255, 0.15)",
-                borderRadius: "14px",
-                p: 4,
-                mb: 3,
-              }}
-            >
-              <Typography
-                sx={{
-                  fontSize: 18,
-                  color: "rgba(255, 255, 255, 0.65)",
-                  mb: 1,
-                  letterSpacing: "0.2px",
-                }}
-              >
-                Wired MAC Address
-              </Typography>
-              {deviceInfo.loading ? (
-                <CircularProgress size={24} sx={{ color: "#fff" }} />
-              ) : (
-                <Typography sx={{ fontSize: 22, fontWeight: 600, letterSpacing: "0.3px" }}>
-                  {deviceInfo.wiredMac || "Not available"}
+                <Typography sx={{ fontSize: 32, fontWeight: 700 }}>
+                  {deviceInfo.loading ? <CircularProgress size={24} sx={{ color: "#fff" }} /> : (deviceInfo.publicIPv6 || "Not available")}
                 </Typography>
-              )}
-            </Box>
-
-            {/* WiFi MAC Address */}
-            <Box
-              sx={{
-                bgcolor: "rgba(255, 255, 255, 0.06)",
-                border: "2px solid rgba(255, 255, 255, 0.15)",
-                borderRadius: "14px",
-                p: 4,
-              }}
-            >
-              <Typography
-                sx={{
-                  fontSize: 18,
-                  color: "rgba(255, 255, 255, 0.65)",
-                  mb: 1,
-                  letterSpacing: "0.2px",
-                }}
-              >
-                WiFi MAC Address
-              </Typography>
-              {deviceInfo.loading ? (
-                <CircularProgress size={24} sx={{ color: "#fff" }} />
-              ) : (
-                <Typography sx={{ fontSize: 22, fontWeight: 600, letterSpacing: "0.3px" }}>
-                  {deviceInfo.wifiMac || "Not available"}
-                </Typography>
-              )}
+              </Box>
             </Box>
           </Box>
         )}

@@ -1,9 +1,221 @@
-/* focus.css - Extracted focus styles for TV remote navigation performance */
+/* =================================================================
+   MAGIC REMOTE FOCUS STYLES - LG TV Application
+   Global styling for all focusable elements across the app
+   ================================================================= */
 
-/* Channel List Item Focus Styles */
+/* Base Focusable Element */
+.focusable {
+  outline: none;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+/* Focused State - Global */
+.focusable:focus,
+.focusable.focused {
+  outline: 3px solid #667eea;
+  outline-offset: 4px;
+  transform: scale(1.05);
+  box-shadow: 0 0 30px rgba(102, 126, 234, 0.8), 
+              0 8px 20px rgba(0, 0, 0, 0.4);
+  z-index: 100;
+}
+
+.focusable:focus-visible {
+  outline: 3px solid #667eea;
+  outline-offset: 4px;
+}
+
+/* Hover State (Magic Remote Pointer) */
+.focusable.hovered {
+  transform: scale(1.03);
+  box-shadow: 0 0 20px rgba(102, 126, 234, 0.5);
+}
+
+/* =================================================================
+   COMPONENT-SPECIFIC FOCUS STYLES
+   ================================================================= */
+
+/* Button Focus */
+.focusable-button {
+  outline: none;
+  transition: all 0.25s ease;
+  border-radius: 12px;
+  border: 2px solid transparent;
+}
+
+.focusable-button:focus,
+.focusable-button.focused {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  border: 3px solid #00aaff;
+  transform: scale(1.08);
+  box-shadow: 0 0 25px rgba(102, 126, 234, 0.9),
+              0 8px 30px rgba(0, 0, 0, 0.5);
+}
+
+.focusable-button.hovered {
+  border: 2px solid #667eea;
+  transform: scale(1.04);
+}
+
+/* Channel Box Focus */
+.focusable-channel-box {
+  outline: none;
+  transition: all 0.2s ease;
+  border-radius: 16px;
+}
+
+.focusable-channel-box:focus,
+.focusable-channel-box.focused {
+  transform: scale(1.12);
+  box-shadow: 0 0 40px rgba(255, 102, 0, 0.9),
+              0 12px 40px rgba(0, 0, 0, 0.6);
+  z-index: 50;
+}
+
+.focusable-channel-box:focus .channel-thumb,
+.focusable-channel-box.focused .channel-thumb {
+  border: 4px solid #ff6600;
+  box-shadow: 0 0 30px rgba(255, 102, 0, 0.8);
+}
+
+.focusable-channel-box.hovered {
+  transform: scale(1.06);
+}
+
+/* Language Card Focus */
+.focusable-language-card {
+  outline: none;
+  transition: all 0.25s ease;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.focusable-language-card:focus,
+.focusable-language-card.focused {
+  transform: scale(1.15);
+  box-shadow: 0 0 50px rgba(102, 126, 234, 1),
+              0 16px 50px rgba(0, 0, 0, 0.7);
+  outline: 5px solid #667eea;
+  outline-offset: 8px;
+  z-index: 60;
+}
+
+.focusable-language-card.hovered {
+  transform: scale(1.08);
+  box-shadow: 0 8px 32px rgba(102, 126, 234, 0.5);
+}
+
+/* Icon Button Focus (Header) */
+.focusable-icon-button {
+  outline: none;
+  transition: all 0.2s ease;
+  border-radius: 50%;
+  border: 2px solid transparent;
+}
+
+.focusable-icon-button:focus,
+.focusable-icon-button.focused {
+  background-color: #0088cc !important;
+  border: 3px solid #00aaff;
+  transform: scale(1.15);
+  box-shadow: 0 0 25px rgba(0, 170, 255, 0.9);
+}
+
+.focusable-icon-button.hovered {
+  border: 2px solid #00aaff;
+  transform: scale(1.08);
+}
+
+/* Input Field Focus (Search Bar) */
+.focusable-input {
+  outline: none;
+  transition: all 0.2s ease;
+  border-radius: 8px;
+  border: 2px solid transparent;
+}
+
+.focusable-input:focus,
+.focusable-input.focused {
+  background-color: rgba(255, 255, 255, 0.15) !important;
+  border: 3px solid #00aaff;
+  box-shadow: 0 0 20px rgba(0, 170, 255, 0.6);
+}
+
+.focusable-input.hovered {
+  border: 2px solid rgba(0, 170, 255, 0.5);
+}
+
+/* Sidebar Item Focus */
+.focusable-sidebar-item {
+  outline: none;
+  transition: all 0.2s ease;
+  border-radius: 12px;
+  border-left: 4px solid transparent;
+}
+
+.focusable-sidebar-item:focus,
+.focusable-sidebar-item.focused {
+  background: linear-gradient(90deg, 
+    rgba(102, 126, 234, 0.3) 0%, 
+    rgba(102, 126, 234, 0.1) 100%
+  ) !important;
+  border-left: 6px solid #667eea;
+  transform: translateX(8px);
+  box-shadow: 0 4px 20px rgba(102, 126, 234, 0.5);
+}
+
+.focusable-sidebar-item.hovered {
+  background: rgba(102, 126, 234, 0.15) !important;
+  border-left: 4px solid #667eea;
+  transform: translateX(4px);
+}
+
+/* Category Tab Focus */
+.focusable-category-tab {
+  outline: none;
+  transition: all 0.2s ease;
+  border-radius: 8px;
+  border: 2px solid transparent;
+}
+
+.focusable-category-tab:focus,
+.focusable-category-tab.focused {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  border: 3px solid #00aaff;
+  transform: translateY(-4px) scale(1.05);
+  box-shadow: 0 6px 25px rgba(102, 126, 234, 0.8);
+}
+
+.focusable-category-tab.hovered {
+  border: 2px solid #667eea;
+  transform: translateY(-2px);
+}
+
+/* Settings Item Focus */
+.focusable-settings-item {
+  outline: none;
+  transition: all 0.2s ease;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 1.5rem;
+}
+
+.focusable-settings-item:focus,
+.focusable-settings-item.focused {
+  background: rgba(102, 126, 234, 0.2) !important;
+  border: 3px solid #667eea;
+  box-shadow: 0 4px 20px rgba(102, 126, 234, 0.6);
+  transform: scale(1.02);
+}
+
+.focusable-settings-item.hovered {
+  background: rgba(102, 126, 234, 0.1) !important;
+  border: 2px solid #667eea;
+}
+
+/* Legacy Channel Item (Backward Compatibility) */
 .channel-item {
-  transition: none !important;
-  transform: none !important;
   outline: none;
 }
 
@@ -27,8 +239,8 @@
   border: 2px solid rgba(255, 255, 255, 1);
 }
 
+/* Legacy Category Tab (Backward Compatibility) */
 .category-tab {
-  transition: none !important;
   outline: none;
 }
 
@@ -40,6 +252,7 @@
   background-color: rgba(255, 255, 255, 0.1);
 }
 
+/* Legacy Search Input (Backward Compatibility) */
 .search-input:focus-visible {
   will-change: box-shadow, border-color;
   box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.8);
@@ -74,4 +287,157 @@
   right: 0;
   z-index: 1000;
   background: #000;
+}
+
+/* =================================================================
+   FOCUS ANIMATIONS
+   ================================================================= */
+
+@keyframes focus-pulse {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(102, 126, 234, 0.6);
+  }
+  50% {
+    box-shadow: 0 0 35px rgba(102, 126, 234, 0.9);
+  }
+}
+
+.focusable.focus-pulse:focus,
+.focusable.focused.focus-pulse {
+  animation: focus-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes focus-glow {
+  0%, 100% {
+    outline-offset: 4px;
+  }
+  50% {
+    outline-offset: 8px;
+  }
+}
+
+.focusable.focus-glow:focus,
+.focusable.focused.focus-glow {
+  animation: focus-glow 1.2s ease-in-out infinite;
+}
+
+/* =================================================================
+   MAGIC REMOTE STATUS INDICATOR
+   ================================================================= */
+
+.magic-remote-indicator {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  background: rgba(102, 126, 234, 0.9);
+  color: #fff;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.magic-remote-indicator.ready {
+  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+}
+
+.magic-remote-indicator.disconnected {
+  background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%);
+}
+
+.magic-remote-indicator-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.3);
+  }
+}
+
+/* =================================================================
+   CHANNEL JUMP HUD
+   ================================================================= */
+
+.channel-jump-hud {
+  position: fixed;
+  top: 2rem;
+  right: 2rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  padding: 1.5rem 2.5rem;
+  border-radius: 16px;
+  font-size: 2.5rem;
+  font-weight: 700;
+  box-shadow: 0 10px 50px rgba(102, 126, 234, 0.9),
+              0 20px 80px rgba(0, 0, 0, 0.6);
+  z-index: 10000;
+  animation: hud-pulse 0.6s ease infinite;
+  letter-spacing: 4px;
+  text-align: center;
+  min-width: 200px;
+}
+
+@keyframes hud-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 0.9;
+  }
+}
+
+.channel-jump-hud::before {
+  content: '📺';
+  display: block;
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+/* =================================================================
+   UTILITY CLASSES
+   ================================================================= */
+
+/* Disable focus on specific elements */
+.no-focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.no-focus:focus {
+  outline: none !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+/* Force focus visibility */
+.force-focus-visible {
+  outline: 3px solid #667eea !important;
+  outline-offset: 4px !important;
+}
+
+/* Smooth focus transitions */
+.smooth-focus-transition {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Disable pointer events when navigating with remote */
+.remote-nav-mode * {
+  cursor: default !important;
 }

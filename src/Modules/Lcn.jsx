@@ -21,7 +21,7 @@ export const ChannelNumberDisplay = memo(({ channelNumber }) => {
         color: "#fff",
         padding: "18px 32px",
         borderRadius: "24px",
-        fontSize: "54px",
+        fontSize: "74px",
         fontWeight: "bold",
         zIndex: 9999,
         minWidth: "140px",

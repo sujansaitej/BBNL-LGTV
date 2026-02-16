@@ -7,6 +7,7 @@ import StarBorderIcon from "@mui/icons-material/StarBorder";
 
 import { DEFAULT_USER } from "../Api/config";
 import useFeedbackStore from "../Global-storage/FeedbackStore";
+import { useEnhancedRemoteNavigation } from "../Atomic-Common-Componenets/useMagicRemote";
 
 const Feedback = () => {
   const navigate = useNavigate();
@@ -19,6 +20,38 @@ const Feedback = () => {
   // Get device info
   const userid = localStorage.getItem("userId") || DEFAULT_USER.userid;
   const mobile = localStorage.getItem("userPhone") || DEFAULT_USER.mobile;
+
+  // Magic Remote Navigation for interactive elements
+  // [0-4] = Stars, [5] = TextField, [6] = Cancel, [7] = Submit
+  const interactiveItems = [
+    ...Array(5).fill({ type: 'star' }),
+    { type: 'textfield' },
+    { type: 'button', label: 'Cancel' },
+    { type: 'button', label: 'Submit' },
+  ];
+
+  const {
+    focusedIndex,
+    hoveredIndex,
+    getItemProps,
+    magicRemoteReady,
+  } = useEnhancedRemoteNavigation(interactiveItems, {
+    orientation: 'vertical',
+    useMagicRemotePointer: true,
+    focusThreshold: 120,
+    onSelect: (index) => {
+      if (index >= 0 && index <= 4) {
+        // Star rating
+        setRating(index + 1);
+      } else if (index === 6) {
+        // Cancel button
+        handleCancel();
+      } else if (index === 7) {
+        // Submit button
+        handleSubmit();
+      }
+    },
+  });
 
   const handleSubmit = async () => {
     // Validation
@@ -160,22 +193,36 @@ const Feedback = () => {
               How would you rate us?
             </Typography>
             <Box sx={{ display: "flex", gap: 1.5, mb: 1 }}>
-              {[1, 2, 3, 4, 5].map((star) => (
-                <IconButton
-                  key={star}
-                  onClick={() => setRating(star)}
-                  sx={{
-                    color: star <= rating ? "#ffd700" : "rgba(255,255,255,0.3)",
-                    p: 0.5,
-                  }}
-                >
-                  {star <= rating ? (
-                    <StarIcon sx={{ fontSize: 42 }} />
-                  ) : (
-                    <StarBorderIcon sx={{ fontSize: 42 }} />
-                  )}
-                </IconButton>
-              ))}
+              {[1, 2, 3, 4, 5].map((star) => {
+                const starIndex = star - 1;
+                const isFocused = focusedIndex === starIndex;
+                const isHovered = hoveredIndex === starIndex;
+
+                return (
+                  <IconButton
+                    key={star}
+                    {...getItemProps(starIndex)}
+                    className={`focusable-button ${isFocused ? 'focused' : ''} ${isHovered ? 'hovered' : ''}`}
+                    onClick={() => setRating(star)}
+                    sx={{
+                      color: star <= rating ? "#ffd700" : "rgba(255,255,255,0.3)",
+                      p: 0.5,
+                      outline: "none",
+                      border: isFocused ? "3px solid #00aaff" : "2px solid transparent",
+                      borderRadius: "8px",
+                      transform: isFocused ? "scale(1.2)" : isHovered ? "scale(1.1)" : "scale(1)",
+                      transition: "all 0.2s ease",
+                      boxShadow: isFocused ? "0 0 20px rgba(0, 170, 255, 0.8)" : "none",
+                    }}
+                  >
+                    {star <= rating ? (
+                      <StarIcon sx={{ fontSize: 42 }} />
+                    ) : (
+                      <StarBorderIcon sx={{ fontSize: 42 }} />
+                    )}
+                  </IconButton>
+                );
+              })}
             </Box>
             <Typography sx={{ fontSize: 17, color: "#999", letterSpacing: "0.2px" }}>
               Tap a star to rate
@@ -188,6 +235,8 @@ const Feedback = () => {
               Detailed Feedback <span style={{ color: "red" }}>*</span>
             </Typography>
             <TextField
+              {...getItemProps(5)}
+              className={`focusable-input ${focusedIndex === 5 ? 'focused' : ''} ${hoveredIndex === 5 ? 'hovered' : ''}`}
               fullWidth
               multiline
               rows={5}
@@ -200,22 +249,24 @@ const Feedback = () => {
                   background: "#1a1a1a",
                   borderRadius: "12px",
                   fontSize: 18,
+                  outline: "none",
                   "& fieldset": {
-                    borderColor: "rgba(255,255,255,0.3)",
-                    borderWidth: "2px",
+                    borderColor: focusedIndex === 5 ? "#00aaff" : "rgba(255,255,255,0.3)",
+                    borderWidth: focusedIndex === 5 ? "3px" : "2px",
                   },
                   "&:hover fieldset": {
                     borderColor: "rgba(255,255,255,0.5)",
                   },
                   "&.Mui-focused fieldset": {
                     borderColor: "#667eea",
-                    borderWidth: "2px",
+                    borderWidth: "3px",
                   },
                 },
                 "& .MuiInputBase-input": {
                   fontSize: 18,
                   letterSpacing: "0.2px",
                 },
+                boxShadow: focusedIndex === 5 ? "0 0 20px rgba(0, 170, 255, 0.6)" : "none",
               }}
             />
           </Box>
@@ -256,6 +307,8 @@ const Feedback = () => {
           {/* Buttons */}
           <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 3 }}>
             <Button
+              {...getItemProps(6)}
+              className={`focusable-button ${focusedIndex === 6 ? 'focused' : ''} ${hoveredIndex === 6 ? 'hovered' : ''}`}
               onClick={handleCancel}
               disabled={isSubmitting}
               sx={{
@@ -269,6 +322,11 @@ const Feedback = () => {
                 textTransform: "none",
                 letterSpacing: "0.3px",
                 minHeight: 52,
+                outline: "none",
+                border: focusedIndex === 6 ? "3px solid #00aaff" : "2px solid transparent",
+                transform: focusedIndex === 6 ? "scale(1.08)" : hoveredIndex === 6 ? "scale(1.04)" : "scale(1)",
+                boxShadow: focusedIndex === 6 ? "0 0 25px rgba(0, 170, 255, 0.8)" : "none",
+                transition: "all 0.2s ease",
                 "&:hover": {
                   background: "#3a3a3a",
                 },
@@ -277,6 +335,8 @@ const Feedback = () => {
               Cancel
             </Button>
             <Button
+              {...getItemProps(7)}
+              className={`focusable-button ${focusedIndex === 7 ? 'focused' : ''} ${hoveredIndex === 7 ? 'hovered' : ''}`}
               onClick={handleSubmit}
               disabled={isSubmitting}
               sx={{
@@ -290,6 +350,11 @@ const Feedback = () => {
                 textTransform: "none",
                 letterSpacing: "0.3px",
                 minHeight: 52,
+                outline: "none",
+                border: focusedIndex === 7 ? "3px solid #00aaff" : "2px solid transparent",
+                transform: focusedIndex === 7 ? "scale(1.08)" : hoveredIndex === 7 ? "scale(1.04)" : "scale(1)",
+                boxShadow: focusedIndex === 7 ? "0 0 25px rgba(0, 170, 255, 0.8)" : "none",
+                transition: "all 0.2s ease",
                 "&:hover": {
                   background: "#0052cc",
                 },

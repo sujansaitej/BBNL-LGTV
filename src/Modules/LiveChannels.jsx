@@ -4,13 +4,13 @@ import { Box, Typography, ButtonBase, Button, InputAdornment, IconButton, Skelet
 import SearchIcon from "@mui/icons-material/Search";
 import ClearIcon from "@mui/icons-material/Clear";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { useInputFocusHandler, useRemoteNavigation, useGridNavigation } from "../Atomic-Common-Componenets/useRemoteNavigation";
 import { DEFAULT_USER } from "../Api/config";
 import SearchTextField from "../Atomic-Reusable-Componenets/Search";
 import ChannelBox from "../Atomic-Reusable-Componenets/ChannelBox";
 import useLiveChannelsStore from "../Global-storage/LiveChannelsStore";
 import useLanguageStore from "../Global-storage/LivePlayersStore";
-import {  TV_TYPOGRAPHY,  TV_SPACING,  TV_RADIUS, TV_COLORS,  TV_SIZES, TV_GRID, TV_SAFE_ZONE, TV_SHADOWS } from "../styles/tvConstants";
+import {  TV_TYPOGRAPHY,  TV_SPACING,  TV_RADIUS, TV_COLORS,  TV_SIZES, TV_GRID, TV_SAFE_ZONE } from "../styles/tvConstants";
+import { useEnhancedRemoteNavigation } from "../Atomic-Common-Componenets/useMagicRemote";
 import "../styles/focus.css";
 
 const LiveChannels = () => {
@@ -22,18 +22,10 @@ const LiveChannels = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [selectedLanguageId, setSelectedLanguageId] = useState("");
+  const [selectedLanguageTitle, setSelectedLanguageTitle] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
-  const [isChannelsFocused, setIsChannelsFocused] = useState(false);
   const [channelJumpBuffer, setChannelJumpBuffer] = useState("");
-  const {
-    categories,
-    channelsCache,
-    isLoadingCategories,
-    error,
-    fetchCategories,
-    fetchChannels,
-    clearError,
-  } = useLiveChannelsStore();
+  const { categories,channelsCache,isLoadingCategories,error,fetchCategories,fetchChannels,clearError,} = useLiveChannelsStore();
   const { languagesCache, fetchLanguages } = useLanguageStore();
   const lastAutoPlayKey = useRef("");
   const numberBufferRef = useRef("");
@@ -72,6 +64,7 @@ const LiveChannels = () => {
     const state = location.state || {};
     if (state.filterByLanguage !== undefined && state.filterByLanguage !== null) {
       setSelectedLanguageId(String(state.filterByLanguage));
+      if (state.languageTitle) setSelectedLanguageTitle(state.languageTitle);
       setActiveFilter("Language");
       setSearchTerm("");
       return;
@@ -92,6 +85,15 @@ const LiveChannels = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mobile, selectedLanguageId]);
 
+  // When languages load, sync the selected language title from list
+  useEffect(() => {
+    if (!selectedLanguageId || languages.length === 0) return;
+    const match = languages.find((lang) => String(lang.langid) === String(selectedLanguageId));
+    if (match?.langtitle) {
+      setSelectedLanguageTitle(match.langtitle);
+    }
+  }, [languages, selectedLanguageId]);
+
   // ================= SEARCH + FILTER =================
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -108,7 +110,7 @@ const LiveChannels = () => {
     const selectedLanguage = languages.find(
       (lang) => String(lang.langid) === String(selectedLanguageId)
     );
-    const selectedLanguageTitle = (selectedLanguage?.langtitle || "").toLowerCase();
+    const selectedLanguageTitleLower = (selectedLanguage?.langtitle || selectedLanguageTitle || "").toLowerCase();
 
     const matchesLanguage = (channel) => {
       if (!selectedLanguageId && !selectedLanguageTitle) return true;
@@ -127,8 +129,8 @@ const LiveChannels = () => {
       if (langIdValue && String(langIdValue) === String(selectedLanguageId)) {
         return true;
       }
-      if (langTitleValue && selectedLanguageTitle) {
-        return String(langTitleValue).toLowerCase().includes(selectedLanguageTitle);
+      if (langTitleValue && selectedLanguageTitleLower) {
+        return String(langTitleValue).toLowerCase().includes(selectedLanguageTitleLower);
       }
       return false;
     };
@@ -165,7 +167,7 @@ const LiveChannels = () => {
       }
       return channelTitle.includes(term) || channelNo.includes(term);
     });
-  }, [activeFilter, categories, channels, debouncedSearchTerm, languages, selectedLanguageId]);
+  }, [activeFilter, categories, channels, debouncedSearchTerm, languages, selectedLanguageId, selectedLanguageTitle]);
 
   // Enhanced categories with custom filters
   const enhancedCategories = useMemo(() => {
@@ -185,52 +187,12 @@ const LiveChannels = () => {
     });
   }, [categories]);
 
-  // Include Language in remote navigation category list
-  const navCategories = useMemo(() => enhancedCategories, [enhancedCategories]);
-
-  const { getItemProps: getCategoryProps } = useRemoteNavigation(navCategories.length, {
-    orientation: "horizontal",
-    enabled: !isSearchFocused && !isChannelsFocused,
-    onSelect: (index) => {
-      handleFilter(navCategories[index]);
-    },
-  });
-
-  const { getItemProps: getChannelProps } = useGridNavigation(filteredChannels.length, columnsCount || 5, {
-    enabled: !isSearchFocused && isChannelsFocused,
-    onSelect: (index) => {
-      const ch = filteredChannels[index];
-      if (ch) handleChannelSelect(ch);
-    },
-  });
-
-  // Handle input focus to prevent scroll issues
-  useInputFocusHandler();
-
   const payloadBase = {
     userid,
     mobile,
   };
 
-  const focusFirstChannel = () => {
-    requestAnimationFrame(() => {
-      const el = document.querySelector(".channel-card");
-      if (el) el.focus();
-    });
-  };
-
-  const handleCategoryKeyDown = (event, index) => {
-    if (index !== navCategories.length - 1) return;
-
-    const key = event.key;
-    if (key === "ArrowRight" || key === "ArrowDown" || key === "Right" || key === "Down") {
-      event.preventDefault();
-      event.stopPropagation();
-      focusFirstChannel();
-    }
-  };
-
-  // Handle channel selection (memoized for remote navigation + effects)
+  // Handle channel selection for playback
   const handleChannelSelect = useCallback((ch) => {
     // Try to find any stream URL
     let streamUrl = ch.streamlink || ch.stream_link || ch.streamurl || ch.stream_url ||
@@ -243,6 +205,36 @@ const LiveChannels = () => {
       setLocalError(`No stream URL found for channel: ${ch.chtitle}`);
     }
   }, [navigate]);
+
+  // ================= MAGIC REMOTE NAVIGATION =================
+  // Combined navigation: Category tabs + Channel grid
+  const allNavigableItems = useMemo(() => {
+    return [...enhancedCategories, ...filteredChannels];
+  }, [enhancedCategories, filteredChannels]);
+
+  const {
+    focusedIndex,
+    hoveredIndex,
+    getItemProps,
+    magicRemoteReady,
+  } = useEnhancedRemoteNavigation(allNavigableItems, {
+    orientation: 'grid',
+    columns: columnsCount,
+    useMagicRemotePointer: true,
+    focusThreshold: 150,
+    onSelect: (index) => {
+      if (index < enhancedCategories.length) {
+        // Category selected
+        handleFilter(enhancedCategories[index]);
+      } else {
+        // Channel selected
+        const channelIndex = index - enhancedCategories.length;
+        if (filteredChannels[channelIndex]) {
+          handleChannelSelect(filteredChannels[channelIndex]);
+        }
+      }
+    },
+  });
 
   // Handle search input change
   const handleSearchChange = (event) => {
@@ -471,8 +463,34 @@ const LiveChannels = () => {
 
         {/* Title */}
         <Typography sx={{ fontSize: "2.5rem", fontWeight: 700, lineHeight: 1.2 }}>
-          TV Channels
+          {selectedLanguageTitle ? `TV Channels - ${selectedLanguageTitle}` : "TV Channels"}
         </Typography>
+
+        {/* Magic Remote Status */}
+        {magicRemoteReady && (
+          <Box sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            px: '1rem',
+            py: '0.5rem',
+            borderRadius: '8px',
+            bgcolor: 'rgba(67, 233, 123, 0.15)',
+            border: '2px solid rgba(67, 233, 123, 0.5)',
+          }}>
+            <Box sx={{
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              bgcolor: '#43e97b',
+              boxShadow: '0 0 10px rgba(67, 233, 123, 0.8)',
+              animation: 'pulse-dot 1.5s ease-in-out infinite',
+            }} />
+            <Typography sx={{ fontSize: '0.875rem', color: '#43e97b', fontWeight: 600 }}>
+              Magic Remote
+            </Typography>
+          </Box>
+        )}
 
         {/* Search Bar */}
         <Box
@@ -538,51 +556,63 @@ const LiveChannels = () => {
       </Box>
 
       {/* ================= CATEGORY FILTER TABS (WITH LANGUAGE) ================= */}
-      <Box className="cat-titlel" sx={{ mb: "2.5rem", display: "flex", gap: "1rem", flexWrap: "wrap", width: "100%", px: "4rem", py: "1rem", background: "#000" }}>
+      <Box className="cat-titlel" sx={{ mb: "2.5rem", display: "flex", gap: "0.75rem", flexWrap: "wrap", width: "100%", px: "4rem", py: "1rem", background: "#000" }}>
         {isLoadingCategories
           ? Array.from({ length: 4 }).map((_, index) => (
               <Skeleton
                 key={`cat-skel-${index}`}
                 variant="rounded"
-                sx={{ width: "10rem", height: "2.75rem", borderRadius: "9999px" }}
+                sx={{ width: "10rem", height: "2.75rem", borderRadius: "12px" }}
               />
             ))
-          : navCategories.map((cat, index) => {
+          : enhancedCategories.map((cat, index) => {
               const isActive = activeFilter === cat.title;
-              const categoryProps = !isSearchFocused ? getCategoryProps(index) : {};
+              const isFocused = focusedIndex === index;
+              const isHovered = hoveredIndex === index;
+              const langLabel = cat.title === "Language" && selectedLanguageTitle
+                ? `${cat.title} (${selectedLanguageTitle})`
+                : cat.title;
 
               return (
                 <ButtonBase
-                  key={cat.grid || index}
-                  {...categoryProps}
+                  key={cat.grid || cat.title}
+                  {...getItemProps(index)}
+                  className={`focusable-category-tab ${isFocused ? 'focused' : ''} ${isHovered ? 'hovered' : ''}`}
                   onClick={() => handleFilter(cat)}
-                  onKeyDown={(event) => handleCategoryKeyDown(event, index)}
-                  onFocus={(event) => {
-                    categoryProps.onFocus?.(event);
-                    setIsChannelsFocused(false);
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      handleFilter(cat);
+                    }
                   }}
                   sx={{
-                    fontSize: "1.125rem",
+                    fontSize: "1rem",
                     fontWeight: 600,
-                    px: "2rem",
-                    py: "0.75rem",
-                    borderRadius: "9999px",
-                    bgcolor: isActive ? "#fff" : "rgba(255,255,255,0.08)",
-                    color: isActive ? "#000" : "#fff",
+                    px: "1.75rem",
+                    py: "0.65rem",
+                    borderRadius: "12px",
+                    bgcolor: isActive ? "#3b5bfe" : "rgba(255,255,255,0.06)",
+                    color: isActive ? "#fff" : "rgba(255,255,255,0.7)",
+                    border: isFocused 
+                      ? "3px solid #667eea" 
+                      : isActive 
+                      ? "1px solid rgba(59, 91, 254, 0.4)" 
+                      : "1px solid rgba(255,255,255,0.08)",
                     transition: "all 0.2s",
-                    outline: categoryProps["data-focused"] ? "3px solid #667eea" : "none",
-                    outlineOffset: "3px",
+                    transform: isFocused ? "scale(1.12)" : isHovered ? "scale(1.05)" : "scale(1)",
+                    boxShadow: isFocused 
+                      ? "0 8px 20px rgba(102, 126, 234, 0.4)" 
+                      : "none",
                     "&:hover": {
-                      bgcolor: isActive ? "#fff" : "rgba(255,255,255,0.12)",
+                      bgcolor: isActive ? "#4c6bff" : "rgba(255,255,255,0.1)",
+                      color: "#fff",
                     },
                     "&:focus-visible": {
-                      border: "3px solid #667eea",
-                      transform: "scale(1.05)",
-                      boxShadow: "0 0 0 4px rgba(102, 126, 234, 0.4)",
+                      outline: "none",
                     },
                   }}
                 >
-                  {cat.title}
+                  {langLabel}
                 </ButtonBase>
               );
             })}
@@ -605,7 +635,7 @@ const LiveChannels = () => {
       <Box
         sx={{
           display: "grid",
-          gridTemplateColumns: `repeat(${columnsCount || 5}, 1fr)` ,
+          gridTemplateColumns: `repeat(${columnsCount || 5}, 1fr)`,
           gap: "2.5rem",
         }}
       >
@@ -625,13 +655,15 @@ const LiveChannels = () => {
               </Box>
             ) : (
               filteredChannels.map((channel, index) => {
-                const channelProps = getChannelProps(index);
+                const globalIndex = enhancedCategories.length + index;
+                const isFocused = focusedIndex === globalIndex;
+                const isHovered = hoveredIndex === globalIndex;
+
                 return (
                   <Box
                     key={`${channel.channelno}-${index}`}
-                    {...channelProps}
-                    tabIndex={0}
-                    className="channel-card"
+                    {...getItemProps(globalIndex)}
+                    className={`focusable-channel-box ${isFocused ? 'focused' : ''} ${isHovered ? 'hovered' : ''}`}
                     role="button"
                     onClick={() => handleChannelSelect(channel)}
                     onKeyDown={(event) => {
@@ -640,20 +672,23 @@ const LiveChannels = () => {
                         handleChannelSelect(channel);
                       }
                     }}
-                    onFocus={(event) => {
-                      channelProps.onFocus?.(event);
-                      setIsChannelsFocused(true);
-                    }}
                     sx={{
                       outline: "none",
+                      transform: isFocused 
+                        ? "scale(1.15)" 
+                        : isHovered 
+                        ? "scale(1.08)" 
+                        : "scale(1)",
+                      transition: "all 0.25s ease",
+                      border: isFocused ? "3px solid #667eea" : "2px solid transparent",
+                      borderRadius: TV_RADIUS.xl,
+                      boxShadow: isFocused 
+                        ? "0 12px 30px rgba(102, 126, 234, 0.5)" 
+                        : isHovered 
+                        ? "0 8px 20px rgba(0,0,0,0.3)" 
+                        : "none",
                       "&:focus-visible": {
-                        borderRadius: TV_RADIUS.xl,
-                        boxShadow: "none",
-                      },
-                      "&:focus-visible .channel-thumb": {
-                        border: "3px solid #667eea",
-                        boxShadow: "0 0 0 4px rgba(102, 126, 234, 0.4)",
-                        transform: "scale(1.05)",
+                        outline: "none",
                       },
                     }}
                   >
@@ -661,6 +696,7 @@ const LiveChannels = () => {
                       logo={channel.chlogo}
                       name={channel.chtitle}
                       channelNo={channel.channelno}
+                      price={channel.chprice}
                       onClick={() => handleChannelSelect(channel)}
                     />
                   </Box>

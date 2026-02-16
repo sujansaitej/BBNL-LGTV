@@ -24,4 +24,3 @@ ares-package build
 ares-install --device mylgtv com.lg.bbnl_2.0.0_all.ipk 
 ares-launch --device mylgtv com.lg.bbnl 
 ares-inspect --device mylgtv --app com.lg.bbnl --open
-

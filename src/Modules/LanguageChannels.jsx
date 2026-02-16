@@ -6,6 +6,7 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { fetchLanguages } from "../Api/modules-api/LanguageChannelsApi";
 import { fetchChannels } from "../Api/modules-api/ChannelApi";
 import { DEFAULT_HEADERS, DEFAULT_USER } from "../Api/config";
+import { useEnhancedRemoteNavigation } from "../Atomic-Common-Componenets/useMagicRemote";
 
 // Gradient colors for each language card (unique gradient pairs)
 const GRADIENT_COLORS = [
@@ -30,7 +31,7 @@ const GRADIENT_COLORS = [
 const LanguageChannels = () => {
   const navigate = useNavigate();
   const [languages, setLanguages] = useState([]);
-  const [channels, setChannels] = useState([]);
+  // const [channels, setChannels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -65,7 +66,8 @@ const LanguageChannels = () => {
   const handleFetchChannels = async () => {
     try {
       const apiChannels = await fetchChannels(payloadBase, headers, setError);
-      setChannels(apiChannels || []);
+      // Channels fetched but not stored locally (used elsewhere)
+      console.log("Channels loaded:", apiChannels?.length || 0);
     } catch (err) {
       console.error("Failed to load channels:", err);
     }
@@ -82,16 +84,35 @@ const LanguageChannels = () => {
   }, [mobile]);
 
   // Handle language card click
-  const handleLanguageClick = (langid) => {
+  const handleLanguageClick = (langid, langtitle) => {
     if (langid === "subs") {
       navigate("/live-channels", { state: { filter: "Subscribed Channels" } });
     } else if (langid === "") {
       navigate("/live-channels", { state: { filter: "All Channels" } });
     } else {
-      // Navigate to channels filtered by language
-      navigate("/live-channels", { state: { filterByLanguage: langid } });
+      // Navigate to channels filtered by language (include title for UI)
+      navigate("/live-channels", { state: { filterByLanguage: langid, languageTitle: langtitle } });
     }
   };
+
+  // Magic Remote Grid Navigation
+  const columnsCount = 4; // Based on auto-fit minmax(280px, 1fr)
+  const {
+    focusedIndex,
+    hoveredIndex,
+    getItemProps,
+    magicRemoteReady,
+  } = useEnhancedRemoteNavigation(languages, {
+    orientation: 'grid',
+    columns: columnsCount,
+    useMagicRemotePointer: true,
+    focusThreshold: 150,
+    onSelect: (index) => {
+      if (languages[index]) {
+        handleLanguageClick(languages[index].langid, languages[index].langtitle);
+      }
+    },
+  });
 
   // Show login required message
   if (error === "NO_LOGIN") {
@@ -159,8 +180,34 @@ const LanguageChannels = () => {
           Select Language
         </Typography>
 
-        {/* Empty space for balance */}
-        <Box sx={{ width: 50 }} />
+        {/* Magic Remote Status */}
+        {magicRemoteReady && (
+          <Box sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            px: '1rem',
+            py: '0.5rem',
+            borderRadius: '8px',
+            bgcolor: 'rgba(67, 233, 123, 0.15)',
+            border: '2px solid rgba(67, 233, 123, 0.5)',
+          }}>
+            <Box sx={{
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              bgcolor: '#43e97b',
+              boxShadow: '0 0 10px rgba(67, 233, 123, 0.8)',
+              animation: 'pulse-dot 1.5s ease-in-out infinite',
+            }} />
+            <Typography sx={{ fontSize: '0.875rem', color: '#43e97b', fontWeight: 600 }}>
+              Magic Remote
+            </Typography>
+          </Box>
+        )}
+
+        {/* Empty space for balance (only when status indicator is hidden) */}
+        {!magicRemoteReady && <Box sx={{ width: 50 }} />}
       </Box>
 
       {/* ================= ERROR BOX ================= */}
@@ -209,32 +256,54 @@ const LanguageChannels = () => {
             pb: 4,
           }}
         >
-          {languages.map((lang, index) => (
-            <Box
-              key={index}
-              onClick={() => handleLanguageClick(lang.langid)}
-              sx={{
-                background: GRADIENT_COLORS[index % GRADIENT_COLORS.length],
-                borderRadius: "20px",
-                padding: "30px",
-                cursor: "pointer",
-                transition: "all 0.3s ease",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                minHeight: "280px",
-                border: "2px solid transparent",
-                "&:hover": {
-                  transform: "translateY(-10px)",
-                  boxShadow: "0 20px 40px rgba(0,0,0,0.5)",
-                  borderColor: "rgba(255,255,255,0.3)",
-                },
-              }}
-            >
-              {/* Language Logo */}
-              {lang.langlogo && (
-                <img
+          {languages.map((lang, index) => {
+            const isFocused = focusedIndex === index;
+            const isHovered = hoveredIndex === index;
+
+            return (
+              <Box
+                key={index}
+                {...getItemProps(index)}
+                className={`focusable-language-card ${isFocused ? 'focused' : ''} ${isHovered ? 'hovered' : ''}`}
+                onClick={() => handleLanguageClick(lang.langid, lang.langtitle)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    handleLanguageClick(lang.langid, lang.langtitle);
+                  }
+                }}
+                sx={{
+                  background: GRADIENT_COLORS[index % GRADIENT_COLORS.length],
+                  borderRadius: "20px",
+                  padding: "30px",
+                  cursor: "pointer",
+                  transition: "all 0.25s ease",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  minHeight: "280px",
+                  border: isFocused ? "4px solid #fff" : "2px solid transparent",
+                  outline: "none",
+                  transform: isFocused 
+                    ? "translateY(-15px) scale(1.08)" 
+                    : isHovered 
+                    ? "translateY(-10px) scale(1.05)" 
+                    : "translateY(0) scale(1)",
+                  boxShadow: isFocused 
+                    ? "0 25px 60px rgba(0,0,0,0.7), 0 0 40px rgba(255,255,255,0.5)" 
+                    : isHovered 
+                    ? "0 20px 40px rgba(0,0,0,0.5)" 
+                    : "0 4px 15px rgba(0,0,0,0.3)",
+                  "&:focus-visible": {
+                    outline: "4px solid #fff",
+                    outlineOffset: "4px",
+                  },
+                }}
+              >
+                {/* Language Logo */}
+                {lang.langlogo && (
+                  <img
                   src={lang.langlogo}
                   alt={lang.langtitle}
                   style={{
@@ -248,10 +317,10 @@ const LanguageChannels = () => {
                     e.target.style.display = "none";
                   }}
                 />
-              )}
+                )}
 
-              {/* Language Title */}
-              <Typography
+                {/* Language Title */}
+                <Typography
                 sx={{
                   fontSize: 24,
                   fontWeight: 700,
@@ -259,13 +328,13 @@ const LanguageChannels = () => {
                   textAlign: "center",
                   textShadow: "0 2px 4px rgba(0,0,0,0.3)",
                 }}
-              >
-                {lang.langtitle}
-              </Typography>
+                >
+                  {lang.langtitle}
+                </Typography>
 
-              {/* Language Details if available */}
-              {lang.langdetails && lang.langdetails.trim() && (
-                <Typography
+                {/* Language Details if available */}
+                {lang.langdetails && lang.langdetails.trim() && (
+                  <Typography
                   sx={{
                     fontSize: 13,
                     color: "rgba(255,255,255,0.8)",
@@ -273,12 +342,13 @@ const LanguageChannels = () => {
                     mt: 1,
                     textShadow: "0 1px 2px rgba(0,0,0,0.2)",
                   }}
-                >
-                  {lang.langdetails.replace(/<[^>]*>/g, "")}
-                </Typography>
-              )}
-            </Box>
-          ))}
+                  >
+                    {lang.langdetails.replace(/<[^>]*>/g, "")}
+                  </Typography>
+                )}
+              </Box>
+            );
+          })}
         </Box>
       )}
 
