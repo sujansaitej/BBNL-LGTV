@@ -482,7 +482,7 @@ const HLSPlayer = ({ src, autoPlay = true }) => {
         clearInterval(bufferCleanupTimerRef.current);
       }
     };
-  }, [normalizedSrc, autoPlay]);
+  }, [normalizedSrc, autoPlay, playbackError]);
 
   return (
     <div

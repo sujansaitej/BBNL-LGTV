@@ -34,7 +34,6 @@ const Feedback = () => {
     focusedIndex,
     hoveredIndex,
     getItemProps,
-    magicRemoteReady,
   } = useEnhancedRemoteNavigation(interactiveItems, {
     orientation: 'vertical',
     useMagicRemotePointer: true,

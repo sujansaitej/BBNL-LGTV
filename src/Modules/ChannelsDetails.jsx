@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Box, Typography, Avatar } from "@mui/material";
-import { TV_TYPOGRAPHY, TV_SPACING, TV_RADIUS, TV_SHADOWS, TV_BLUR, TV_COLORS, TV_TIMING } from "../styles/tvConstants";
+import { TV_TYPOGRAPHY, TV_SPACING, TV_RADIUS, TV_SHADOWS, TV_BLUR, TV_COLORS } from "../styles/tvConstants";
 
 const ChannelsDetails = ({ channel, visible = false }) => {
 	const [now, setNow] = useState(new Date());

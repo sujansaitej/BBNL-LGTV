@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import {Box,List,ListItemButton,ListItemIcon,ListItemText,Typography,Button,Card,CircularProgress,} from "@mui/material";
+import {Box,List,ListItemButton,ListItemIcon,ListItemText,Typography,Button,CircularProgress,} from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import InfoIcon from "@mui/icons-material/Info";
@@ -26,6 +26,7 @@ const Setting = () => {
 
 
   // Fetch app version on component mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const loadAppVersion = async () => {
       try {
@@ -57,6 +58,7 @@ const Setting = () => {
     };
 
     loadAppVersion();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const goBack = () => {
@@ -68,7 +70,6 @@ const Setting = () => {
     focusedIndex,
     hoveredIndex,
     getItemProps,
-    magicRemoteReady,
   } = useEnhancedRemoteNavigation(menuItems, {
     orientation: 'vertical',
     useMagicRemotePointer: true,
@@ -131,33 +132,6 @@ const Setting = () => {
           mt: 10,
         }}
       >
-        {/* Magic Remote Status */}
-        {magicRemoteReady && (
-          <Box sx={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '0.5rem',
-            mb: 2,
-            px: '1rem',
-            py: '0.5rem',
-            borderRadius: '8px',
-            bgcolor: 'rgba(67, 233, 123, 0.15)',
-            border: '2px solid rgba(67, 233, 123, 0.5)',
-          }}>
-            <Box sx={{
-              width: 8,
-              height: 8,
-              borderRadius: '50%',
-              bgcolor: '#43e97b',
-              boxShadow: '0 0 10px rgba(67, 233, 123, 0.8)',
-              animation: 'pulse-dot 1.5s ease-in-out infinite',
-            }} />
-            <Typography sx={{ fontSize: '0.875rem', color: '#43e97b', fontWeight: 600 }}>
-              Magic Remote
-            </Typography>
-          </Box>
-        )}
 
         <List sx={{ width: "100%", p: 0 }}>
           {menuItems.map((item, index) => {

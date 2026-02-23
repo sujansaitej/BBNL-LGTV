@@ -434,7 +434,7 @@ export const formatMacAddress = (mac) => {
   if (!mac) return null;
   
   // Remove any existing separators and convert to uppercase
-  const cleanMac = mac.replace(/[:\s\-]/g, '').toUpperCase();
+  const cleanMac = mac.replace(/[:\s-]/g, '').toUpperCase();
   
   // Check if valid MAC (12 hex characters)
   if (!/^[A-F0-9]{12}$/.test(cleanMac)) {

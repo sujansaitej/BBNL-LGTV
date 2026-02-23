@@ -3,7 +3,7 @@ import SearchIcon from "@mui/icons-material/Search";
 import SettingsIcon from "@mui/icons-material/Settings";
 import { useEnhancedRemoteNavigation } from "./useMagicRemote";
 import { useNavigate } from "react-router-dom";
-import { TV_TYPOGRAPHY, TV_SPACING, TV_RADIUS, TV_COLORS, TV_FOCUS, TV_TIMING, TV_SIZES, TV_SHADOWS } from "../styles/tvConstants";
+import { TV_TYPOGRAPHY, TV_SPACING, TV_RADIUS, TV_COLORS, TV_TIMING, TV_SIZES, TV_SHADOWS } from "../styles/tvConstants";
 
 const Header = () => {
   const navigate = useNavigate();
