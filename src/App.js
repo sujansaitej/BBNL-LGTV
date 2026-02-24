@@ -1,4 +1,6 @@
 import './App.css';
+import './styles/magic-remote-ui-fix.css';
+import './styles/webos-navigation.css';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import BbnlVideo from "./OAuthenticate/bbnl";
@@ -12,6 +14,7 @@ import Favorites from './Modules/Favorites';
 import Feedback from './Modules/Feedback';
 import Setting from './Modules/Setting';
 import { initializeWebOSEnvironment, preventWebOSDefaults } from './utils/webos';
+import { initializeMagicRemoteUIStability, cleanupMagicRemoteUIStability } from './utils/magicRemoteUIStability';
 // Spatial navigation disabled for now - will add back after testing basic app
 
 function App() {
@@ -28,9 +31,16 @@ function App() {
     const cleanup = initializeWebOSEnvironment();
     preventWebOSDefaults();
     
-    console.log('✓ WebOS environment initialized');
+    // Initialize Magic Remote UI stability
+    initializeMagicRemoteUIStability();
     
-    return cleanup;
+    console.log('✓ WebOS environment initialized');
+    console.log('✓ Magic Remote UI stability enabled');
+    
+    return () => {
+      cleanup?.();
+      cleanupMagicRemoteUIStability();
+    };
   }, []);
 
   const handleLoginSuccess = () => {

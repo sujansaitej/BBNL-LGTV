@@ -1,0 +1,275 @@
+/* ==================== MAGIC REMOTE UI ALIGNMENT & ZOOM FIX ==================== */
+/* Global solution to prevent UI zoom, alignment issues & scaling from Magic Remote pointer tracking */
+
+/* ==================== DISABLE AUTO-SCALING ON FOCUS ==================== */
+*:focus-visible {
+  transform: none !important;
+  outline: none;
+  border-width: calc(4px * var(--tv-scale));
+  box-shadow: 0 0 0 calc(4px * var(--tv-scale)) rgba(102, 126, 234, 0.3);
+}
+
+/* Prevent any scale transforms from being applied by Magic Remote */
+*:focus,
+*:hover,
+[data-focused="true"],
+[data-hovered="true"] {
+  transform: none !important;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+}
+
+/* ==================== LOCK VIEWPORT & PREVENT ZOOM ==================== */
+html, body, #root {
+  overflow: hidden !important;
+  position: fixed !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  top: 0 !important;
+  left: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  touch-action: none;
+  pointer-events: auto;
+  zoom: 1 !important;
+  -webkit-user-zoom: fixed !important;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* ==================== PREVENT UNINTENDED UI TRANSFORMATIONS ==================== */
+/* Lock all layout containers from changing size/position during Magic Remote tracking */
+.tv-layout-main,
+.tv-layout-content,
+.tv-sidebar,
+.tv-header,
+.tv-footer {
+  transform: none !important;
+  will-change: auto !important;
+  contain: layout style paint;
+}
+
+/* ==================== SAFE CONTAINER FIX ==================== */
+.container,
+.tv-safe-container {
+  transform: none !important;
+  min-width: calc(100vw - var(--tv-safe-zone-x, 5%) * 2);
+  max-width: calc(100vw - var(--tv-safe-zone-x, 5%) * 2);
+}
+
+/* ==================== PREVENT GRID/FLEX SHIFT ==================== */
+.tv-grid,
+.tv-flex,
+[style*="display: grid"],
+[style*="display: flex"] {
+  transform: none !important;
+  will-change: auto !important;
+  contain: layout;
+}
+
+/* ==================== FIX CARD/ITEM ALIGNMENT ==================== */
+.tv-card,
+.channel-card,
+[class*="Card"],
+[class*="Item"],
+[role="option"],
+[role="menuitem"],
+[role="button"] {
+  transform: none !important;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  position: relative;
+  z-index: auto;
+}
+
+/* ==================== LOCK MEDIA CONTAINERS ==================== */
+.tv-media-container,
+.tv-aspect-16-9,
+.tv-aspect-4-3,
+[role="img"],
+img,
+video {
+  transform: none !important;
+  object-fit: cover;
+  object-position: center;
+  width: 100%;
+  height: 100%;
+}
+
+/* ==================== PREVENT BUTTON SIZE CHANGES ==================== */
+button,
+[role="button"],
+.button,
+[class*="Button"] {
+  transform: none !important;
+  min-width: calc(44px * var(--tv-scale));
+  min-height: calc(44px * var(--tv-scale));
+  padding: calc(0.75rem * var(--tv-spacing-scale));
+  transition: box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+/* ==================== INPUT ELEMENT STABILITY ==================== */
+input,
+textarea,
+select,
+[role="textbox"],
+[role="searchbox"] {
+  transform: none !important;
+  font-size: calc(1rem * var(--tv-font-scale)) !important;
+  padding: calc(0.5rem * var(--tv-spacing-scale)) calc(1rem * var(--tv-spacing-scale)) !important;
+}
+
+/* ==================== SCROLLABLE CONTAINER FIX ==================== */
+.tv-layout-content,
+.scrollable-container,
+[class*="Scroll"],
+main,
+section,
+article {
+  transform: none !important;
+  will-change: auto !important;
+  contain: content;
+}
+
+/* ==================== TEXT & TYPOGRAPHY LOCK ==================== */
+h1, h2, h3, h4, h5, h6,
+p, span, div,
+[class*="Text"],
+[class*="Typography"] {
+  transform: none !important;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+/* ==================== PREVENT MAGIC REMOTE MOUSE CURSOR FROM AFFECTING LAYOUT ==================== */
+/* Hide Mouse cursor from Magic Remote (if displayed) */
+[data-magic-remote-cursor],
+.magic-remote-cursor,
+[class*="Cursor"] {
+  pointer-events: none !important;
+  z-index: 10000;
+  transform: translate(-50%, -50%) !important; /* Keep cursor centered without scaling */
+}
+
+/* ==================== DISABLE POINTER EVENTS ON TRACKING LAYER ==================== */
+/* Prevent coordinate tracking from causing accidental clicks/interactions */
+.magic-remote-tracking,
+[data-tracking="true"] {
+  pointer-events: none !important;
+}
+
+/* ==================== FORCE HARDWARE ACCELERATION BUT PREVENT SCALE ==================== */
+.tv-accelerated,
+[style*="transform: translateZ"] {
+  transform: translateZ(0) !important;
+  -webkit-transform: translateZ(0) !important;
+  will-change: auto !important;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* ==================== MENU & NAVIGATION STABILITY ==================== */
+nav,
+menu,
+[role="navigation"],
+[role="menubar"],
+.sidebar,
+.navbar {
+  transform: none !important;
+  will-change: auto !important;
+  contain: layout style paint;
+}
+
+/* ==================== MODAL & OVERLAY LOCK ==================== */
+[role="dialog"],
+dialog,
+.modal,
+[class*="Modal"],
+[role="alertdialog"] {
+  transform: none !important;
+  z-index: 9999;
+  position: fixed !important;
+  width: 100vw !important;
+  height: 100vh !important;
+}
+
+/* ==================== PREVENT TRANSFORM ON FOCUS ==================== */
+*:focus {
+  transform: none !important;
+  outline: none;
+  box-shadow: 0 0 0 calc(4px * var(--tv-scale)) rgba(102, 126, 234, 0.3) !important;
+}
+
+/* ==================== LOCK ALL ANIMATION & TRANSITIONS ==================== */
+/* Only allow specific properties to transition during Magic Remote interaction */
+* {
+  transition-property: box-shadow, border-color, background-color, opacity !important;
+  transition-duration: 0.15s !important;
+  transition-timing-function: ease !important;
+}
+
+/* Exclude transform from all transitions */
+*:not(.tv-animated) {
+  transition-property: box-shadow, border-color, background-color, opacity !important;
+}
+
+/* ==================== DISABLE ZOOM ON PINCH (Safari) ==================== */
+html {
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+}
+
+body {
+  -webkit-user-zoom: fixed;
+  -moz-user-zoom: fixed;
+  user-zoom: fixed;
+  zoom: 1;
+}
+
+/* ==================== STATIC POSITION LOCK ==================== */
+/* Use these classes to lock elements in place during Magic Remote tracking */
+.magic-remote-locked {
+  position: fixed !important;
+  transform: none !important;
+  will-change: auto !important;
+}
+
+.magic-remote-flex-safe {
+  flex-shrink: 0;
+  transform: none !important;
+}
+
+.magic-remote-grid-safe {
+  transform: none !important;
+}
+
+/* ==================== PERFORMANCE & STABILITY ==================== */
+/* Forced layout containment to prevent reflows */
+main,
+section,
+article,
+aside {
+  contain: layout style paint;
+}
+
+/* ==================== FOCUS RING ONLY (No Scale) ==================== */
+[data-focused="true"] {
+  box-shadow: inset 0 0 0 calc(3px * var(--tv-scale)) rgba(102, 126, 234, 0.6) !important;
+}
+
+[data-hovered="true"] {
+  background-color: rgba(102, 126, 234, 0.2) !important;
+  box-shadow: 0 0 0 calc(2px * var(--tv-scale)) rgba(102, 126, 234, 0.4) !important;
+}
+
+/* ==================== STRICT NO-TRANSFORM RULE ==================== */
+/* Critical override - no transforms during Magic Remote interaction */
+[class*="focused"],
+[class*="hovered"],
+[class*="selected"],
+[class*="active"],
+:focus-visible,
+:focus {
+  transform: none !important;
+}
