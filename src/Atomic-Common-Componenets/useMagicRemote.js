@@ -246,31 +246,35 @@ export const useEnhancedRemoteNavigation = (items, options = {}) => {
     onCoordinateChange: useCallback((coords) => {
       if (!useMagicRemotePointer || !enabled) return;
 
-      // Find closest element to pointer
-      let closestIndex = -1;
-      let minDistance = Infinity;
+      // Prevent layout shift - use requestAnimationFrame for non-blocking updates
+      requestAnimationFrame(() => {
+        // Find closest element to pointer
+        let closestIndex = -1;
+        let minDistance = Infinity;
 
-      itemRefs.current.forEach((ref, index) => {
-        if (!ref) return;
+        itemRefs.current.forEach((ref, index) => {
+          if (!ref) return;
 
-        const rect = ref.getBoundingClientRect();
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
+          const rect = ref.getBoundingClientRect();
+          const centerX = rect.left + rect.width / 2;
+          const centerY = rect.top + rect.height / 2;
 
-        const distance = Math.sqrt(
-          Math.pow(coords.x - centerX, 2) + Math.pow(coords.y - centerY, 2)
-        );
+          const distance = Math.sqrt(
+            Math.pow(coords.x - centerX, 2) + Math.pow(coords.y - centerY, 2)
+          );
 
-        if (distance < minDistance && distance < focusThreshold) {
-          minDistance = distance;
-          closestIndex = index;
+          if (distance < minDistance && distance < focusThreshold) {
+            minDistance = distance;
+            closestIndex = index;
+          }
+        });
+
+        // Only update if significantly closer to prevent jitter
+        if (closestIndex !== -1 && closestIndex !== hoveredIndex && minDistance < focusThreshold * 0.8) {
+          setHoveredIndex(closestIndex);
+          setFocusedIndex(closestIndex);
         }
       });
-
-      if (closestIndex !== -1 && closestIndex !== hoveredIndex) {
-        setHoveredIndex(closestIndex);
-        setFocusedIndex(closestIndex);
-      }
     }, [enabled, useMagicRemotePointer, focusThreshold, hoveredIndex]),
   });
 

@@ -1,1 +1,195 @@
+/* ==================== WEBOS TV NAVIGATION & MAGIC REMOTE STABILITY ==================== */
+
+/* ==================== ROOT LOCK ==================== */
+html, body, #root {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  position: fixed;
+  top: 0;
+  left: 0;
+  margin: 0;
+  padding: 0;
+  zoom: 1;
+  transform: none;
+}
+
+/* ==================== MAGIC REMOTE MODE ACTIVE ==================== */
+.magic-remote-mode-active,
+.magic-remote-mode-active * {
+  transform: none !important;
+  will-change: auto !important;
+}
+
+/* ==================== PREVENT ZOOM/SCALE ON ELEMENTS ==================== */
+/* Disable all scaling transitions that Magic Remote pointer tracking might trigger */
+*:not([data-allow-transform="true"]) {
+  transition-property: box-shadow, border-color, background-color, opacity;
+  transition-duration: 0.15s;
+  transition-timing-function: ease;
+}
+
+/* ==================== SAFE FOCUS & HOVER STATES ==================== */
+[data-focused="true"],
+[data-hovered="true"],
+:focus-visible,
+:focus {
+  transform: none !important;
+  box-shadow: 0 0 0 calc(4px * var(--tv-scale)) rgba(102, 126, 234, 0.3) !important;
+  outline: none !important;
+}
+
+/* ==================== LAYOUT CONTAINERS - NO TRANSFORMATION ==================== */
+.tv-layout-main,
+.tv-layout-content,
+.tv-layout-sidebar,
+.container,
+main,
+section,
+article {
+  transform: none !important;
+  will-change: auto !important;
+}
+
+/* ==================== GRID & FLEX STABILITY ==================== */
+[role="grid"],
+[role="row"],
+[role="gridcell"],
+.grid-container,
+.flex-container,
+[style*="display: grid"],
+[style*="display: flex"] {
+  transform: none !important;
+  contain: layout;
+}
+
+/* ==================== BUTTON & INTERACTIVE ELEMENT LOCK ==================== */
+button,
+[role="button"],
+a,
+[role="menuitem"],
+[role="option"],
+[role="link"] {
+  transform: none !important;
+  border-width: calc(2px * var(--tv-scale));
+  transition: box-shadow 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+}
+
+/* ==================== CHANNEL & CARD ITEMS LOCK ==================== */
+.channel-card,
+.card,
+.item,
+[class*="Card"],
+[class*="Item"],
+[role="option"] {
+  transform: none !important;
+  position: relative;
+}
+
+/* ==================== MEDIA ELEMENT LOCK ==================== */
+img, video, [role="img"] {
+  transform: none !important;
+  object-fit: cover;
+  object-position: center;
+}
+
+/* ==================== TEXT & TYPOGRAPHY LOCK ==================== */
+h1, h2, h3, h4, h5, h6, p, span {
+  transform: none !important;
+}
+
+/* ==================== KEYBOARD NAVIGATION INDICATOR (NO SCALE) ==================== */
+[data-magic-remote-safe="true"] {
+  box-shadow: 0 0 0 calc(3px * var(--tv-scale)) rgba(102, 126, 234, 0.4) !important;
+  border-color: rgba(102, 126, 234, 0.6) !important;
+}
+
+/* ==================== DISABLE HARDWARE TRANSFORMS DURING TRACKING ==================== */
+.magic-remote-tracking,
+[data-tracking="true"] {
+  pointer-events: none;
+}
+
+/* ==================== STRICT NO-TRANSFORM OVERRIDE ==================== */
+[style*="transform: scale"],
+[style*="transform: translate"],
+[style*="transform: rotate"] {
+  transform: none !important;
+}
+
+/* ==================== VIEWPORT LOCK ==================== */
+html {
+  -webkit-user-zoom: fixed;
+  user-zoom: fixed;
+  overflow: hidden;
+}
+
+body {
+  zoom: 1 !important;
+  -webkit-touch-callout: none;
+}
+
+/* ==================== MODAL & DIALOG LOCK ==================== */
+[role="dialog"],
+.modal,
+[class*="Modal"] {
+  transform: none !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+}
+
+/* ==================== SIDEBAR NAVIGATION LOCK ==================== */
+.sidebar,
+nav,
+[role="navigation"] {
+  transform: none !important;
+  width: auto;
+  height: auto;
+  flex-shrink: 0;
+}
+
+/* ==================== FOCUS RING ONLY ==================== */
+*:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 calc(3px * var(--tv-scale)) rgba(102, 126, 234, 0.5) !important;
+  border-color: rgba(102, 126, 234, 0.7) !important;
+}
+
+/* ==================== MAINTAIN ASPECT RATIO ==================== */
+.tv-aspect-16-9,
+.tv-aspect-4-3,
+[style*="aspect-ratio"] {
+  transform: none !important;
+}
+
+/* ==================== SCROLLABLE AREAS ==================== */
+.scrollable,
+[class*="Scroll"],
+[style*="overflow-y: auto"],
+[style*="overflow: auto"] {
+  transform: none !important;
+  will-change: scroll-position;
+}
+
+/* ==================== PERFORMANCE & STABILITY ==================== */
+main, section, article, aside {
+  contain: layout style paint;
+}
+
+/* ==================== PREVENT MAGIC REMOTE CURSOR FROM AFFECTING LAYOUT ==================== */
+.magic-remote-cursor,
+[data-magic-remote-cursor] {
+  pointer-events: none !important;
+  position: fixed !important;
+  z-index: 10000;
+  transform: translate(-50%, -50%) !important;
+}
+
+/* Fallback for any element showing zoom issues */
+.zoom-fix {
+  transform: none !important;
+  zoom: 1 !important;
+  will-change: auto !important;
+}
 
