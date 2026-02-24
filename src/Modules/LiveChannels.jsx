@@ -10,8 +10,6 @@ import ChannelBox from "../Atomic-Reusable-Componenets/ChannelBox";
 import useLiveChannelsStore from "../Global-storage/LiveChannelsStore";
 import useLanguageStore from "../Global-storage/LivePlayersStore";
 import {  TV_TYPOGRAPHY,  TV_SPACING,  TV_RADIUS, TV_COLORS,  TV_SIZES, TV_GRID, TV_SAFE_ZONE } from "../styles/tvConstants";
-import { useEnhancedRemoteNavigation } from "../Atomic-Common-Componenets/useMagicRemote";
-import "../styles/focus.css";
 
 const LiveChannels = () => {
   const location = useLocation();
@@ -206,35 +204,7 @@ const LiveChannels = () => {
     }
   }, [navigate]);
 
-  // ================= MAGIC REMOTE NAVIGATION =================
-  // Combined navigation: Category tabs + Channel grid
-  const allNavigableItems = useMemo(() => {
-    return [...enhancedCategories, ...filteredChannels];
-  }, [enhancedCategories, filteredChannels]);
 
-  const {
-    focusedIndex,
-    hoveredIndex,
-    getItemProps,
-    magicRemoteReady,
-  } = useEnhancedRemoteNavigation(allNavigableItems, {
-    orientation: 'grid',
-    columns: columnsCount,
-    useMagicRemotePointer: true,
-    focusThreshold: 150,
-    onSelect: (index) => {
-      if (index < enhancedCategories.length) {
-        // Category selected
-        handleFilter(enhancedCategories[index]);
-      } else {
-        // Channel selected
-        const channelIndex = index - enhancedCategories.length;
-        if (filteredChannels[channelIndex]) {
-          handleChannelSelect(filteredChannels[channelIndex]);
-        }
-      }
-    },
-  });
 
   // Handle search input change
   const handleSearchChange = (event) => {
@@ -466,32 +436,6 @@ const LiveChannels = () => {
           {selectedLanguageTitle ? `TV Channels - ${selectedLanguageTitle}` : "TV Channels"}
         </Typography>
 
-        {/* Magic Remote Status */}
-        {magicRemoteReady && (
-          <Box sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            px: '1rem',
-            py: '0.5rem',
-            borderRadius: '8px',
-            bgcolor: 'rgba(67, 233, 123, 0.15)',
-            border: '2px solid rgba(67, 233, 123, 0.5)',
-          }}>
-            <Box sx={{
-              width: 8,
-              height: 8,
-              borderRadius: '50%',
-              bgcolor: '#43e97b',
-              boxShadow: '0 0 10px rgba(67, 233, 123, 0.8)',
-              animation: 'pulse-dot 1.5s ease-in-out infinite',
-            }} />
-            <Typography sx={{ fontSize: '0.875rem', color: '#43e97b', fontWeight: 600 }}>
-              Magic Remote
-            </Typography>
-          </Box>
-        )}
-
         {/* Search Bar */}
         <Box
           sx={{
@@ -567,8 +511,6 @@ const LiveChannels = () => {
             ))
           : enhancedCategories.map((cat, index) => {
               const isActive = activeFilter === cat.title;
-              const isFocused = focusedIndex === index;
-              const isHovered = hoveredIndex === index;
               const langLabel = cat.title === "Language" && selectedLanguageTitle
                 ? `${cat.title} (${selectedLanguageTitle})`
                 : cat.title;
@@ -576,8 +518,6 @@ const LiveChannels = () => {
               return (
                 <ButtonBase
                   key={cat.grid || cat.title}
-                  {...getItemProps(index)}
-                  className={`focusable-category-tab ${isFocused ? 'focused' : ''} ${isHovered ? 'hovered' : ''}`}
                   onClick={() => handleFilter(cat)}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" || event.key === " ") {
@@ -593,22 +533,11 @@ const LiveChannels = () => {
                     borderRadius: "12px",
                     bgcolor: isActive ? "#3b5bfe" : "rgba(255,255,255,0.06)",
                     color: isActive ? "#fff" : "rgba(255,255,255,0.7)",
-                    border: isFocused 
-                      ? "3px solid #667eea" 
-                      : isActive 
-                      ? "1px solid rgba(59, 91, 254, 0.4)" 
-                      : "1px solid rgba(255,255,255,0.08)",
+                    border: isActive ? "1px solid rgba(59, 91, 254, 0.4)" : "1px solid rgba(255,255,255,0.08)",
                     transition: "all 0.2s",
-                    transform: isFocused ? "scale(1.12)" : isHovered ? "scale(1.05)" : "scale(1)",
-                    boxShadow: isFocused 
-                      ? "0 8px 20px rgba(102, 126, 234, 0.4)" 
-                      : "none",
                     "&:hover": {
                       bgcolor: isActive ? "#4c6bff" : "rgba(255,255,255,0.1)",
                       color: "#fff",
-                    },
-                    "&:focus-visible": {
-                      outline: "none",
                     },
                   }}
                 >
@@ -655,15 +584,9 @@ const LiveChannels = () => {
               </Box>
             ) : (
               filteredChannels.map((channel, index) => {
-                const globalIndex = enhancedCategories.length + index;
-                const isFocused = focusedIndex === globalIndex;
-                const isHovered = hoveredIndex === globalIndex;
-
                 return (
                   <Box
                     key={`${channel.channelno}-${index}`}
-                    {...getItemProps(globalIndex)}
-                    className={`focusable-channel-box ${isFocused ? 'focused' : ''} ${isHovered ? 'hovered' : ''}`}
                     role="button"
                     onClick={() => handleChannelSelect(channel)}
                     onKeyDown={(event) => {
@@ -674,21 +597,10 @@ const LiveChannels = () => {
                     }}
                     sx={{
                       outline: "none",
-                      transform: isFocused 
-                        ? "scale(1.15)" 
-                        : isHovered 
-                        ? "scale(1.08)" 
-                        : "scale(1)",
                       transition: "all 0.25s ease",
-                      border: isFocused ? "3px solid #667eea" : "2px solid transparent",
                       borderRadius: TV_RADIUS.xl,
-                      boxShadow: isFocused 
-                        ? "0 12px 30px rgba(102, 126, 234, 0.5)" 
-                        : isHovered 
-                        ? "0 8px 20px rgba(0,0,0,0.3)" 
-                        : "none",
-                      "&:focus-visible": {
-                        outline: "none",
+                      "&:hover": {
+                        transform: "scale(1.05)",
                       },
                     }}
                   >

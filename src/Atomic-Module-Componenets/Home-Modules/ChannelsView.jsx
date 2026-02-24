@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Box, Typography } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { DEFAULT_USER } from "../../Api/config";
 import useLanguageStore from "../../Global-storage/LivePlayersStore";
 import { useEnhancedRemoteNavigation } from "../../Atomic-Common-Componenets/useMagicRemote";
-import { TV_TYPOGRAPHY, TV_SPACING, TV_RADIUS, TV_SHADOWS, TV_TIMING, TV_COLORS } from "../../styles/tvConstants";
+import { TV_SHADOWS } from "../../styles/tvConstants";
 
 const ChannelsView = () => {
 	const navigate = useNavigate();

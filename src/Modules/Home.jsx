@@ -1,5 +1,5 @@
 import { Box } from "@mui/material";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "../Atomic-Common-Componenets/Headerbar";
 import ChannelsView from "../Atomic-Module-Componenets/Home-Modules/ChannelsView";
@@ -7,7 +7,7 @@ import HomeAds from "../Atomic-Module-Componenets/Home-Modules/HomeAds";
 import SidebarGlass from "./HomeSidebar";
 import useLiveChannelsStore from "../Global-storage/LiveChannelsStore";
 import { DEFAULT_USER } from "../Api/config";
-import { TV_SPACING, TV_COLORS, TV_SAFE_ZONE } from "../styles/tvConstants";
+import { TV_COLORS } from "../styles/tvConstants";
 
 const Home = () => {
   const navigate = useNavigate();
@@ -22,7 +22,7 @@ const Home = () => {
   const mobile = localStorage.getItem("userPhone") || "";
   const channelsKey = `${userid}|${mobile}|`;
   const channelsEntry = channelsCache[channelsKey] || {};
-  const channels = channelsEntry.data || [];
+  const channels = useMemo(() => channelsEntry.data || [], [channelsEntry.data]);
 
   useEffect(() => {
     const searchEl = headerRef.current?.querySelector('[data-focus-id="header-search"]');

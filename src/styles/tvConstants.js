@@ -479,7 +479,7 @@ export const TV_RESPONSIVE_TYPOGRAPHY = {
   },
 };
 
-export default {
+const tvConstantsExport = {
   TV_SAFE_ZONE,
   TV_TYPOGRAPHY,
   TV_SPACING,
@@ -498,3 +498,5 @@ export default {
   TV_RESPONSIVE_TYPOGRAPHY,
   tvUtils,
 };
+
+export default tvConstantsExport;

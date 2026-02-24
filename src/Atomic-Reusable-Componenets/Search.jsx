@@ -36,25 +36,28 @@ const SearchTextField = ({
       InputProps={{
         ...InputProps,
         sx: {
-          height: 56,
+          height: 80,
           bgcolor: "#0F172A",
           border: "1px solid #1E293B",
           borderRadius: "14px",
           color: "#fff",
-          fontSize: 16,
-          fontWeight: 500,
+          fontSize: 32,
+          fontWeight: 700,
           transition: "all 0.2s ease",
           "&:hover": {
             border: "1px solid #334155",
           },
           "&.Mui-focused": {
-            border: "1px solid #2563EB",
-            boxShadow: "0 0 0 3px rgba(37, 99, 235, 0.1)",
+            border: "1px solid #1E293B",
+            boxShadow: "none",
+            outline: "none",
           },
           "& fieldset": { border: "none" },
           "& input::placeholder": {
             color: "#475569",
             opacity: 1,
+            fontSize: 32,
+            fontWeight: 700,
           },
           ...InputProps?.sx,
         },
