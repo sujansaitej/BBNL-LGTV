@@ -2,7 +2,6 @@ import { Box, Typography, Button } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import ottComingSoonImage from "../Asset/Ott Comming Soon.svg";
 import { useEnhancedRemoteNavigation } from "../Atomic-Common-Componenets/useMagicRemote";
-import "../styles/focus.css";
 
 const MoviesOtt = () => {
 	const navigate = useNavigate();

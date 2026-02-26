@@ -1,19 +1,21 @@
 import { useState, useEffect } from "react";
-import {Box,List,ListItemButton,ListItemIcon,ListItemText,Typography,Button,CircularProgress,} from "@mui/material";
+import {Box,List,ListItemButton,ListItemIcon,ListItemText,Typography,Button,CircularProgress,Dialog,DialogTitle,DialogContent,DialogActions,} from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import InfoIcon from "@mui/icons-material/Info";
+import LogoutIcon from "@mui/icons-material/Logout";
+import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { useDeviceInformation } from "../Api/Deviceinformaction/LG-Devicesinformaction";
 import { DEFAULT_USER } from "../Api/config";
 import useAppVersionStore from "../Global-storage/LogineOttp";
 import { useEnhancedRemoteNavigation } from "../Atomic-Common-Componenets/useMagicRemote";
-import "../styles/focus.css";
 
 const Setting = () => {
   const navigate = useNavigate();
   const [currentPage, setCurrentPage] = useState("about");
 
   const [appVersionData, setAppVersionData] = useState(null);
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const { versionCache, fetchAppVersion } = useAppVersionStore();
   
   // Get device information
@@ -22,7 +24,14 @@ const Setting = () => {
   const menuItems = [
     { id: "about", label: "About App", icon: <InfoIcon /> },
     { id: "device", label: "Device Info", icon: <InfoIcon /> },
+    { id: "logout", label: "Logout", icon: <LogoutIcon /> },
   ];
+
+  const handleLogout = () => {
+    localStorage.clear();
+    sessionStorage.clear();
+    navigate("/login", { replace: true });
+  };
 
 
   // Fetch app version on component mount
@@ -75,7 +84,11 @@ const Setting = () => {
     useMagicRemotePointer: true,
     focusThreshold: 150,
     onSelect: (index) => {
-      setCurrentPage(menuItems[index].id);
+      if (menuItems[index].id === "logout") {
+        setShowLogoutDialog(true);
+      } else {
+        setCurrentPage(menuItems[index].id);
+      }
     },
   });
 
@@ -144,21 +157,33 @@ const Setting = () => {
                 key={item.id}
                 {...getItemProps(index)}
                 className={`focusable-settings-item ${isFocused ? 'focused' : ''} ${isHovered ? 'hovered' : ''}`}
-                onClick={() => setCurrentPage(item.id)}
+                onClick={() => {
+                  if (item.id === "logout") {
+                    setShowLogoutDialog(true);
+                  } else {
+                    setCurrentPage(item.id);
+                  }
+                }}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
-                    setCurrentPage(item.id);
+                    if (item.id === "logout") {
+                      setShowLogoutDialog(true);
+                    } else {
+                      setCurrentPage(item.id);
+                    }
                   }
                 }}
                 sx={{
                   mb: 2,
                   borderRadius: "14px",
-                  bgcolor: isActive ? "rgba(255, 255, 255, 0.12)" : "transparent",
+                  bgcolor: item.id === "logout"
+                    ? isActive ? "rgba(244, 67, 54, 0.15)" : "transparent"
+                    : isActive ? "rgba(255, 255, 255, 0.12)" : "transparent",
                   border: isFocused
-                    ? "3px solid #667eea"
+                    ? item.id === "logout" ? "3px solid #f44336" : "3px solid #667eea"
                     : isActive
-                    ? "2px solid rgba(255, 255, 255, 0.35)"
+                    ? item.id === "logout" ? "2px solid rgba(244, 67, 54, 0.5)" : "2px solid rgba(255, 255, 255, 0.35)"
                     : "2px solid transparent",
                   transition: "all 0.25s ease",
                   p: 2.5,
@@ -180,7 +205,7 @@ const Setting = () => {
                   },
                 }}
               >
-                <ListItemIcon sx={{ color: "#fff", minWidth: 52 }}>
+                <ListItemIcon sx={{ color: item.id === "logout" ? "#f44336" : "#fff", minWidth: 52 }}>
                   {item.icon}
                 </ListItemIcon>
                 <ListItemText
@@ -190,6 +215,7 @@ const Setting = () => {
                       fontSize: 20,
                       fontWeight: 600,
                       letterSpacing: "0.3px",
+                      color: item.id === "logout" ? "#f44336" : "#fff",
                     },
                   }}
                 />
@@ -343,6 +369,74 @@ const Setting = () => {
           </Box>
         )}
 
+        {/* ====== LOGOUT PAGE ====== */}
+        {currentPage === "logout" && (
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              height: "100%",
+              gap: 4,
+            }}
+          >
+            <WarningAmberIcon sx={{ fontSize: 80, color: "#f44336" }} />
+            <Typography sx={{ fontSize: 36, fontWeight: 700, letterSpacing: "0.4px" }}>
+              Logout
+            </Typography>
+            <Typography
+              sx={{
+                fontSize: 20,
+                color: "rgba(255, 255, 255, 0.65)",
+                textAlign: "center",
+                maxWidth: 420,
+                letterSpacing: "0.2px",
+              }}
+            >
+              Are you sure you want to log out of your BBNL IPTV account?
+            </Typography>
+            <Box sx={{ display: "flex", gap: 3, mt: 2 }}>
+              <Button
+                variant="outlined"
+                onClick={() => setCurrentPage("about")}
+                sx={{
+                  borderColor: "rgba(255, 255, 255, 0.4)",
+                  borderWidth: "2px",
+                  color: "#fff",
+                  textTransform: "none",
+                  fontSize: 18,
+                  fontWeight: 600,
+                  px: 5,
+                  py: 1.5,
+                  letterSpacing: "0.3px",
+                  "&:hover": { borderWidth: "2px", borderColor: "rgba(255,255,255,0.6)" },
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="contained"
+                onClick={() => setShowLogoutDialog(true)}
+                startIcon={<LogoutIcon />}
+                sx={{
+                  bgcolor: "#f44336",
+                  color: "#fff",
+                  textTransform: "none",
+                  fontSize: 18,
+                  fontWeight: 600,
+                  px: 5,
+                  py: 1.5,
+                  letterSpacing: "0.3px",
+                  "&:hover": { bgcolor: "#d32f2f" },
+                }}
+              >
+                Logout
+              </Button>
+            </Box>
+          </Box>
+        )}
+
         {/* ====== DEVICE INFO ====== */}
         {currentPage === "device" && (
           <Box>
@@ -430,6 +524,89 @@ const Setting = () => {
           </Box>
         )}
       </Box>
+
+      {/* -------- LOGOUT CONFIRMATION DIALOG -------- */}
+      <Dialog
+        open={showLogoutDialog}
+        onClose={() => setShowLogoutDialog(false)}
+        PaperProps={{
+          sx: {
+            bgcolor: "#1a1a2e",
+            border: "2px solid rgba(244, 67, 54, 0.4)",
+            borderRadius: "18px",
+            color: "#fff",
+            p: 2,
+            minWidth: 420,
+          },
+        }}
+      >
+        <DialogTitle
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 2,
+            fontSize: 26,
+            fontWeight: 700,
+            letterSpacing: "0.3px",
+            pb: 1,
+          }}
+        >
+          <WarningAmberIcon sx={{ color: "#f44336", fontSize: 34 }} />
+          Confirm Logout
+        </DialogTitle>
+
+        <DialogContent>
+          <Typography
+            sx={{
+              fontSize: 18,
+              color: "rgba(255, 255, 255, 0.75)",
+              letterSpacing: "0.2px",
+              lineHeight: 1.6,
+            }}
+          >
+            You will be signed out of your BBNL IPTV account. All local session data will be cleared.
+          </Typography>
+        </DialogContent>
+
+        <DialogActions sx={{ px: 3, pb: 2, gap: 2 }}>
+          <Button
+            variant="outlined"
+            onClick={() => setShowLogoutDialog(false)}
+            sx={{
+              borderColor: "rgba(255, 255, 255, 0.35)",
+              borderWidth: "2px",
+              color: "#fff",
+              textTransform: "none",
+              fontSize: 16,
+              fontWeight: 600,
+              px: 4,
+              py: 1.2,
+              letterSpacing: "0.3px",
+              "&:hover": { borderWidth: "2px", borderColor: "rgba(255,255,255,0.6)" },
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleLogout}
+            startIcon={<LogoutIcon />}
+            sx={{
+              bgcolor: "#f44336",
+              color: "#fff",
+              textTransform: "none",
+              fontSize: 16,
+              fontWeight: 600,
+              px: 4,
+              py: 1.2,
+              letterSpacing: "0.3px",
+              "&:hover": { bgcolor: "#d32f2f" },
+            }}
+          >
+            Yes, Logout
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

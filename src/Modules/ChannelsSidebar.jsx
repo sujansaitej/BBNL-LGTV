@@ -4,7 +4,6 @@ import { DEFAULT_USER } from "../Api/config";
 import useLiveChannelsStore from "../Global-storage/LiveChannelsStore";
 import { TV_TYPOGRAPHY, TV_SPACING, TV_RADIUS, TV_COLORS, TV_FOCUS, TV_TIMING } from "../styles/tvConstants";
 import { useEnhancedRemoteNavigation } from "../Atomic-Common-Componenets/useMagicRemote";
-import "../styles/focus.css";
 
 const ChannelsSidebar = ({ onChannelSelect, currentChannel }) => {
   const [channels, setChannels] = useState([]);

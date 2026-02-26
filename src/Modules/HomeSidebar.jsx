@@ -2,7 +2,6 @@ import { Box, List, ListItemButton, ListItemIcon } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { TV_SPACING, TV_RADIUS, TV_SHADOWS, TV_BLUR, TV_COLORS, TV_TIMING, TV_SIZES } from "../styles/tvConstants";
 import { useEnhancedRemoteNavigation } from "../Atomic-Common-Componenets/useMagicRemote";
-import "../styles/focus.css";
 
 // Icons
 import HomeIcon from "@mui/icons-material/Home";
