@@ -1,10 +1,10 @@
 import axios from "axios";
-import { API_ENDPOINTS, DEFAULT_HEADERS, DEFAULT_USER } from "../config";
+import { API_ENDPOINTS, getDefaultHeaders } from "../config";
 import { 
   getWebOSSystemInfo, 
   getWebOSDeviceID, 
   getWebOSNetworkInfo, 
-  getWebOSMacAddresses 
+  getWebOSMacAddresses,
 } from "../../utils/webos";
 
 /**
@@ -26,23 +26,18 @@ export const sendOtpWithWebOSInfo = async (phone, options = {}) => {
     // Prepare device details object
     const devdets = {
       brand: "LG",
-      model: systemInfo?.modelName || "Unknown",
-      mac: macAddresses?.wifiMac || macAddresses?.wiredMac || DEFAULT_HEADERS.devmac,
+      model: systemInfo?.modelName || "",
+      mac: macAddresses?.wiredMac || "",
     };
-
-    // Select the best MAC address (WiFi preferred, then Wired)
-    const macAddress = macAddresses?.wifiMac || macAddresses?.wiredMac || DEFAULT_HEADERS.devmac;
 
     // Build the complete payload
     const payload = {
-      userid: options.userid || DEFAULT_USER.userid,
       mobile: phone,
-      mac_address: macAddress,
-      device_name: deviceID || options.device_name || "LG TV",
-      ip_address: networkInfo?.ipv4 || options.ip_address || "124.40.244.233",
-      device_type: options.device_type || "LG TV",
-      getuserdet: options.getuserdet || "",
-      devdets: devdets,
+      device_name: "LG TV",
+      ip_address: networkInfo?.ipv4 || "",
+      device_type: "LG TV",
+      getuserdet: "",
+      devdets,
     };
 
     console.log("✅ Device Information Collected:", {
@@ -50,14 +45,12 @@ export const sendOtpWithWebOSInfo = async (phone, options = {}) => {
       deviceID: deviceID,
       ipAddress: networkInfo?.ipv4,
       connectionType: networkInfo?.connectionType,
-      wifiMac: macAddresses?.wifiMac,
-      wiredMac: macAddresses?.wiredMac,
     });
 
     console.log("📤 Sending OTP request with webOS device info:", payload);
 
     const res = await axios.post(API_ENDPOINTS.LOGIN, payload, { 
-      headers: { ...DEFAULT_HEADERS } 
+      headers: getDefaultHeaders()
     });
 
     console.log("✅ Login API full response:", { 
@@ -79,7 +72,6 @@ export const sendOtpWithWebOSInfo = async (phone, options = {}) => {
           modelName: systemInfo?.modelName,
           deviceID: deviceID,
           ipAddress: networkInfo?.ipv4,
-          macAddress: macAddress,
         },
         data: res.data,
       };
@@ -112,17 +104,16 @@ export const sendOtpWithWebOSInfo = async (phone, options = {}) => {
 export const sendOtp = async (phone, options = {}) => {
   try {
     const payload = {
-      userid: options.userid || DEFAULT_USER.userid,
       mobile: phone,
-      email: options.email || "",
-      mac_address: options.mac_address || "26:F2:AE:D8:3F:99",
-      device_name: options.device_name || "rk3368_box",
-      ip_address: options.ip_address || "124.40.244.233",
-      device_type: options.device_type || "FOFI",
+      device_name: "LG TV",
+      ip_address: options.ip_address || "",
+      device_type: "LG TV",
+      getuserdet: "",
+      devdets: options.devdets || { brand: "LG", model: "", mac: "" },
     };
 
     console.log("Sending OTP request with payload:", payload);
-    const res = await axios.post(API_ENDPOINTS.LOGIN, payload, { headers: { ...DEFAULT_HEADERS } });
+    const res = await axios.post(API_ENDPOINTS.LOGIN, payload, { headers: getDefaultHeaders() });
     console.log("OTP API full response:", { status: res.status, headers: res.headers, data: res.data });
 
     if (res && res.data && res.data.status && res.data.status.err_code === 0) {
@@ -167,19 +158,16 @@ export const sendOtp = async (phone, options = {}) => {
 export const resendOtp = async (phone, options = {}) => {
   try {
     const payload = {
-      userid: options.userid || DEFAULT_USER.userid,
       mobile: phone,
-      email: options.email || "",
-      mac_address: options.mac_address || "26:F2:AE:D8:3F:99",
-      device_name: options.device_name || "rk3368_box",
-      ip_address: options.ip_address || "124.40.244.233",
-      device_type: options.device_type || "FOFI",
+      device_name: "LG TV",
+      ip_address: options.ip_address || "",
+      device_type: "LG TV",
+      getuserdet: "",
+      devdets: options.devdets || { brand: "LG", model: "", mac: "" },
     };
 
     console.log("Resending OTP with payload:", payload);
-
-    console.log("Resending OTP with payload:", payload);
-    const res = await axios.post(API_ENDPOINTS.RESEND_OTP, payload, { headers: { ...DEFAULT_HEADERS } });
+    const res = await axios.post(API_ENDPOINTS.RESEND_OTP, payload, { headers: getDefaultHeaders() });
     console.log("Resend OTP full response:", { status: res.status, headers: res.headers, data: res.data });
 
     if (res.data && res.data.status && res.data.status.err_code === 0) {
@@ -213,19 +201,16 @@ export const resendOtp = async (phone, options = {}) => {
   }
 };
 
-// Verify OTP (uses same /login endpoint for verification in this app flow)
+// Verify OTP
 export const verifyOtp = async (phone, otp, options = {}) => {
   try {
     const payload = {
-      userid: options.userid || DEFAULT_USER.userid,
       mobile: phone,
       otp: otp,
     };
 
     console.log("Verifying OTP with payload:", payload);
-
-    console.log("Verifying OTP with payload:", payload);
-    const res = await axios.post(API_ENDPOINTS.LOGIN, payload, { headers: { ...DEFAULT_HEADERS } });
+    const res = await axios.post(API_ENDPOINTS.RESEND_OTP, payload, { headers: getDefaultHeaders() });
     console.log("OTP Verification full response:", { status: res?.status, headers: res?.headers, data: res?.data });
 
     if (res.data && res.data.status && res.data.status.err_code === 0) {

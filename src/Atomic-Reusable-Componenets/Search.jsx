@@ -32,6 +32,12 @@ const SearchTextField = ({
         pattern,
         maxLength,
         "data-webos-input": "true",
+        style: {
+          fontSize: "32px",
+          fontWeight: 700,
+          color: "#fff",
+          caretColor: "#fff",
+        },
       }}
       InputProps={{
         ...InputProps,
@@ -44,15 +50,17 @@ const SearchTextField = ({
           fontSize: 32,
           fontWeight: 700,
           transition: "all 0.2s ease",
-          "&:hover": {
-            border: "1px solid #334155",
-          },
           "&.Mui-focused": {
             border: "1px solid #1E293B",
             boxShadow: "none",
             outline: "none",
           },
           "& fieldset": { border: "none" },
+          "& input": {
+            fontSize: 32,
+            fontWeight: 700,
+            color: "#fff",
+          },
           "& input::placeholder": {
             color: "#475569",
             opacity: 1,

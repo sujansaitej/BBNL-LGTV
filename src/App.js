@@ -50,6 +50,8 @@ function App() {
 
   const handleLogout = () => {
     setIsAuthenticated(false);
+    localStorage.clear();
+    sessionStorage.clear();
     localStorage.removeItem('isAuthenticated');
   };
 
@@ -135,7 +137,7 @@ function App() {
             path="/settings"
             element={
               isAuthenticated ? (
-                <Setting />
+                <Setting onLogout={handleLogout} />
               ) : (
                 <Navigate to="/login" replace />
               )

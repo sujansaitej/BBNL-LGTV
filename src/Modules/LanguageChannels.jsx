@@ -5,7 +5,7 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 
 import { fetchLanguages } from "../Api/modules-api/LanguageChannelsApi";
 import { fetchChannels } from "../Api/modules-api/ChannelApi";
-import { DEFAULT_HEADERS, DEFAULT_USER } from "../Api/config";
+import { getDefaultHeaders, DEFAULT_USER } from "../Api/config";
 import { useEnhancedRemoteNavigation } from "../Atomic-Common-Componenets/useMagicRemote";
 
 // Gradient colors for each language card (unique gradient pairs)
@@ -44,9 +44,7 @@ const LanguageChannels = () => {
     mobile,
   };
 
-  const headers = {
-    ...DEFAULT_HEADERS,
-  };
+  const headers = getDefaultHeaders();
 
   // ================= FETCH LANGUAGES =================
   const handleFetchLanguages = async () => {

@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-import { API_ENDPOINTS, DEFAULT_USER } from "../Api/config";
+import { API_ENDPOINTS } from "../Api/config";
 import { buildAuthPayload, postJson } from "./HomeStore";
 
 const useAuthStore = create((set) => ({
@@ -14,12 +14,12 @@ const useAuthStore = create((set) => ({
     set({ isLoading: true, error: "", success: "" });
     try {
       const payload = buildAuthPayload(phone, {
-        userid: options.userid || DEFAULT_USER.userid,
         email: options.email,
-        mac_address: options.mac_address,
         device_name: options.device_name,
         ip_address: options.ip_address,
         device_type: options.device_type,
+        getuserdet: options.getuserdet,
+        devdets: options.devdets,
       });
 
       const data = await postJson(API_ENDPOINTS.LOGIN, payload);
@@ -44,12 +44,12 @@ const useAuthStore = create((set) => ({
     set({ isLoading: true, error: "", success: "" });
     try {
       const payload = buildAuthPayload(phone, {
-        userid: options.userid || DEFAULT_USER.userid,
         email: options.email,
-        mac_address: options.mac_address,
         device_name: options.device_name,
         ip_address: options.ip_address,
         device_type: options.device_type,
+        getuserdet: options.getuserdet,
+        devdets: options.devdets,
       });
 
       const data = await postJson(API_ENDPOINTS.RESEND_OTP, payload);
@@ -73,12 +73,11 @@ const useAuthStore = create((set) => ({
     set({ isLoading: true, error: "", success: "" });
     try {
       const payload = {
-        userid: options.userid || DEFAULT_USER.userid,
         mobile: phone,
         otp,
       };
 
-      const data = await postJson(API_ENDPOINTS.LOGIN, payload);
+      const data = await postJson(API_ENDPOINTS.RESEND_OTP, payload);
       if (data?.status?.err_code === 0) {
         set({ isLoading: false, success: data?.status?.err_msg || "OTP verified" });
         return { success: true, message: data?.status?.err_msg, data };

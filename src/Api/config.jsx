@@ -4,18 +4,20 @@
 export const API_BASE_URL_PROD = "http://124.40.244.211/netmon/cabletvapis";
 
 // Default headers for all API requests
-export const DEFAULT_HEADERS = {
-  "Content-Type": "application/json",
-  // Match headers used in Postman: Basic auth + device headers
-  Authorization: "Basic Zm9maWxhYkBnbWFpbC5jb206MTIzNDUtNTQzMjE=",
-  devmac: "26:F2:AE:D8:3F:99",
-  devslno: "FOFI20191129000336",
-  deviceID : "qwerty1"
+// Returns headers with deviceID read dynamically from localStorage at call time
+export const getDefaultHeaders = () => {
+  const pinnedDeviceId = localStorage.getItem("lgtv_device_id_pinned");
+  const deviceID = pinnedDeviceId ? `TV-${pinnedDeviceId}` : localStorage.getItem("lgtv_device_uuid") || "unknown-device";
+
+  return {
+    "Content-Type": "application/json",
+    Authorization: "Basic Zm9maWxhYkBnbWFpbC5jb206MTIzNDUtNTQzMjE=",
+    deviceID,
+  };
 };
 
-// Default user information
+// Default user
 export const DEFAULT_USER = {
-  userid: "testiser1",
   mobile: "7800000001",
 };
 

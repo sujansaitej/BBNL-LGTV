@@ -1,11 +1,10 @@
-import { DEFAULT_HEADERS } from "../Api/config";
+import { getDefaultHeaders } from "../Api/config";
 
 export const postJson = async (url, payload, headers = {}) => {
 	const response = await fetch(url, {
 		method: "POST",
 		headers: {
-			"Content-Type": "application/json",
-			...DEFAULT_HEADERS,
+			...getDefaultHeaders(),
 			...headers,
 		},
 		body: JSON.stringify(payload),
@@ -27,8 +26,8 @@ export const postForm = async (url, payload, headers = {}) => {
 	const response = await fetch(url, {
 		method: "POST",
 		headers: {
+			...getDefaultHeaders(),
 			"Content-Type": "application/x-www-form-urlencoded",
-			...DEFAULT_HEADERS,
 			...headers,
 		},
 		body: form.toString(),
@@ -44,11 +43,11 @@ export const postForm = async (url, payload, headers = {}) => {
 export const nowMs = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
 
 export const buildAuthPayload = (phone, options = {}) => ({
-	userid: options.userid,
 	mobile: phone,
 	email: options.email || "",
-	mac_address: options.mac_address || "26:F2:AE:D8:3F:99",
-	device_name: options.device_name || "rk3368_box",
-	ip_address: options.ip_address || "124.40.244.233",
-	device_type: options.device_type || "FOFI",
+	device_name: options.device_name || "LG TV",
+	ip_address: options.ip_address || "",
+	device_type: options.device_type || "LG TV",
+	getuserdet: options.getuserdet || "",
+	devdets: options.devdets || { brand: "LG", model: "", mac: "" },
 });

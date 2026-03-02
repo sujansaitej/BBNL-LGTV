@@ -3,13 +3,11 @@ import SearchIcon from "@mui/icons-material/Search";
 import SettingsIcon from "@mui/icons-material/Settings";
 import { useEffect, useRef, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useEnhancedRemoteNavigation } from "../Atomic-Common-Componenets/useMagicRemote";
 import SidebarGlass from "./HomeSidebar";
 import useLiveChannelsStore from "../Global-storage/LiveChannelsStore";
 import useLanguageStore from "../Global-storage/LivePlayersStore";
 import useHomeAdsStore from "../Global-storage/ChannelsSearchStore";
-import { DEFAULT_USER } from "../Api/config";
-import { TV_TYPOGRAPHY, TV_SPACING, TV_RADIUS, TV_COLORS, TV_TIMING, TV_SIZES, TV_SHADOWS } from "../styles/tvConstants";
+import { TV_TYPOGRAPHY, TV_SPACING, TV_RADIUS, TV_COLORS, TV_SIZES, TV_SHADOWS } from "../styles/tvConstants";
 
 const Home = () => {
   const navigate = useNavigate();
@@ -21,31 +19,13 @@ const Home = () => {
 
   // ===================== LIVE CHANNELS STORE =====================
   const { channelsCache, fetchChannels } = useLiveChannelsStore();
-  const userid = localStorage.getItem("userId") || DEFAULT_USER.userid;
+  const userid = localStorage.getItem("userId") || "";
   const mobile = localStorage.getItem("userPhone") || "";
   const channelsKey = `${userid}|${mobile}|`;
   const channelsEntry = channelsCache[channelsKey] || {};
   const channels = useMemo(() => channelsEntry.data || [], [channelsEntry.data]);
 
   // ===================== HEADER NAVIGATION =====================
-  const headerItems = [
-    { id: "search", type: "input" },
-    { id: "settings", type: "button", action: () => navigate("/settings") },
-  ];
-  const {
-    focusedIndex: headerFocusedIndex,
-    hoveredIndex: headerHoveredIndex,
-    getItemProps: getHeaderItemProps,
-    magicRemoteReady: headerMagicRemoteReady,
-  } = useEnhancedRemoteNavigation(headerItems, {
-    orientation: "horizontal",
-    useMagicRemotePointer: true,
-    focusThreshold: 120,
-    onSelect: (index) => {
-      if (index === 1) navigate("/settings");
-    },
-  });
-
   const iconButtonSx = {
     bgcolor: TV_COLORS.background.tertiary,
     border: `2px solid ${TV_COLORS.glass.light}`,
@@ -72,21 +52,6 @@ const Home = () => {
   const handleLanguageClick = (langid) => {
     navigate("/live-channels", { state: { filterByLanguage: langid } });
   };
-
-  const {
-    focusedIndex: langFocusedIndex,
-    hoveredIndex: langHoveredIndex,
-    getItemProps: getLangItemProps,
-    magicRemoteReady: langMagicRemoteReady,
-  } = useEnhancedRemoteNavigation(languages, {
-    orientation: "grid",
-    columns: 5,
-    useMagicRemotePointer: true,
-    focusThreshold: 150,
-    onSelect: (index) => {
-      if (languages[index]) handleLanguageClick(languages[index].langid);
-    },
-  });
 
   // ===================== HOME ADS =====================
   const adclient = "fofi";
@@ -231,27 +196,20 @@ const Home = () => {
 
               <Box flex={1} display="flex" alignItems="center">
                 <Box
-                  {...getHeaderItemProps(0)}
                   data-focus-id="header-search"
-                  className={`focusable-input ${headerFocusedIndex === 0 ? "focused" : ""} ${headerHoveredIndex === 0 ? "hovered" : ""}`}
-                  sx={{
+                  sx={
+                    {
                     display: "flex",
                     alignItems: "center",
                     gap: TV_SPACING.md,
                     bgcolor: TV_COLORS.glass.light,
-                    border:
-                      headerFocusedIndex === 0
-                        ? `3px solid ${TV_COLORS.accent.primary}`
-                        : `2px solid ${TV_COLORS.glass.medium}`,
+                    border: `2px solid ${TV_COLORS.glass.medium}`,
                     borderRadius: TV_RADIUS.pill,
                     px: TV_SPACING.xl,
                     py: TV_SPACING.sm,
                     height: "3rem",
                     width: "100%",
                     maxWidth: "42rem",
-                    transform: headerFocusedIndex === 0 ? "scale(1.02)" : "scale(1)",
-                    transition: `all ${TV_TIMING.fast}`,
-                    boxShadow: headerFocusedIndex === 0 ? TV_SHADOWS.focus : "none",
                     outline: "none",
                   }}
                 >
@@ -271,39 +229,15 @@ const Home = () => {
 
               <Box display="flex" alignItems="center" gap={TV_SPACING.md}>
                 <IconButton
-                  {...getHeaderItemProps(1)}
                   data-focus-id="header-settings"
-                  className={`focusable-icon-button ${headerFocusedIndex === 1 ? "focused" : ""} ${headerHoveredIndex === 1 ? "hovered" : ""}`}
                   onClick={() => navigate("/settings")}
                   sx={{
                     ...iconButtonSx,
-                    border:
-                      headerFocusedIndex === 1
-                        ? `3px solid ${TV_COLORS.accent.primary}`
-                        : iconButtonSx.border,
-                    transform: headerFocusedIndex === 1 ? "scale(1.15)" : "scale(1)",
-                    transition: `all ${TV_TIMING.fast}`,
-                    boxShadow: headerFocusedIndex === 1 ? TV_SHADOWS.focus : "none",
-                    outline: "none",
                   }}
                   aria-label="Settings"
                 >
                   <SettingsIcon sx={{ fontSize: TV_SIZES.icon.medium }} />
                 </IconButton>
-
-                {headerMagicRemoteReady && (
-                  <Box
-                    sx={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: "50%",
-                      bgcolor: "#43e97b",
-                      boxShadow: "0 0 10px rgba(67, 233, 123, 0.8)",
-                      animation: "pulse-dot 1.5s ease-in-out infinite",
-                    }}
-                    title="Magic Remote Connected"
-                  />
-                )}
               </Box>
             </Toolbar>
           </AppBar>
@@ -439,13 +373,9 @@ const Home = () => {
                   </Typography>
                 ) : (
                   languages.map((lang, index) => {
-                    const isFocused = langFocusedIndex === index;
-                    const isHovered = langHoveredIndex === index;
                     return (
                       <Box
                         key={index}
-                        {...getLangItemProps(index)}
-                        className={`focusable-language-card ${isFocused ? "focused" : ""} ${isHovered ? "hovered" : ""}`}
                         role="button"
                         onClick={() => handleLanguageClick(lang.langid)}
                         onKeyDown={(event) => {
@@ -454,6 +384,7 @@ const Home = () => {
                             handleLanguageClick(lang.langid);
                           }
                         }}
+                        tabIndex={0}
                         sx={{
                           width: "15rem",
                           borderRadius: "1rem",
@@ -464,16 +395,11 @@ const Home = () => {
                           alignItems: "center",
                           justifyContent: "center",
                           outline: "none",
-                          transform: isFocused
-                            ? "scale(1.15)"
-                            : isHovered
-                            ? "scale(1.08)"
-                            : "scale(1)",
-                          boxShadow: isFocused
-                            ? "0 0 50px rgba(102, 126, 234, 1), 0 16px 50px rgba(0, 0, 0, 0.7)"
-                            : isHovered
-                            ? "0 8px 32px rgba(102, 126, 234, 0.5)"
-                            : "0 4px 16px rgba(0, 0, 0, 0.3)",
+                          boxShadow: "0 4px 16px rgba(0, 0, 0, 0.3)",
+                          "&:hover": {
+                            transform: "scale(1.08)",
+                            boxShadow: "0 8px 32px rgba(102, 126, 234, 0.5)",
+                          },
                           "&:focus-visible": {
                             transform: "scale(1.15)",
                             outline: "5px solid #667eea",
@@ -495,9 +421,7 @@ const Home = () => {
                               backgroundSize: "cover",
                               backgroundPosition: "center",
                               backgroundRepeat: "no-repeat",
-                              boxShadow: isFocused
-                                ? "0 0 30px rgba(102, 126, 234, 0.8)"
-                                : "0 4px 16px rgba(0, 0, 0, 0.3)",
+                              boxShadow: "0 4px 16px rgba(0, 0, 0, 0.3)",
                             }}
                           >
                             <Box

@@ -5,7 +5,9 @@ import NetworkErrorNotification from "../Atomic-ErrorThrow-Componenets/NetworkEr
 import useAuthStore from "../Global-storage/AuthStore";
 import SearchTextField from "../Atomic-Reusable-Componenets/Search";
 import { useDeviceInformation } from "../Api/Deviceinformaction/LG-Devicesinformaction";
+import { DEFAULT_USER } from "../Api/config";
 import loginBg from "../Asset/loginBg.jpg";
+import bbnlLogo from "../Asset/BBNL-Logo.png";
 
 const PhoneAuthApp = ({ onLoginSuccess }) => {
   const navigate = useNavigate();
@@ -13,8 +15,9 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
   const [step, setStep] = useState(1);
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
+  const [serverOtp, setServerOtp] = useState(""); // OTP from /login response
   const [loading, setLoading] = useState(false);
-  const { sendOtp, verifyOtp, resendOtp } = useAuthStore();
+  const { sendOtp, resendOtp } = useAuthStore();
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [networkError, setNetworkError] = useState(false);
@@ -98,7 +101,7 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
   /* ---------------- API CALLS ---------------- */
   const handleGetOtp = async () => {
     if (phone.length !== 10) {
-      setError("Please enter a valid 10-digit phone number");
+      setError("Please enter a valid 10-digit Mobile number");
       return;
     }
 
@@ -107,109 +110,60 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
     setNetworkError(false);
 
     try {
-      const result = await sendOtp(phone);
+      const result = await sendOtp(phone, {
+        ip_address: deviceInfo.privateIPv4 || deviceInfo.publicIPv4 || "",
+        device_name: "LG TV",
+        device_type: "LG TV",
+        devdets: {
+          brand: "LG",
+          model: deviceInfo.modelName || "",
+          mac: "",
+        },
+      });
 
       if (result.success) {
-        if (result.userId) {
-          localStorage.setItem("userId", result.userId);
-        }
+        const responseUserId = result.data?.body?.[0]?.userid;
+        localStorage.setItem("userId", responseUserId || "");
+        localStorage.setItem("userPhone", phone);
+        // Store OTP returned by /login for local validation — no further API call needed
+        setServerOtp(String(result.otp || ""));
         setSuccess(result.message);
         setTimeout(() => {
           setStep(2);
           setSuccess("");
         }, 500);
       } else {
-        // If server indicates user is already registered on another device, treat as success and proceed
-        if (result.message && result.message.includes("User ID already registered")) {
-          localStorage.setItem("userId", "testiser1");
-          localStorage.setItem("userPhone", phone);
-          setSuccess("Logged in (existing registration)");
-          setTimeout(() => {
-            onLoginSuccess?.();
-            navigate("/home");
-          }, 300);
-          return;
-        }
-
-        setError(result.message);
+        setError(result.message || "Failed to send OTP. Please try again.");
       }
     } catch (e) {
       console.error("OTP Send Error:", e);
       if (isNetworkError(e)) {
         setNetworkError(true);
       } else {
-        const errMsg = e.response?.data?.status?.err_msg || "Failed to send OTP. Please try again.";
-        if (errMsg && errMsg.includes("User ID already registered")) {
-          localStorage.setItem("userId", "testiser1");
-          localStorage.setItem("userPhone", phone);
-          onLoginSuccess?.();
-          navigate("/home");
-          return;
-        }
-        setError(errMsg);
+        setError(e.response?.data?.status?.err_msg || "Failed to send OTP. Please try again.");
       }
     } finally {
       setLoading(false);
     }
   };
 
-  const handleVerifyOtp = async () => {
+  // OTP validated locally — /loginOtp is ONLY called by Resend, never here
+  const handleVerifyOtp = () => {
     if (otp.length !== 4) return setError("Enter 4 digit OTP");
 
-    setLoading(true);
     setError("");
 
-    try {
-      const result = await verifyOtp(phone, otp);
-
-      if (result.success) {
-        setSuccess(`Login successful!`);
-        localStorage.setItem("userId", "testiser1");
-        localStorage.setItem("userPhone", phone);
-        console.log("Login successful - navigating to home");
-        setTimeout(() => {
-          onLoginSuccess?.();
-          navigate("/home");
-        }, 1000);
-      } else {
-        // Auto-navigate if server reports existing registration
-        if (result.message && result.message.includes("User ID already registered")) {
-          localStorage.setItem("userId", "testiser1");
-          localStorage.setItem("userPhone", phone);
-          setSuccess("Logged in (existing registration)");
-          setTimeout(() => {
-            onLoginSuccess?.();
-            navigate("/home");
-          }, 300);
-          return;
-        }
-
-        setError(result.message);
-        setOtp("");
-      }
-    } catch (e) {
-      console.error("OTP Verification Error Details:", {
-        message: e.message,
-        response: e.response?.data,
-        status: e.response?.status,
-        headers: e.response?.headers,
-      });
-      
-      if (isNetworkError(e)) {
-        setNetworkError(true);
-      } else {
-        const errorMsg = e.response?.data?.status?.err_msg || e.message || "Invalid OTP. Please try again.";
-        if (errorMsg && errorMsg.includes("User ID already registered")) {
-          localStorage.setItem("userId", "testiser1");
-          localStorage.setItem("userPhone", phone);
-          onLoginSuccess?.();
-          navigate("/home");
-          return;
-        }
-        setError(errorMsg);
-      }
-    } finally {
-      setLoading(false);
+    if (serverOtp && otp === serverOtp) {
+      setSuccess("Login successful!");
+      setLoading(true);
+      setTimeout(() => {
+        setLoading(false);
+        onLoginSuccess?.();
+        navigate("/home");
+      }, 1000);
+    } else {
+      setError("Invalid OTP. Please try again.");
+      setOtp("");
     }
   };
 
@@ -219,9 +173,20 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
     setSuccess("");
 
     try {
-      const result = await resendOtp(phone);
+      const result = await resendOtp(phone, {
+        ip_address: deviceInfo.privateIPv4 || deviceInfo.publicIPv4 || "",
+        device_name: "LG TV",
+        device_type: "LG TV",
+        devdets: {
+          brand: "LG",
+          model: deviceInfo.modelName || "",
+          mac: "",
+        },
+      });
 
       if (result.success) {
+        // Update serverOtp with the newly issued OTP from /loginOtp
+        setServerOtp(String(result.otp || ""));
         setSuccess(result.message);
         setTimer(60);
         setIsTimerRunning(true);
@@ -247,7 +212,7 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
       sx={{
         width: "100vw",
         height: "100vh",
-        bgcolor: "#0a0f1e",
+        // bgcolor: "#0a0f1e",
         backgroundImage: bgLoaded ? `url(${loginBg})` : "none",
         backgroundSize: "cover",
         backgroundPosition: "center",
@@ -273,7 +238,6 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
           boxShadow: "0 4px 30px rgba(0, 0, 0, 0.1)",
           backdropFilter: "blur(0px)",
           WebkitBackdropFilter: "blur(0px)",
-          border: "1px solid rgba(255, 255, 255, 0.3)",
           position: "relative",
           overflow: "hidden",
           "@media (min-width: 900px)": {
@@ -282,90 +246,18 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
           },
         }}
       >
-        {/* Title */}
-        <Typography 
-          align="center" 
-          sx={{
-            fontSize: { xs: 32, md: 40 },
-            fontWeight: 700,
-            color: "#fff",
-            mb: 2,
-            letterSpacing: "-0.02em",
-          }}
-        >
-          {step === 1 ? "Welcome" : "Enter Verification Code"}
-        </Typography>
-
-        {/* Subtitle */}
-        <Typography 
-          align="center" 
-          sx={{
-            color: "#B3C1D6",
-            fontSize: { xs: 28, md: 32 },
-            mb: 5,
-            fontWeight: 700,
-          }}
-        >
-          {step === 1
-            ? "Sign in to continue to your profile"
-            : `We've sent a 4-digit code to your Email/Mobile Number`}
-        </Typography>
-
-        {/* Step Indicator */}
-        <Box 
-          sx={{ 
-            display: "flex", 
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 2.5,
-            mb: 5.5,
-          }}
-        >
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Box
-              sx={{
-                width: 8,
-                height: 8,
-                borderRadius: "50%",
-                bgcolor: "#2563EB",
-              }}
-            />
-            <Typography sx={{ color: "#2563EB", fontSize: 32, fontWeight: 700 }}>
-              Phone
-            </Typography>
-          </Box>
-
-          <Box 
-            sx={{ 
-              width: 80, 
-              height: 2, 
-              bgcolor: step === 2 ? "#2563EB" : "#1E293B",
-              borderRadius: 1,
-              transition: "all 0.3s ease",
-            }} 
+        {/* Logo */}
+        <Box sx={{ display: "flex", justifyContent: "center", mb: 5 }}>
+          <Box
+            component="img"
+            src={bbnlLogo}
+            alt="BBNL Logo"
+            sx={{
+              height: { xs: "6rem", md: "8rem" },
+              width: "auto",
+              objectFit: "contain",
+            }}
           />
-
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Box
-              sx={{
-                width: 8,
-                height: 8,
-                borderRadius: "50%",
-                bgcolor: step === 2 ? "#2563EB" : "#1E293B",
-                transition: "all 0.3s ease",
-              }}
-            />
-            <Typography 
-              sx={{ 
-                color: step === 2 ? "#2563EB" : "#475569",
-                fontSize: 32,
-                fontWeight: 700,
-                transition: "all 0.3s ease",
-              }}
-            >
-              Verify
-            </Typography>
-          </Box>
         </Box>
 
         {/* Error Message */}
@@ -413,7 +305,7 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
                 mb: 2,
               }}
             >
-              Phone Number
+              Mobile Number
             </Typography>
 
             <Box 
@@ -427,7 +319,7 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
                 value={phone}
                 onChange={handlePhoneChange}
                 onKeyDown={handlePhoneKeyDown}
-                placeholder="Enter 10 Digit Number"
+                placeholder="Enter the Registered Number"
               />
             </Box>
 

@@ -10,7 +10,7 @@ import { DEFAULT_USER } from "../Api/config";
 import useAppVersionStore from "../Global-storage/LogineOttp";
 import { useEnhancedRemoteNavigation } from "../Atomic-Common-Componenets/useMagicRemote";
 
-const Setting = () => {
+const Setting = ({ onLogout }) => {
   const navigate = useNavigate();
   const [currentPage, setCurrentPage] = useState("about");
 
@@ -28,8 +28,12 @@ const Setting = () => {
   ];
 
   const handleLogout = () => {
-    localStorage.clear();
-    sessionStorage.clear();
+    if (onLogout) {
+      onLogout();
+    } else {
+      localStorage.clear();
+      sessionStorage.clear();
+    }
     navigate("/login", { replace: true });
   };
 

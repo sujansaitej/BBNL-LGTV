@@ -1,5 +1,5 @@
 import axios from "axios";
-import { API_BASE_URL_PROD, DEFAULT_HEADERS } from "../config";
+import { API_BASE_URL_PROD, getDefaultHeaders } from "../config";
 
 const api = axios.create({
   baseURL: API_BASE_URL_PROD,
@@ -9,7 +9,11 @@ const api = axios.create({
 // Add request interceptor to include auth headers
 api.interceptors.request.use(
   async (config) => {
-    config.headers["Authorization"] = DEFAULT_HEADERS.Authorization;
+    const headers = getDefaultHeaders();
+    config.headers["Authorization"] = headers.Authorization;
+    config.headers["devmac"] = headers.devmac;
+    config.headers["devslno"] = headers.devslno;
+    config.headers["deviceID"] = headers.deviceID;
 
     console.log("[IPTV Ads API] Request:", {
       url: config.baseURL + config.url,
