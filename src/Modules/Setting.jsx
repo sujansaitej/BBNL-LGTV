@@ -6,7 +6,7 @@ import InfoIcon from "@mui/icons-material/Info";
 import LogoutIcon from "@mui/icons-material/Logout";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { useDeviceInformation } from "../Api/Deviceinformaction/LG-Devicesinformaction";
-import { DEFAULT_USER } from "../Api/config";
+
 import useAppVersionStore from "../Global-storage/LogineOttp";
 import { useEnhancedRemoteNavigation } from "../Atomic-Common-Componenets/useMagicRemote";
 
@@ -43,8 +43,8 @@ const Setting = ({ onLogout }) => {
   useEffect(() => {
     const loadAppVersion = async () => {
       try {
-        const userid = localStorage.getItem("userId") || DEFAULT_USER.userid;
-        const mobile = localStorage.getItem("userPhone") || DEFAULT_USER.mobile;
+        const userid = localStorage.getItem("userId") || "";
+        const mobile = localStorage.getItem("userPhone") || "";
         
         const payload = {
           userid,
@@ -277,7 +277,7 @@ const Setting = ({ onLogout }) => {
               >
                 Software Version
               </Typography>
-              {versionCache?.[`${localStorage.getItem("userId") || DEFAULT_USER.userid}|${localStorage.getItem("userPhone") || DEFAULT_USER.mobile}|com.fofi.fofiboxtv`]?.isLoading ? (
+              {versionCache?.[`${localStorage.getItem("userId") || ""}|${localStorage.getItem("userPhone") || ""}|com.fofi.fofiboxtv`]?.isLoading ? (
                 <CircularProgress size={24} sx={{ color: "#fff" }} />
               ) : (
                 <Typography sx={{ fontSize: 22, fontWeight: 600, letterSpacing: "0.3px" }}>

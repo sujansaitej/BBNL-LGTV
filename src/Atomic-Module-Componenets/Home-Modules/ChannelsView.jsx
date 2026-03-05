@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { Box, Typography } from "@mui/material";
 import { useNavigate } from "react-router-dom";
-import { DEFAULT_USER } from "../../Api/config";
+
 import useLanguageStore from "../../Global-storage/LivePlayersStore";
 import { useEnhancedRemoteNavigation } from "../../Atomic-Common-Componenets/useMagicRemote";
 import { TV_SHADOWS } from "../../styles/tvConstants";
@@ -11,7 +11,7 @@ const ChannelsView = () => {
 	const { languagesCache, error, fetchLanguages } = useLanguageStore();
 
 	// Get userid + mobile
-	const userid = localStorage.getItem("userId") || DEFAULT_USER.userid;
+	const userid = localStorage.getItem("userId") || "";
 	const mobile = localStorage.getItem("userPhone") || "";
 
 	const payloadBase = {

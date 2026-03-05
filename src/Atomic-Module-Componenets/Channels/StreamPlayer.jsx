@@ -1,6 +1,15 @@
 import React, { useEffect, useRef, useState } from "react";
 import Hls from "hls.js";
 
+// App identity — sourced from build/appinfo.json
+// Used in HLS xhrSetup so every .m3u8 / .ts / .key request carries these headers
+const PACKAGE_ID  = "com.lgiptv.bbnl";   // appinfo.json → id
+const APP_NAME    = "LG BBNL iptv";    // appinfo.json → title
+const PLATFORM    = "LG-TV";         // appinfo.json → vendor (LG-BBNL)
+const APP_VERSION = "2.0.0";         // appinfo.json → version
+
+
+
 const MEDIA_KEY_MAP = new Map([
   ["MediaPlay", "play"],
   ["MediaPause", "pause"],
@@ -220,6 +229,21 @@ const HLSPlayer = ({ src, autoPlay = true }) => {
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: true,
+
+        // Attach app identity + device ID to every HLS request
+        // (.m3u8, .ts, .key segments) for backend/CDN validation
+        xhrSetup: (xhr) => {
+          const deviceId =
+            localStorage.getItem("deviceId") ||
+            localStorage.getItem("deviceID") ||
+            "LGTV-001";
+          xhr.setRequestHeader("X-App-Package", PACKAGE_ID);
+          xhr.setRequestHeader("X-App-Name",    APP_NAME);
+          xhr.setRequestHeader("X-Platform",    PLATFORM);
+          xhr.setRequestHeader("X-App-Version", APP_VERSION);
+          xhr.setRequestHeader("X-Device-Id",   deviceId);
+        },
+
         backBufferLength: 5,
         maxBufferLength: 10,
         maxMaxBufferLength: 20,

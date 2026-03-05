@@ -1,30 +1,31 @@
-import React, { useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Box } from "@mui/material";
+
+const VIDEO_SRC = "/Asset/BBNL.mp4";
 
 const BbnlVideo = () => {
   const navigate = useNavigate();
   const videoRef = useRef(null);
 
+  const goToLogin = useCallback(() => {
+    navigate("/login");
+  }, [navigate]);
+
   useEffect(() => {
     const videoElement = videoRef.current;
-    
-    const handleVideoEnd = () => {
-      // Navigate to LoginOtp page after video ends
-      navigate("/login");
-    };
+    if (!videoElement) return;
 
-    if (videoElement) {
-      videoElement.addEventListener("ended", handleVideoEnd);
-      videoElement.play();
-    }
+    videoElement.addEventListener("ended", goToLogin);
+    videoElement.play().catch(() => {
+      // Video failed to play (file missing or unsupported) — skip to login
+      goToLogin();
+    });
 
     return () => {
-      if (videoElement) {
-        videoElement.removeEventListener("ended", handleVideoEnd);
-      }
+      videoElement.removeEventListener("ended", goToLogin);
     };
-  }, [navigate]);
+  }, [goToLogin]);
 
   return (
     <Box
@@ -47,8 +48,9 @@ const BbnlVideo = () => {
         }}
         autoPlay
         muted
+        onError={goToLogin}
       >
-        <source src={require("../Asset/BBNL.mp4")} type="video/mp4" />
+        <source src={VIDEO_SRC} type="video/mp4" />
         Your browser does not support the video tag.
       </video>
     </Box>

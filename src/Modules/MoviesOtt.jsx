@@ -1,10 +1,51 @@
-import { Box, Typography, Button } from "@mui/material";
+import { useState, useEffect } from "react";
+import axios from "axios";
+import { Box, Typography, Button, CircularProgress } from "@mui/material";
 import { useNavigate } from "react-router-dom";
-import ottComingSoonImage from "../Asset/Ott Comming Soon.svg";
+import { API_ENDPOINTS, getDefaultHeaders } from "../Api/config";
 import { useEnhancedRemoteNavigation } from "../Atomic-Common-Componenets/useMagicRemote";
+
+const FALLBACK_OTT_IMAGE = "http://124.40.244.211/netmon/Cabletvapis/showimg/coming_soon_ott.png";
 
 const MoviesOtt = () => {
 	const navigate = useNavigate();
+
+	const [ottImage, setOttImage] = useState(FALLBACK_OTT_IMAGE);
+	const [loadingImage, setLoadingImage] = useState(true);
+
+	useEffect(() => {
+		let isMounted = true;
+		const fetchImage = async () => {
+			try {
+				const mobile = localStorage.getItem("userPhone") || "0000000000";
+				const requestPayload = {
+					userid: "lgiptv",
+					mobile,
+					device_type: "LG TV",
+					mac_address: "",
+					device_name: "LG TV",
+					app_package: "com.lgiptv.bbnl",
+				};
+				const response = await axios.post(
+					API_ENDPOINTS.ERROR_IMAGES,
+					requestPayload,
+					{ headers: getDefaultHeaders() }
+				);
+				const errImgs = response?.data?.errImgs || [];
+				const item = errImgs.find((i) =>
+					Object.prototype.hasOwnProperty.call(i, "COMING_SOON_OTT")
+				);
+				const url = item?.COMING_SOON_OTT;
+				if (isMounted && url) setOttImage(url);
+			} catch {
+				/* keep fallback */
+			} finally {
+				if (isMounted) setLoadingImage(false);
+			}
+		};
+		fetchImage();
+		return () => { isMounted = false; };
+	}, []);
 
 	// Magic Remote Navigation for the single button
 	const {
@@ -45,19 +86,26 @@ const MoviesOtt = () => {
 					textAlign: "center",
 				}}
 			>
-				<Box
-					component="img"
-					src={ottComingSoonImage}
-					alt="Coming Soon Movie OTT"
-					sx={{
-						width: "100%",
-						maxHeight: "300px",
-						objectFit: "contain",
-						borderRadius: "20px",
-						mb: 3,
-						bgcolor: "#f0e9d6",
-					}}
-				/>
+				{loadingImage ? (
+					<Box sx={{ width: "100%", maxHeight: "300px", display: "flex", alignItems: "center", justifyContent: "center", mb: 3, minHeight: 200 }}>
+						<CircularProgress sx={{ color: "#f4bf1f" }} size={48} />
+					</Box>
+				) : (
+					<Box
+						component="img"
+						src={ottImage}
+						alt="Coming Soon Movie OTT"
+						onError={(e) => { e.currentTarget.src = FALLBACK_OTT_IMAGE; }}
+						sx={{
+							width: "100%",
+							maxHeight: "300px",
+							objectFit: "contain",
+							borderRadius: "20px",
+							mb: 3,
+							bgcolor: "#f0e9d6",
+						}}
+					/>
+				)}
 
 				<Typography sx={{ color: "#fff", fontSize: "3rem", fontWeight: 700, lineHeight: 1.2, mb: 1.2 }}>
 					Coming Soon Movie OTT

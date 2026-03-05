@@ -5,7 +5,7 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import StarIcon from "@mui/icons-material/Star";
 import StarBorderIcon from "@mui/icons-material/StarBorder";
 
-import { DEFAULT_USER } from "../Api/config";
+
 import useFeedbackStore from "../Global-storage/FeedbackStore";
 import { useEnhancedRemoteNavigation } from "../Atomic-Common-Componenets/useMagicRemote";
 
@@ -18,8 +18,8 @@ const Feedback = () => {
   const { isSubmitting, submitFeedback } = useFeedbackStore();
 
   // Get device info
-  const userid = localStorage.getItem("userId") || DEFAULT_USER.userid;
-  const mobile = localStorage.getItem("userPhone") || DEFAULT_USER.mobile;
+  const userid = localStorage.getItem("userId") || "";
+  const mobile = localStorage.getItem("userPhone") || "";
 
   // Magic Remote Navigation for interactive elements
   // [0-4] = Stars, [5] = TextField, [6] = Cancel, [7] = Submit

@@ -164,7 +164,6 @@ lg-iptv-app/
 │   │
 │   ├── Modules/                    # Main application modules
 │   │   ├── Home.jsx                # Home screen module
-│   │   ├── HomeSidebar.jsx         # Navigation sidebar
 │   │   ├── LiveChannels.jsx        # Live channels module
 │   │   ├── LivePlayer.jsx          # Live player module
 │   │   ├── MoviesOtt.jsx           # OTT content module
