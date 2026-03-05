@@ -265,21 +265,6 @@ export const exitWebOSFullscreen = () => {
 export const preventWebOSDefaults = () => {
   if (!isWebOSTV()) return;
 
-  // Prevent default back button behavior
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Backspace" || event.keyCode === 461) {
-      const activeElement = document.activeElement;
-      const isInput =
-        activeElement.tagName === "INPUT" ||
-        activeElement.tagName === "TEXTAREA" ||
-        activeElement.getAttribute("contenteditable") === "true";
-
-      if (!isInput) {
-        event.preventDefault();
-      }
-    }
-  });
-
   // Prevent zoom on webOS
   document.addEventListener("wheel", (event) => {
     if (event.ctrlKey) {

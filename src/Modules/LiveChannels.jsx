@@ -413,7 +413,7 @@ const LiveChannels = () => {
         </Box>
       )}
       {/* ================= HEADER WITH BACK BUTTON AND TITLE ================= */}
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: "1.25rem" }}>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between"}}>
         {/* Back Button */}
         <IconButton
           onClick={() => navigate(-1)}
@@ -500,7 +500,7 @@ const LiveChannels = () => {
       </Box>
 
       {/* ================= CATEGORY FILTER TABS (WITH LANGUAGE) ================= */}
-      <Box className="cat-titlel" sx={{ mb: "2.5rem", display: "flex", gap: "0.75rem", flexWrap: "wrap", width: "100%", px: "4rem", py: "1rem", background: "#000" }}>
+      <Box className="cat-titlel" sx={{ mb: "1.5rem", display: "flex", gap: "0.75rem", flexWrap: "wrap", width: "100%", px: "4rem", py: "1rem", background: "#000" }}>
         {isLoadingCategories
           ? Array.from({ length: 4 }).map((_, index) => (
               <Skeleton

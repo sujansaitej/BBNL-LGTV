@@ -197,26 +197,6 @@ const Home = () => {
       cancelInfoChannelAutoplay("user-interaction");
     };
 
-    const handleRemoteExitBack = (event) => {
-      const keyCode = event?.keyCode;
-      const key = event?.key;
-      const isBackOrExit =
-        key === "Backspace" ||
-        key === "Escape" ||
-        key === "BrowserBack" ||
-        key === "GoBack" ||
-        keyCode === 8 ||
-        keyCode === 27 ||
-        keyCode === 461 ||
-        keyCode === 10009;
-
-      if (!isBackOrExit) return;
-
-      cancelInfoChannelAutoplay("remote-exit-back");
-      event.preventDefault?.();
-      event.stopPropagation?.();
-    };
-
     const handleAppHidden = () => {
       if (document.hidden) {
         cancelInfoChannelAutoplay("app-hidden");
@@ -228,7 +208,6 @@ const Home = () => {
 
     window.addEventListener("keydown", handleUserInteraction, true);
     window.addEventListener("click", handleUserInteraction, true);
-    window.addEventListener("keydown", handleRemoteExitBack, true);
     document.addEventListener("visibilitychange", handleAppHidden, true);
     window.addEventListener("pagehide", handlePageHide, true);
     window.addEventListener("blur", handleWindowBlur, true);
@@ -236,7 +215,6 @@ const Home = () => {
     return () => {
       window.removeEventListener("keydown", handleUserInteraction, true);
       window.removeEventListener("click", handleUserInteraction, true);
-      window.removeEventListener("keydown", handleRemoteExitBack, true);
       document.removeEventListener("visibilitychange", handleAppHidden, true);
       window.removeEventListener("pagehide", handlePageHide, true);
       window.removeEventListener("blur", handleWindowBlur, true);

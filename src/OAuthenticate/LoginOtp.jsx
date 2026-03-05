@@ -423,27 +423,29 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
             <Box
               sx={{
                 mt: 4,
-                p: 3,
-                borderRadius: "14px",
-                bgcolor: "rgba(15, 23, 42, 0.6)",
-                border: "1px solid #1E293B",
+                p: { xs: 3, md: 4 },
+                borderRadius: "20px",
+                bgcolor: "rgba(31, 41, 55, 0.85)",
+                border: "1px solid rgba(148, 163, 184, 0.25)",
               }}
             >
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
-                <Box>
-                  <Typography sx={{ fontSize: 20, color: "#c8c8c8", fontWeight: 700, mb: 0.5 }}>
+              <Box sx={{ display: "flex", alignItems: "stretch", justifyContent: "space-between", gap: 3 }}>
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography sx={{ fontSize: 20, color: "#ffffff", fontWeight: 700, mb: 1, letterSpacing: 1 }}>
                     GATEWAY IP
                   </Typography>
-                  <Typography sx={{ fontSize: 32, color: "#E2E8F0", fontWeight: 700 }}>
+                  <Typography sx={{ fontSize: 46, color: "#F8FAFC", fontWeight: 700, lineHeight: 1.05 }}>
                     {deviceInfo.loading ? <CircularProgress size={16} sx={{ color: "#fff" }} /> : (deviceInfo.privateIPv4 || deviceInfo.publicIPv4 || "Not available")}
                   </Typography>
                 </Box>
 
-                <Box>
-                  <Typography sx={{ fontSize: 20, color: "#c8c8c8", fontWeight: 700, mb: 0.5 }}>
+                <Box sx={{ width: "2px", bgcolor: "rgba(148, 163, 184, 0.35)", borderRadius: "99px" }} />
+
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography sx={{ fontSize: 20, color: "#ffffff", fontWeight: 700, mb: 1, letterSpacing: 1 }}>
                     TV MODEL NAME
                   </Typography>
-                  <Typography sx={{ fontSize: 32, color: "#E2E8F0", fontWeight: 700 }}>
+                  <Typography sx={{ fontSize: 46, color: "#F8FAFC", fontWeight: 700, lineHeight: 1.05 }} noWrap>
                     {deviceInfo.loading ? <CircularProgress size={16} sx={{ color: "#fff" }} /> : (deviceInfo.modelName || "Not available")}
                   </Typography>
                 </Box>
@@ -563,37 +565,30 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
             <Box
               sx={{
                 mb: 3,
-                p: 3,
-                borderRadius: "14px",
-                bgcolor: "rgba(15, 23, 42, 0.6)",
-                border: "1px solid #1E293B",
+                p: { xs: 3, md: 4 },
+                borderRadius: "20px",
+                bgcolor: "rgba(31, 41, 55, 0.85)",
+                border: "1px solid rgba(148, 163, 184, 0.25)",
               }}
             >
-              <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2.5 }}>
-                <Box>
-                  <Typography sx={{ fontSize: 20, color: "#64748B", fontWeight: 700, mb: 0.5 }}>
+              <Box sx={{ display: "flex", alignItems: "stretch", justifyContent: "space-between", gap: 3 }}>
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography sx={{ fontSize: 20, color: "#9CA3AF", fontWeight: 700, mb: 1, letterSpacing: 1 }}>
                     GATEWAY IP
                   </Typography>
-                  <Typography sx={{ fontSize: 32, color: "#E2E8F0", fontWeight: 700 }}>
+                  <Typography sx={{ fontSize: 46, color: "#F8FAFC", fontWeight: 700, lineHeight: 1.05 }}>
                     {deviceInfo.loading ? <CircularProgress size={16} sx={{ color: "#fff" }} /> : (deviceInfo.privateIPv4 || deviceInfo.publicIPv4 || "Not available")}
                   </Typography>
                 </Box>
 
-                <Box>
-                  <Typography sx={{ fontSize: 20, color: "#64748B", fontWeight: 700, mb: 0.5 }}>
+                <Box sx={{ width: "2px", bgcolor: "rgba(148, 163, 184, 0.35)", borderRadius: "99px" }} />
+
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography sx={{ fontSize: 20, color: "#9CA3AF", fontWeight: 700, mb: 1, letterSpacing: 1 }}>
                     TV MODEL NAME
                   </Typography>
-                  <Typography sx={{ fontSize: 32, color: "#E2E8F0", fontWeight: 700 }}>
+                  <Typography sx={{ fontSize: 46, color: "#F8FAFC", fontWeight: 700, lineHeight: 1.05 }} noWrap>
                     {deviceInfo.loading ? <CircularProgress size={16} sx={{ color: "#fff" }} /> : (deviceInfo.modelName || "Not available")}
-                  </Typography>
-                </Box>
-
-                <Box>
-                  <Typography sx={{ fontSize: 20, color: "#64748B", fontWeight: 700, mb: 0.5 }}>
-                    IPV6
-                  </Typography>
-                  <Typography sx={{ fontSize: 32, color: "#E2E8F0", fontWeight: 700 }}>
-                    {deviceInfo.loading ? <CircularProgress size={16} sx={{ color: "#fff" }} /> : (deviceInfo.privateIPv6 || deviceInfo.publicIPv6 || "Not available")}
                   </Typography>
                 </Box>
               </Box>
@@ -602,7 +597,7 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
             {/* Resend Code Section */}
             <Box sx={{ textAlign: "center" }}>
               {isTimerRunning ? (
-                <Typography sx={{ color: "#94A3B8", fontSize: 32, fontWeight: 700 }}>
+                <Typography sx={{ color: "#00214f", fontSize: 32, fontWeight: 700 }}>
                   Didn't receive the code? <strong>Resend Code</strong> in{" "}
                   <span style={{ color: "#2563EB", fontWeight: 700 }}>
                     00:{timer < 10 ? `0${timer}` : timer}
