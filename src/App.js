@@ -1,20 +1,30 @@
 import './App.css';
 import './styles/magic-remote-ui-fix.css';
 import './styles/webos-navigation.css';
-import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
-import BbnlVideo from "./OAuthenticate/bbnl";
-import PhoneNumberOtp from "./OAuthenticate/LoginOtp";
-import Home from './Modules/Home'; 
-import LiveChannels from './Modules/LiveChannels';
-import LanguageChannels from './Modules/LanguageChannels';
-import LivePlayer from './Modules/LivePlayer';
-import MoviesOtt from './Modules/MoviesOtt';
-import Favorites from './Modules/Favorites';
-import Feedback from './Modules/Feedback';
-import Setting from './Modules/Setting';
+import { MemoryRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { initializeWebOSEnvironment, preventWebOSDefaults } from './utils/webos';
 import { initializeMagicRemoteUIStability, cleanupMagicRemoteUIStability } from './utils/magicRemoteUIStability';
+import checkAppLock from './Api/OAuthentication-Api/Applock';
+import { useDeviceInformation } from './Api/Deviceinformaction/LG-Devicesinformaction';
+import ServiceLocked from './Atomic-ErrorThrow-Componenets/ServiceLocked';
+
+const lazyWithPreload = (importer) => {
+  const Component = lazy(importer);
+  Component.preload = importer;
+  return Component;
+};
+
+const BbnlVideo = lazyWithPreload(() => import("./OAuthenticate/bbnl"));
+const PhoneNumberOtp = lazyWithPreload(() => import("./OAuthenticate/LoginOtp"));
+const Home = lazyWithPreload(() => import('./Modules/Home'));
+const LiveChannels = lazyWithPreload(() => import('./Modules/LiveChannels'));
+const LanguageChannels = lazyWithPreload(() => import('./Modules/LanguageChannels'));
+const LivePlayer = lazyWithPreload(() => import('./Modules/LivePlayer'));
+const MoviesOtt = lazyWithPreload(() => import('./Modules/MoviesOtt'));
+const Favorites = lazyWithPreload(() => import('./Modules/Favorites'));
+const Feedback = lazyWithPreload(() => import('./Modules/Feedback'));
+const Setting = lazyWithPreload(() => import('./Modules/Setting'));
 // Spatial navigation disabled for now - will add back after testing basic app
 
 function App() {
@@ -25,6 +35,28 @@ function App() {
       return false;
     }
   });
+
+  const [isLocked, setIsLocked] = useState(false);
+  const deviceInfo = useDeviceInformation();
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    if (deviceInfo.loading) return;
+
+    const runLockCheck = async () => {
+      const mobile = localStorage.getItem("userPhone") || "";
+      const result = await checkAppLock({
+        device_name: "LG TV",
+        device_type: "LG TV",
+        ip_address: deviceInfo.publicIPv4 || deviceInfo.privateIPv4 || "",
+        mobile,
+        model: deviceInfo.modelName || "",
+      });
+      if (result?.locked) setIsLocked(true);
+    };
+
+    runLockCheck();
+  }, [isAuthenticated, deviceInfo.loading, deviceInfo.publicIPv4, deviceInfo.privateIPv4, deviceInfo.modelName]);
 
   useEffect(() => {
     // Initialize webOS TV environment
@@ -43,6 +75,28 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const preloadRoutes = () => {
+      LiveChannels.preload?.();
+      LanguageChannels.preload?.();
+      LivePlayer.preload?.();
+      MoviesOtt.preload?.();
+      Favorites.preload?.();
+      Feedback.preload?.();
+      Setting.preload?.();
+    };
+
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      const idleId = window.requestIdleCallback(preloadRoutes, { timeout: 1500 });
+      return () => window.cancelIdleCallback?.(idleId);
+    }
+
+    const timer = setTimeout(preloadRoutes, 250);
+    return () => clearTimeout(timer);
+  }, [isAuthenticated]);
+
   const handleLoginSuccess = () => {
     setIsAuthenticated(true);
     localStorage.setItem('isAuthenticated', 'true');
@@ -56,8 +110,16 @@ function App() {
   };
 
   return (
+    <>
     <Router>
       <div data-focusable-container>
+        <Suspense
+          fallback={
+            <div style={{ color: "#fff", padding: 24, fontSize: 24 }}>
+              Loading...
+            </div>
+          }
+        >
         <Routes>
           <Route 
             path="/bbnl-video" 
@@ -158,8 +220,13 @@ function App() {
             element={<Navigate to={isAuthenticated ? "/home" : "/login"} replace />} 
           />
         </Routes>
+        </Suspense>
       </div>
     </Router>
+
+    {/* Service Locked overlay — blocks entire app when lock: "true" */}
+    {isLocked && <ServiceLocked />}
+    </>
   );
 }
 

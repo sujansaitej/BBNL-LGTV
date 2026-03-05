@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { Box, Typography, List, ListItemButton, Avatar, Tabs, Tab } from "@mui/material";
-import { DEFAULT_USER } from "../Api/config";
+
 import useLiveChannelsStore from "../Global-storage/LiveChannelsStore";
 import { TV_TYPOGRAPHY, TV_SPACING, TV_RADIUS, TV_COLORS, TV_FOCUS, TV_TIMING } from "../styles/tvConstants";
 import { useEnhancedRemoteNavigation } from "../Atomic-Common-Componenets/useMagicRemote";
@@ -14,8 +14,8 @@ const ChannelsSidebar = ({ onChannelSelect, currentChannel }) => {
   const [selectedCategory, setSelectedCategory] = useState(0);
 
   // Get device info from config
-  const userid = localStorage.getItem("userId") || DEFAULT_USER.userid;
-  const mobile = localStorage.getItem("userPhone") || DEFAULT_USER.mobile;
+  const userid = localStorage.getItem("userId") || "";
+  const mobile = localStorage.getItem("userPhone") || "";
 
   const payloadBase = {
     userid,

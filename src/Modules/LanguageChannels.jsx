@@ -5,7 +5,7 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 
 import { fetchLanguages } from "../Api/modules-api/LanguageChannelsApi";
 import { fetchChannels } from "../Api/modules-api/ChannelApi";
-import { getDefaultHeaders, DEFAULT_USER } from "../Api/config";
+import { getDefaultHeaders } from "../Api/config";
 import { useEnhancedRemoteNavigation } from "../Atomic-Common-Componenets/useMagicRemote";
 
 // Gradient colors for each language card (unique gradient pairs)
@@ -36,7 +36,7 @@ const LanguageChannels = () => {
   const [error, setError] = useState("");
 
   // Get userid + mobile
-  const userid = localStorage.getItem("userId") || DEFAULT_USER.userid;
+  const userid = localStorage.getItem("userId") || "";
   const mobile = localStorage.getItem("userPhone") || "";
 
   const payloadBase = {

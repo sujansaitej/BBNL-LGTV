@@ -16,11 +16,6 @@ export const getDefaultHeaders = () => {
   };
 };
 
-// Default user
-export const DEFAULT_USER = {
-  mobile: "7800000001",
-};
-
 // API Endpoints
 export const API_ENDPOINTS = {
   LOGIN: `${API_BASE_URL_PROD}/login`,
@@ -39,4 +34,6 @@ export const API_ENDPOINTS = {
   APP_LOCK: `${API_BASE_URL_PROD}/applock`,
   TRP_DATA: `${API_BASE_URL_PROD}/trpdata`,
   APP_VERSION: `${API_BASE_URL_PROD}/appversion`,
+  ERROR_IMAGES: `${API_BASE_URL_PROD}/errorimages`,
+  LOGO: `${API_BASE_URL_PROD}/fofitv_logo`,
 };

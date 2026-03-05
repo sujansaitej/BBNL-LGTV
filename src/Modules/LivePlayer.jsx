@@ -5,9 +5,11 @@ import StreamPlayer from "../Atomic-Module-Componenets/Channels/StreamPlayer";
 import ChannelsSidebar from "./ChannelsSidebar";
 import ChannelsDetails from "./ChannelsDetails";
 import ChannelNumberDisplay, { findChannelByNumber } from "./Lcn";
-import { DEFAULT_USER } from "../Api/config";
+
 import useLiveChannelsStore from "../Global-storage/LiveChannelsStore";
 import { useMagicRemote } from "../Atomic-Common-Componenets/useMagicRemote";
+import { useDeviceInformation } from "../Api/Deviceinformaction/LG-Devicesinformaction";
+import { postTrpData } from "../Api/modules-api/trpdata";
 
 const LivePlayer = () => {
   const location = useLocation();
@@ -25,6 +27,7 @@ const LivePlayer = () => {
   const detailsTimerRef = useRef(null);
   const numberBufferRef = useRef("");
   const numberTimerRef = useRef(null);
+  const lastTrpStreamRef = useRef("");
 
   const showDetails = useCallback((durationMs = 3000) => {
     if (isSidebarOpen) return;
@@ -149,8 +152,44 @@ const LivePlayer = () => {
     }
   });
 
-  const userid = localStorage.getItem("userId") || DEFAULT_USER.userid;
-  const mobile = localStorage.getItem("userPhone") || DEFAULT_USER.mobile;
+  const userid = localStorage.getItem("userId") || "";
+  const mobile = localStorage.getItem("userPhone") || "";
+  const deviceInfo = useDeviceInformation();
+
+  useEffect(() => {
+    const streamForTrp = String(currentStream || "").trim();
+    const dynamicIp =
+      deviceInfo.privateIPv4 && deviceInfo.privateIPv4 !== "Not available"
+        ? deviceInfo.privateIPv4
+        : deviceInfo.publicIPv4 && deviceInfo.publicIPv4 !== "Not available"
+        ? deviceInfo.publicIPv4
+        : "";
+
+    if (!streamForTrp || !mobile || !dynamicIp) return;
+    if (lastTrpStreamRef.current === streamForTrp) return;
+
+    lastTrpStreamRef.current = streamForTrp;
+
+    postTrpData({ mobile, ip_address: dynamicIp })
+      .then((res) => {
+        if (res?.success) {
+          console.log("[TRP] Submitted successfully", {
+            mobile,
+            ip_address: dynamicIp,
+            stream: streamForTrp,
+          });
+        } else {
+          console.warn("[TRP] Submission failed", {
+            message: res?.message,
+            mobile,
+            ip_address: dynamicIp,
+          });
+        }
+      })
+      .catch((err) => {
+        console.error("[TRP] Submission error", err);
+      });
+  }, [currentStream, mobile, deviceInfo.privateIPv4, deviceInfo.publicIPv4]);
 
   // Load channels once and cache; keep list locally for navigation order
   useEffect(() => {

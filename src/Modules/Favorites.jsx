@@ -1,9 +1,37 @@
-import { Box, Typography, Button } from "@mui/material";
+import { Box, Typography, Button, CircularProgress } from "@mui/material";
 import { useNavigate } from "react-router-dom";
-import favoriteComingSoonImage from "../Asset/Favuroit Comming soon.svg";
+import { useState, useEffect } from "react";
+import { fetchComingSoonImage } from "../Api/OAuthentication-Api/LogoApi";
 
 const Favorites = () => {
 	const navigate = useNavigate();
+	const [comingSoonImage, setComingSoonImage] = useState("");
+	const [imageLoading, setImageLoading] = useState(true);
+
+	useEffect(() => {
+		let isMounted = true;
+		
+		const loadImage = async () => {
+			try {
+				const result = await fetchComingSoonImage("COMING_SOON_TV_CHANNELS");
+				if (isMounted && result?.success && result?.imageUrl) {
+					setComingSoonImage(result.imageUrl);
+				}
+			} catch (error) {
+				console.error("[COMING_SOON_TV_CHANNELS] Load error:", error);
+			} finally {
+				if (isMounted) {
+					setImageLoading(false);
+				}
+			}
+		};
+		
+		loadImage();
+		
+		return () => {
+			isMounted = false;
+		};
+	}, []);
 
 	return (
 		<Box
@@ -29,26 +57,32 @@ const Favorites = () => {
 					textAlign: "center",
 				}}
 			>
-				<Box
-					component="img"
-					src={favoriteComingSoonImage}
-					alt="Coming Soon Liked Favorite Channels"
-					sx={{
-						width: "100%",
-						maxHeight: "300px",
-						objectFit: "contain",
-						borderRadius: "20px",
-						mb: 3,
-						bgcolor: "#f0e9d6",
-					}}
-				/>
+				{imageLoading ? (
+					<Box sx={{ display: "flex", justifyContent: "center", mb: 3 }}>
+						<CircularProgress sx={{ color: "#f4bf1f" }} size={60} />
+					</Box>
+				) : (
+					<Box
+						component="img"
+						src={comingSoonImage}
+						alt="Coming Soon TV Channels"
+						onError={(e) => {
+							console.warn("[COMING_SOON_TV_CHANNELS] Image load failed");
+							e.currentTarget.style.display = "none";
+						}}
+						sx={{
+							width: "100%",
+							maxHeight: "300px",
+							objectFit: "contain",
+							borderRadius: "20px",
+							mb: 3,
+							bgcolor: "#f0e9d6",
+						}}
+					/>
+				)}
 
 				<Typography sx={{ color: "#fff", fontSize: "3rem", fontWeight: 700, lineHeight: 1.2, mb: 1.2 }}>
 					Coming Soon Liked Favorite Channels
-				</Typography>
-
-				<Typography sx={{ color: "rgba(255,255,255,0.45)", fontSize: "1.6rem", mb: 3.4, fontWeight: 600 }}>
-					New TV channels coming soon. Stay tuned!
 				</Typography>
 
 				<Button

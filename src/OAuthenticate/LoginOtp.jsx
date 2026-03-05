@@ -1,13 +1,13 @@
 import { useState, useEffect } from "react";
 import {  Box,  Paper, Typography, Button, TextField, CircularProgress} from "@mui/material";
 import { useNavigate } from "react-router-dom";
-import NetworkErrorNotification from "../Atomic-ErrorThrow-Componenets/NetworkError";
+import NetworkErrorNotification from "../Atomic-ErrorThrow-Componenets/Modules-Erros/NetworkError";
+import RegisterNumber from "../Atomic-ErrorThrow-Componenets/RegisterNumber";
+import ValidOTP from "../Atomic-ErrorThrow-Componenets/ValidOTP";
 import useAuthStore from "../Global-storage/AuthStore";
-import SearchTextField from "../Atomic-Reusable-Componenets/Search";
 import { useDeviceInformation } from "../Api/Deviceinformaction/LG-Devicesinformaction";
-import { DEFAULT_USER } from "../Api/config";
-import loginBg from "../Asset/loginBg.jpg";
-import bbnlLogo from "../Asset/BBNL-Logo.png";
+import fetchLoginLogo from "../Api/OAuthentication-Api/LogoApi";
+import { fetchLoginBackground } from "../Api/OAuthentication-Api/LogoApi";
 
 const PhoneAuthApp = ({ onLoginSuccess }) => {
   const navigate = useNavigate();
@@ -18,23 +18,67 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
   const [serverOtp, setServerOtp] = useState(""); // OTP from /login response
   const [loading, setLoading] = useState(false);
   const { sendOtp, resendOtp } = useAuthStore();
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+
   const [networkError, setNetworkError] = useState(false);
-  
+  const [showRegisterError, setShowRegisterError] = useState(false);
+  const [registerErrorMsg, setRegisterErrorMsg] = useState("");
+  const [showOtpError, setShowOtpError] = useState(false);
   const [timer, setTimer] = useState(30);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const [dynamicLogo, setDynamicLogo] = useState("");
+  const [logoLoadFailed, setLogoLoadFailed] = useState(false);
+  const fallbackBgUrl = "http://124.40.244.211/netmon/Cabletvapis/showimg/lg_iptv_login_bg.png";
+  const [bgImage, setBgImage] = useState(fallbackBgUrl);
 
   // Fetch device information (IP address and Device ID)
   const deviceInfo = useDeviceInformation();
 
-  // Preload background image to prevent slow render flash
-  const [bgLoaded, setBgLoaded] = useState(false);
+  // Background always ready — file is in public/Asset/
+
   useEffect(() => {
-    const img = new Image();
-    img.src = loginBg;
-    img.onload = () => setBgLoaded(true);
-    img.onerror = () => setBgLoaded(true); // show fallback on error too
+    let isMounted = true;
+
+    const loadLogo = async () => {
+      const result = await fetchLoginLogo({
+        device_type: "LG TV",
+        device_name: "LG TV",
+      });
+
+      if (isMounted && result?.success && result?.logoPath) {
+        setDynamicLogo(result.logoPath);
+        setLogoLoadFailed(false);
+      }
+    };
+
+    loadLogo();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    
+    const loadBg = async () => {
+      console.log("[LoginOtp] Starting background image load...");
+      const result = await fetchLoginBackground();
+      console.log("[LoginOtp] fetchLoginBackground result:", result);
+      
+      if (isMounted) {
+        if (result?.success && result?.bgUrl) {
+          console.log("[LoginOtp] Setting bgImage state to:", result.bgUrl);
+          setBgImage(result.bgUrl);
+        } else {
+          console.log("[LoginOtp] API failed, keeping fallback URL");
+        }
+      }
+    };
+    
+    loadBg();
+    
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   /* ---------------- TIMERS ---------------- */
@@ -59,7 +103,6 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
     const v = e.target.value.replace(/\D/g, "");
     if (v.length <= 10) {
       setPhone(v);
-      setError("");
     }
   };
 
@@ -73,7 +116,6 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
     const v = e.target.value.replace(/\D/g, "");
     if (v.length <= 4) {
       setOtp(v);
-      setError("");
       // Auto-submit when 4 digits entered
       if (v.length === 4) {
         setTimeout(() => handleVerifyOtp(), 300);
@@ -84,10 +126,6 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
   const handleOtpKeyDown = (e) => {
     if (e.key === "Enter" && otp.length === 4 && !loading) {
       handleVerifyOtp();
-    }
-    // Allow backspace
-    if (e.key === "Backspace" && otp.length === 0) {
-      setError("");
     }
   };
 
@@ -100,13 +138,9 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
 
   /* ---------------- API CALLS ---------------- */
   const handleGetOtp = async () => {
-    if (phone.length !== 10) {
-      setError("Please enter a valid 10-digit Mobile number");
-      return;
-    }
+    if (phone.length !== 10) return;
 
     setLoading(true);
-    setError("");
     setNetworkError(false);
 
     try {
@@ -125,22 +159,21 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
         const responseUserId = result.data?.body?.[0]?.userid;
         localStorage.setItem("userId", responseUserId || "");
         localStorage.setItem("userPhone", phone);
-        // Store OTP returned by /login for local validation — no further API call needed
         setServerOtp(String(result.otp || ""));
-        setSuccess(result.message);
         setTimeout(() => {
           setStep(2);
-          setSuccess("");
         }, 500);
       } else {
-        setError(result.message || "Failed to send OTP. Please try again.");
+        setRegisterErrorMsg(result.message || "Invalid User / Mobile Number");
+        setShowRegisterError(true);
       }
     } catch (e) {
       console.error("OTP Send Error:", e);
       if (isNetworkError(e)) {
         setNetworkError(true);
       } else {
-        setError(e.response?.data?.status?.err_msg || "Failed to send OTP. Please try again.");
+        setRegisterErrorMsg("Invalid User / Mobile Number");
+        setShowRegisterError(true);
       }
     } finally {
       setLoading(false);
@@ -149,12 +182,9 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
 
   // OTP validated locally — /loginOtp is ONLY called by Resend, never here
   const handleVerifyOtp = () => {
-    if (otp.length !== 4) return setError("Enter 4 digit OTP");
-
-    setError("");
+    if (otp.length !== 4) return;
 
     if (serverOtp && otp === serverOtp) {
-      setSuccess("Login successful!");
       setLoading(true);
       setTimeout(() => {
         setLoading(false);
@@ -162,15 +192,12 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
         navigate("/home");
       }, 1000);
     } else {
-      setError("Invalid OTP. Please try again.");
-      setOtp("");
+      setShowOtpError(true);
     }
   };
 
   const handleResendOtp = async () => {
     setLoading(true);
-    setError("");
-    setSuccess("");
 
     try {
       const result = await resendOtp(phone, {
@@ -185,17 +212,13 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
       });
 
       if (result.success) {
-        // Update serverOtp with the newly issued OTP from /loginOtp
         setServerOtp(String(result.otp || ""));
-        setSuccess(result.message);
         setTimer(60);
         setIsTimerRunning(true);
         setOtp("");
-      } else {
-        setError(result.message);
       }
     } catch (e) {
-      isNetworkError(e) ? setNetworkError(true) : setError("Try again");
+      if (isNetworkError(e)) setNetworkError(true);
     } finally {
       setLoading(false);
     }
@@ -208,24 +231,65 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
   /* ======================= UI ======================= */
   return (
     <div>
+    <style>{`
+      .login-phone-input {
+        font-size: 56px !important;
+        font-weight: 700 !important;
+        line-height: 1.2 !important;
+        color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff;
+        text-size-adjust: 100%;
+        -webkit-text-size-adjust: 100%;
+        letter-spacing: 1px;
+      }
+      .login-phone-input::placeholder {
+        font-size: 44px;
+        font-weight: 700;
+        color: #94A3B8;
+        opacity: 1;
+      }
+    `}</style>
     <Box
       sx={{
         width: "100vw",
         height: "100vh",
-        // bgcolor: "#0a0f1e",
-        backgroundImage: bgLoaded ? `url(${loginBg})` : "none",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundRepeat: "no-repeat",
-        opacity: bgLoaded ? 1 : 1,
-        transition: "background-image 0.4s ease-in-out",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         px: 3,
-        position: "relative",
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        overflow: "hidden",
+        bgcolor: "#0f172a",
       }}
     >
+      {/* Background image — native img element for better webOS support */}
+      <img
+        src={bgImage}
+        alt="Login Background"
+        onError={() => {
+          console.warn("[LoginBG] Image load failed for:", bgImage);
+          if (bgImage !== fallbackBgUrl) {
+            setBgImage(fallbackBgUrl);
+          }
+        }}
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+          objectPosition: "center",
+          zIndex: 0,
+          pointerEvents: "none",
+          userSelect: "none",
+          opacity: 1,
+        }}
+      />
       <Paper
         elevation={0}
         sx={{
@@ -239,6 +303,7 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
           backdropFilter: "blur(0px)",
           WebkitBackdropFilter: "blur(0px)",
           position: "relative",
+          zIndex: 1,
           overflow: "hidden",
           "@media (min-width: 900px)": {
             maxWidth: "1200px",
@@ -246,53 +311,35 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
           },
         }}
       >
-        {/* Logo */}
+        {/* public/Asset + logo API */}
         <Box sx={{ display: "flex", justifyContent: "center", mb: 5 }}>
-          <Box
-            component="img"
-            src={bbnlLogo}
-            alt="BBNL Logo"
-            sx={{
-              height: { xs: "6rem", md: "8rem" },
-              width: "auto",
-              objectFit: "contain",
-            }}
-          />
+          {!logoLoadFailed && (
+            <Box
+              component="img"
+              src={dynamicLogo || "/Asset/BBNL-Logo.png"}
+              alt="BBNL Logo"
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                if (dynamicLogo) {
+                  setDynamicLogo("");
+                  return;
+                }
+                setLogoLoadFailed(true);
+              }}
+              sx={{
+                height: { xs: "8rem", md: "11rem", lg: "12rem" },
+                width: { xs: "16rem", md: "22rem", lg: "24rem" },
+                maxWidth: "100%",
+                objectFit: "contain",
+              }}
+            />
+          )}
+          {logoLoadFailed && (
+            <Typography sx={{ color: "#fff", fontSize: 30, fontWeight: 800, letterSpacing: 2 }}>
+              BBNL
+            </Typography>
+          )}
         </Box>
-
-        {/* Error Message */}
-        {error && (
-          <Box
-            sx={{
-              mb: 3,
-              p: 2.25,
-              borderRadius: "12px",
-              bgcolor: "rgba(239, 68, 68, 0.1)",
-              border: "1px solid rgba(239, 68, 68, 0.2)",
-            }}
-          >
-            <Typography sx={{ color: "#FCA5A5", fontSize: 32, textAlign: "center", fontWeight: 700 }}>
-              ⚠ {error}
-            </Typography>
-          </Box>
-        )}
-
-        {/* Success Message */}
-        {success && (
-          <Box
-            sx={{
-              mb: 3,
-              p: 2.25,
-              borderRadius: "12px",
-              bgcolor: "rgba(34, 197, 94, 0.1)",
-              border: "1px solid rgba(34, 197, 94, 0.2)",
-            }}
-          >
-            <Typography sx={{ color: "#86EFAC", fontSize: 32, textAlign: "center", fontWeight: 700 }}>
-              ✓ {success}
-            </Typography>
-          </Box>
-        )}
 
         {/* ---------------- PHONE INPUT SCREEN ---------------- */}
         {step === 1 && (
@@ -308,18 +355,40 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
               Mobile Number
             </Typography>
 
-            <Box 
-              sx={{ 
-                display: "flex", 
+            <Box
+              sx={{
+                display: "flex",
                 gap: 2,
                 mb: 4.5,
               }}
             >
-              <SearchTextField
+              <input
+                className="login-phone-input"
                 value={phone}
                 onChange={handlePhoneChange}
                 onKeyDown={handlePhoneKeyDown}
-                placeholder="Enter the Registered Number"
+                placeholder="Enter 10-digit mobile number"
+                type="tel"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={10}
+                data-webos-input="true"
+                autoFocus
+                style={{
+                  width: "100%",
+                  minHeight: "85px",
+                  padding: "20px 24px",
+                  backgroundColor: "#1E293B",
+                  border: "1.5px solid #fff",
+                  borderRadius: "14px",
+                  fontSize: "48px",
+                  lineHeight: 1.1,
+                  fontWeight: 650,
+                  color: "#fff",
+                  caretColor: "#fff",
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
               />
             </Box>
 
@@ -362,16 +431,7 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
             >
               <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
                 <Box>
-                  <Typography sx={{ fontSize: 20, color: "#64748B", fontWeight: 700, mb: 0.5 }}>
-                    DEVICE ID
-                  </Typography>
-                  <Typography sx={{ fontSize: 32, color: "#E2E8F0", fontWeight: 700 }}>
-                    {deviceInfo.loading ? <CircularProgress size={16} sx={{ color: "#fff" }} /> : (deviceInfo.deviceId || "STR-9872-7BED")}
-                  </Typography>
-                </Box>
-
-                <Box>
-                  <Typography sx={{ fontSize: 20, color: "#64748B", fontWeight: 700, mb: 0.5 }}>
+                  <Typography sx={{ fontSize: 20, color: "#c8c8c8", fontWeight: 700, mb: 0.5 }}>
                     GATEWAY IP
                   </Typography>
                   <Typography sx={{ fontSize: 32, color: "#E2E8F0", fontWeight: 700 }}>
@@ -380,7 +440,7 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
                 </Box>
 
                 <Box>
-                  <Typography sx={{ fontSize: 20, color: "#64748B", fontWeight: 700, mb: 0.5 }}>
+                  <Typography sx={{ fontSize: 20, color: "#c8c8c8", fontWeight: 700, mb: 0.5 }}>
                     TV MODEL NAME
                   </Typography>
                   <Typography sx={{ fontSize: 32, color: "#E2E8F0", fontWeight: 700 }}>
@@ -550,7 +610,7 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
                 </Typography>
               ) : (
                 <>
-                  <Typography sx={{ color: "#94A3B8", fontSize: 32, mb: 2, fontWeight: 700 }}>
+                  <Typography sx={{ color: "rgba(15, 23, 42, 0.6)", fontSize: 32, mb: 2, fontWeight: 700 }}>
                     Didn't receive the code?
                   </Typography>
                   <Button
@@ -561,14 +621,14 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
                       height: 52,
                       borderRadius: "12px",
                       border: "1px solid #2563EB",
-                      color: "#2563EB",
+                      color: "#f61134",
                       fontSize: 32,
                       fontWeight: 700,
                       textTransform: "none",
                       bgcolor: "transparent",
                       "&:hover": {
-                        bgcolor: "rgba(37, 99, 235, 0.05)",
-                        border: "1px solid #1D4ED8",
+                        bgcolor: "rgba(246, 17, 52, 0.05)",
+                        border: "1px solid #f61134",
                       },
                     }}
                   >
@@ -584,17 +644,15 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
               onClick={() => {
                 setStep(1);
                 setOtp("");
-                setError("");
-                setSuccess("");
               }}
               sx={{
                 mt: 2,
-                color: "#64748B",
+                color: "rgba(15, 23, 42, 0.6)",
                 fontSize: 32,
                 fontWeight: 700,
                 textTransform: "none",
                 "&:hover": {
-                  color: "#94A3B8",
+                  color: "rgba(15, 23, 42, 0.6)",
                   bgcolor: "transparent",
                 },
               }}
@@ -605,6 +663,26 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
         )}
       </Paper>
     </Box>
+
+      {/* Overlay notifications — rendered on top of the login page */}
+      {showRegisterError && (
+        <RegisterNumber
+          message={registerErrorMsg}
+          onRetry={() => {
+            setShowRegisterError(false);
+            setRegisterErrorMsg("");
+            setPhone("");
+          }}
+        />
+      )}
+      {showOtpError && (
+        <ValidOTP
+          onRetry={() => {
+            setShowOtpError(false);
+            setOtp("");
+          }}
+        />
+      )}
     </div>
   );
 };

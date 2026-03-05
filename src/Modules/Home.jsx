@@ -1,21 +1,38 @@
-import { AppBar, Toolbar, Typography, IconButton, Box, InputBase } from "@mui/material";
+import { AppBar, Toolbar, Typography, IconButton, Box, InputBase, List, ListItemButton, ListItemIcon } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import SettingsIcon from "@mui/icons-material/Settings";
-import { useEffect, useRef, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import SidebarGlass from "./HomeSidebar";
+import HomeIcon from "@mui/icons-material/Home";
+import LiveTvIcon from "@mui/icons-material/LiveTv";
+import MovieIcon from "@mui/icons-material/Movie";
+import FeedbackIcon from "@mui/icons-material/Feedback";
+import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder";
+import TranslateIcon from "@mui/icons-material/Translate";
+import { useEffect, useRef, useMemo, useState, useCallback } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import useLiveChannelsStore from "../Global-storage/LiveChannelsStore";
 import useLanguageStore from "../Global-storage/LivePlayersStore";
 import useHomeAdsStore from "../Global-storage/ChannelsSearchStore";
-import { TV_TYPOGRAPHY, TV_SPACING, TV_RADIUS, TV_COLORS, TV_SIZES, TV_SHADOWS } from "../styles/tvConstants";
+import { useEnhancedRemoteNavigation } from "../Atomic-Common-Componenets/useMagicRemote";
+import { TV_TYPOGRAPHY, TV_SPACING, TV_RADIUS, TV_COLORS, TV_SIZES, TV_SHADOWS, TV_TIMING } from "../styles/tvConstants";
+
+const menuItems = [
+  { icon: <HomeIcon />, path: "/home", label: "Home" },
+  { icon: <LiveTvIcon />, path: "/live-channels", label: "Live TV" },
+  { icon: <TranslateIcon />, path: "/languagechannels", label: "Language Channels" },
+  { icon: <MovieIcon />, path: "/movies-ott", label: "Movies" },
+  { icon: <FeedbackIcon />, path: "/feedback", label: "Feedback" },
+  { icon: <FavoriteBorderIcon />, path: "/favorites", label: "Favorites" },
+];
 
 const Home = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const headerRef = useRef(null);
   const sidebarRef = useRef(null);
   const contentRef = useRef(null);
   const autoPlayTimerRef = useRef(null);
   const hasAutoPlayedRef = useRef(false);
+  const AUTO_PLAY_SESSION_KEY = "home_999_autoplay_handled";
 
   // ===================== LIVE CHANNELS STORE =====================
   const { channelsCache, fetchChannels } = useLiveChannelsStore();
@@ -34,6 +51,39 @@ const Home = () => {
     height: TV_SIZES.icon.large,
     "&:hover": { bgcolor: TV_COLORS.glass.light },
   };
+
+  const cancelInfoChannelAutoplay = useCallback((reason = "interaction") => {
+    if (!autoPlayTimerRef.current) return;
+    console.log(`[Home] Canceling info channel autoplay due to: ${reason}`);
+    clearTimeout(autoPlayTimerRef.current);
+    autoPlayTimerRef.current = null;
+    hasAutoPlayedRef.current = true;
+    sessionStorage.setItem(AUTO_PLAY_SESSION_KEY, "1");
+  }, [AUTO_PLAY_SESSION_KEY]);
+
+  const handleSidebarNavigate = useCallback(
+    (path) => {
+      if (!path || location.pathname === path) return;
+      navigate(path);
+    },
+    [navigate, location.pathname]
+  );
+
+  const {
+    focusedIndex,
+    hoveredIndex,
+    getItemProps,
+    magicRemoteReady,
+  } = useEnhancedRemoteNavigation(menuItems, {
+    orientation: "vertical",
+    useMagicRemotePointer: true,
+    focusThreshold: 150,
+    onSelect: (index) => {
+      if (menuItems[index]?.path) {
+        handleSidebarNavigate(menuItems[index].path);
+      }
+    },
+  });
 
   // ===================== CHANNELS VIEW (Language Grid) =====================
   const { languagesCache, error: langError, fetchLanguages } = useLanguageStore();
@@ -101,7 +151,10 @@ const Home = () => {
 
   // Auto-play Fo-Fi Info (999) after 5 seconds
   useEffect(() => {
-    if (channels.length === 0 || hasAutoPlayedRef.current || !mobile) return;
+    const alreadyHandledThisSession = sessionStorage.getItem(AUTO_PLAY_SESSION_KEY) === "1";
+    if (channels.length === 0 || hasAutoPlayedRef.current || !mobile || alreadyHandledThisSession) return;
+
+    sessionStorage.setItem(AUTO_PLAY_SESSION_KEY, "1");
 
     console.log("[Home] Starting 5-second auto-play timer for Fo-Fi Info (999)...");
 
@@ -125,6 +178,7 @@ const Home = () => {
         }
       } else {
         console.warn("[Home] Fo-Fi Info channel (999) not found");
+        hasAutoPlayedRef.current = true;
       }
     }, 5000);
 
@@ -133,26 +187,61 @@ const Home = () => {
         console.log("[Home] Clearing auto-play timer");
         clearTimeout(autoPlayTimerRef.current);
         autoPlayTimerRef.current = null;
-      }
-    };
-  }, [channels, mobile, navigate]);
-
-  useEffect(() => {
-    const handleUserInteraction = () => {
-      if (autoPlayTimerRef.current) {
-        console.log("[Home] User interaction detected - canceling auto-play");
-        clearTimeout(autoPlayTimerRef.current);
-        autoPlayTimerRef.current = null;
         hasAutoPlayedRef.current = true;
       }
     };
+  }, [channels, mobile, navigate, AUTO_PLAY_SESSION_KEY]);
+
+  useEffect(() => {
+    const handleUserInteraction = () => {
+      cancelInfoChannelAutoplay("user-interaction");
+    };
+
+    const handleRemoteExitBack = (event) => {
+      const keyCode = event?.keyCode;
+      const key = event?.key;
+      const isBackOrExit =
+        key === "Backspace" ||
+        key === "Escape" ||
+        key === "BrowserBack" ||
+        key === "GoBack" ||
+        keyCode === 8 ||
+        keyCode === 27 ||
+        keyCode === 461 ||
+        keyCode === 10009;
+
+      if (!isBackOrExit) return;
+
+      cancelInfoChannelAutoplay("remote-exit-back");
+      event.preventDefault?.();
+      event.stopPropagation?.();
+    };
+
+    const handleAppHidden = () => {
+      if (document.hidden) {
+        cancelInfoChannelAutoplay("app-hidden");
+      }
+    };
+
+    const handlePageHide = () => cancelInfoChannelAutoplay("page-hide");
+    const handleWindowBlur = () => cancelInfoChannelAutoplay("window-blur");
+
     window.addEventListener("keydown", handleUserInteraction, true);
     window.addEventListener("click", handleUserInteraction, true);
+    window.addEventListener("keydown", handleRemoteExitBack, true);
+    document.addEventListener("visibilitychange", handleAppHidden, true);
+    window.addEventListener("pagehide", handlePageHide, true);
+    window.addEventListener("blur", handleWindowBlur, true);
+
     return () => {
       window.removeEventListener("keydown", handleUserInteraction, true);
       window.removeEventListener("click", handleUserInteraction, true);
+      window.removeEventListener("keydown", handleRemoteExitBack, true);
+      document.removeEventListener("visibilitychange", handleAppHidden, true);
+      window.removeEventListener("pagehide", handlePageHide, true);
+      window.removeEventListener("blur", handleWindowBlur, true);
     };
-  }, []);
+  }, [cancelInfoChannelAutoplay]);
 
   return (
     <Box
@@ -168,7 +257,90 @@ const Home = () => {
     >
       {/* ===================== SIDEBAR ===================== */}
       <Box ref={sidebarRef} data-focusable-section="home-sidebar" sx={{ flex: "0 0 auto" }}>
-        <SidebarGlass />
+        <Box
+          sx={{
+            width: "6rem",
+            height: "calc(100vh - 20vh)",
+            position: "fixed",
+            left: TV_SPACING.lg,
+            top: "10vh",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            bgcolor: TV_COLORS.glass.light,
+            backdropFilter: "none",
+            borderRadius: TV_RADIUS.xxl,
+            border: "2px solid rgba(255,255,255,0.2)",
+            boxShadow: TV_SHADOWS.xl,
+            py: TV_SPACING.lg,
+            zIndex: 1000,
+          }}
+        >
+          <Box sx={{ flex: 1 }} />
+
+          {magicRemoteReady && (
+            <Box
+              sx={{
+                mb: TV_SPACING.md,
+                display: "flex",
+                justifyContent: "center",
+              }}
+            >
+              <Box
+                sx={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  bgcolor: "#43e97b",
+                  boxShadow: "0 0 10px rgba(67, 233, 123, 0.8)",
+                  animation: "pulse-dot 1.5s ease-in-out infinite",
+                }}
+              />
+            </Box>
+          )}
+
+          <List sx={{ width: "100%", p: 0 }}>
+            {menuItems.map((item, index) => {
+              const isFocused = focusedIndex === index;
+              const isHovered = hoveredIndex === index;
+
+              return (
+                <ListItemButton
+                  key={item.path || index}
+                  {...getItemProps(index)}
+                  className={`focusable-icon-button ${isFocused ? "focused" : ""} ${isHovered ? "hovered" : ""}`}
+                  onClick={() => item.path && handleSidebarNavigate(item.path)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      if (item.path) handleSidebarNavigate(item.path);
+                    }
+                  }}
+                  sx={{
+                    mb: TV_SPACING.md,
+                    borderRadius: TV_RADIUS.xl,
+                    justifyContent: "center",
+                    minWidth: 0,
+                    p: TV_SPACING.lg,
+                    minHeight: "4.2rem",
+                  }}
+                >
+                  <ListItemIcon
+                    sx={{
+                      minWidth: 0,
+                      fontSize: "2.4rem",
+                      transition: `color ${TV_TIMING.fast} ease`,
+                    }}
+                  >
+                    {item.icon}
+                  </ListItemIcon>
+                </ListItemButton>
+              );
+            })}
+          </List>
+
+          <Box sx={{ flex: 1 }} />
+        </Box>
       </Box>
 
       <Box sx={{ display: "flex", flexDirection: "column", flex: 1, width: "100%" }}>
@@ -417,10 +589,6 @@ const Home = () => {
                               borderRadius: "1rem",
                               position: "relative",
                               background: "#121212",
-                              backgroundImage: `url(${lang.langlogo})`,
-                              backgroundSize: "cover",
-                              backgroundPosition: "center",
-                              backgroundRepeat: "no-repeat",
                               boxShadow: "0 4px 16px rgba(0, 0, 0, 0.3)",
                             }}
                           >
@@ -428,17 +596,16 @@ const Home = () => {
                               component="img"
                               src={lang.langlogo}
                               alt={lang.langtitle}
+                              loading="lazy"
                               sx={{
-                                position: "absolute",
-                                inset: 0,
                                 width: "100%",
                                 height: "100%",
-                                opacity: 0,
-                                pointerEvents: "none",
+                                display: "block",
+                                objectFit: "cover",
+                                objectPosition: "center",
                               }}
                               onError={(e) => {
                                 e.currentTarget.style.display = "none";
-                                e.currentTarget.parentElement.style.backgroundImage = "none";
                               }}
                             />
                           </Box>

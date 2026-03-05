@@ -4,7 +4,7 @@ import { Box, Typography, ButtonBase, Button, InputAdornment, IconButton, Skelet
 import SearchIcon from "@mui/icons-material/Search";
 import ClearIcon from "@mui/icons-material/Clear";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { DEFAULT_USER } from "../Api/config";
+
 import SearchTextField from "../Atomic-Reusable-Componenets/Search";
 import ChannelBox from "../Atomic-Reusable-Componenets/ChannelBox";
 import useLiveChannelsStore from "../Global-storage/LiveChannelsStore";
@@ -30,7 +30,7 @@ const LiveChannels = () => {
   const numberTimerRef = useRef(null);
 
   // Get userid + mobile
-  const userid = localStorage.getItem("userId") || DEFAULT_USER.userid;
+  const userid = localStorage.getItem("userId") || "";
   const mobile = localStorage.getItem("userPhone") || "";
   const channelsKey = `${userid}|${mobile}|`;
   const channelsEntry = channelsCache[channelsKey] || {};
