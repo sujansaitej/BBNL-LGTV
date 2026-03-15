@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-import { API_ENDPOINTS } from "../Api/config";
+import { API_ENDPOINTS } from "../server/config";
 import { postJson } from "./HomeStore";
 
 const useFeedbackStore = create((set) => ({

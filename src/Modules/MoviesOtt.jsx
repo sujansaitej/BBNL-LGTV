@@ -2,8 +2,8 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import { Box, Typography, Button, CircularProgress } from "@mui/material";
 import { useNavigate } from "react-router-dom";
-import { API_ENDPOINTS, getDefaultHeaders } from "../Api/config";
-import { useEnhancedRemoteNavigation } from "../Atomic-Common-Componenets/useMagicRemote";
+import { API_ENDPOINTS, getDefaultHeaders } from "../server/config";
+import { useEnhancedRemoteNavigation } from "../Remote/useMagicRemote";
 
 const FALLBACK_OTT_IMAGE = "http://124.40.244.211/netmon/Cabletvapis/showimg/coming_soon_ott.png";
 

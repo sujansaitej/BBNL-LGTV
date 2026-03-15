@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Box, Typography } from "@mui/material";
 import { useLocation, useNavigate } from "react-router-dom";
-import StreamPlayer from "../Atomic-Module-Componenets/Channels/StreamPlayer";
+import StreamPlayer from "../Pages/Channels/StreamPlayer";
 import ChannelsSidebar from "./ChannelsSidebar";
 import ChannelsDetails from "./ChannelsDetails";
 import ChannelNumberDisplay, { findChannelByNumber } from "./Lcn";
 
-import useLiveChannelsStore from "../Global-storage/LiveChannelsStore";
-import { useMagicRemote } from "../Atomic-Common-Componenets/useMagicRemote";
-import { useDeviceInformation } from "../Api/Deviceinformaction/LG-Devicesinformaction";
-import { postTrpData } from "../Api/modules-api/trpdata";
+import useLiveChannelsStore from "../store/LiveChannelsStore";
+import { useMagicRemote } from "../Remote/useMagicRemote";
+import { useDeviceInformation } from "../server/Deviceinformaction/LG-Devicesinformaction";
+import { postTrpData } from "../server/modules-api/trpdata";
 
 const LivePlayer = () => {
   const location = useLocation();

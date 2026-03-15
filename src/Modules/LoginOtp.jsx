@@ -1,13 +1,13 @@
 import { useState, useEffect } from "react";
 import {  Box,  Paper, Typography, Button, TextField, CircularProgress} from "@mui/material";
 import { useNavigate } from "react-router-dom";
-import NetworkErrorNotification from "../Atomic-ErrorThrow-Componenets/Modules-Erros/NetworkError";
-import RegisterNumber from "../Atomic-ErrorThrow-Componenets/RegisterNumber";
-import ValidOTP from "../Atomic-ErrorThrow-Componenets/ValidOTP";
-import useAuthStore from "../Global-storage/AuthStore";
-import { useDeviceInformation } from "../Api/Deviceinformaction/LG-Devicesinformaction";
-import fetchLoginLogo from "../Api/OAuthentication-Api/LogoApi";
-import { fetchLoginBackground } from "../Api/OAuthentication-Api/LogoApi";
+import NetworkErrorNotification from "../error/Modules-Erros/NetworkError";
+import RegisterNumber from "../error/RegisterNumber";
+import ValidOTP from "../error/ValidOTP";
+import useAuthStore from "../store/AuthStore";
+import { useDeviceInformation } from "../server/Deviceinformaction/LG-Devicesinformaction";
+import fetchLoginLogo from "../server/OAuthentication-Api/LogoApi";
+import { fetchLoginBackground } from "../server/OAuthentication-Api/LogoApi";
 
 const PhoneAuthApp = ({ onLoginSuccess }) => {
   const navigate = useNavigate();

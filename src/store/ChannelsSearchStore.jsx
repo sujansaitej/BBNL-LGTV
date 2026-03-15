@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-import { API_ENDPOINTS } from "../Api/config";
+import { API_ENDPOINTS } from "../server/config";
 import { nowMs, postForm, postJson } from "./HomeStore";
 
 const ADS_TTL_MS = 10 * 60 * 1000;

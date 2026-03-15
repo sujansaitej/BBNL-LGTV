@@ -6,8 +6,8 @@ import StarIcon from "@mui/icons-material/Star";
 import StarBorderIcon from "@mui/icons-material/StarBorder";
 
 
-import useFeedbackStore from "../Global-storage/FeedbackStore";
-import { useEnhancedRemoteNavigation } from "../Atomic-Common-Componenets/useMagicRemote";
+import useFeedbackStore from "../store/FeedbackStore";
+import { useEnhancedRemoteNavigation } from "../Remote/useMagicRemote";
 
 const Feedback = () => {
   const navigate = useNavigate();

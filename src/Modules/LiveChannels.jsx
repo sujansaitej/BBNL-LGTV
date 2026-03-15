@@ -7,8 +7,8 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 
 import SearchTextField from "../Atomic-Reusable-Componenets/Search";
 import ChannelBox from "../Atomic-Reusable-Componenets/ChannelBox";
-import useLiveChannelsStore from "../Global-storage/LiveChannelsStore";
-import useLanguageStore from "../Global-storage/LivePlayersStore";
+import useLiveChannelsStore from "../store/LiveChannelsStore";
+import useLanguageStore from "../store/LivePlayersStore";
 import {  TV_TYPOGRAPHY,  TV_SPACING,  TV_RADIUS, TV_COLORS,  TV_SIZES, TV_GRID, TV_SAFE_ZONE } from "../styles/tvConstants";
 
 const LiveChannels = () => {

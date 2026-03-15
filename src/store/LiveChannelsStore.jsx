@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-import { API_ENDPOINTS } from "../Api/config";
+import { API_ENDPOINTS } from "../server/config";
 import { nowMs, postJson } from "./HomeStore";
 
 const CHANNELS_TTL_MS = 30 * 60 * 1000;

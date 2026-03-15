@@ -5,9 +5,9 @@ import { MemoryRouter as Router, Routes, Route, Navigate } from 'react-router-do
 import { useState, useEffect, lazy, Suspense } from 'react';
 import { initializeWebOSEnvironment, preventWebOSDefaults } from './utils/webos';
 import { initializeMagicRemoteUIStability, cleanupMagicRemoteUIStability } from './utils/magicRemoteUIStability';
-import checkAppLock from './Api/OAuthentication-Api/Applock';
-import { useDeviceInformation } from './Api/Deviceinformaction/LG-Devicesinformaction';
-import ServiceLocked from './Atomic-ErrorThrow-Componenets/ServiceLocked';
+import checkAppLock from './server/OAuthentication-Api/Applock';
+import { useDeviceInformation } from './server/Deviceinformaction/LG-Devicesinformaction';
+import ServiceLocked from './error/ServiceLocked';
 
 const lazyWithPreload = (importer) => {
   const Component = lazy(importer);
@@ -15,8 +15,8 @@ const lazyWithPreload = (importer) => {
   return Component;
 };
 
-const BbnlVideo = lazyWithPreload(() => import("./OAuthenticate/bbnl"));
-const PhoneNumberOtp = lazyWithPreload(() => import("./OAuthenticate/LoginOtp"));
+const BbnlVideo = lazyWithPreload(() => import("./Modules/bbnl"));
+const PhoneNumberOtp = lazyWithPreload(() => import("./Modules/LoginOtp"));
 const Home = lazyWithPreload(() => import('./Modules/Home'));
 const LiveChannels = lazyWithPreload(() => import('./Modules/LiveChannels'));
 const LanguageChannels = lazyWithPreload(() => import('./Modules/LanguageChannels'));

@@ -1,4 +1,4 @@
-import { getDefaultHeaders } from "../Api/config";
+import { getDefaultHeaders } from "../server/config";
 
 export const postJson = async (url, payload, headers = {}) => {
 	const response = await fetch(url, {

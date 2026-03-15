@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { Box, Typography, CircularProgress } from "@mui/material";
-import { API_ENDPOINTS, getDefaultHeaders } from "../Api/config";
+import { API_ENDPOINTS, getDefaultHeaders } from "../../server/config";
 
 const FALLBACK_IMAGE = "http://124.40.244.211/netmon/Cabletvapis/showimg/service_locked.png";
 

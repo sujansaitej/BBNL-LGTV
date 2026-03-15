@@ -9,10 +9,10 @@ import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder";
 import TranslateIcon from "@mui/icons-material/Translate";
 import { useEffect, useRef, useMemo, useState, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import useLiveChannelsStore from "../Global-storage/LiveChannelsStore";
-import useLanguageStore from "../Global-storage/LivePlayersStore";
-import useHomeAdsStore from "../Global-storage/ChannelsSearchStore";
-import { useEnhancedRemoteNavigation } from "../Atomic-Common-Componenets/useMagicRemote";
+import useLiveChannelsStore from "../store/LiveChannelsStore";
+import useLanguageStore from "../store/LivePlayersStore";
+import useHomeAdsStore from "../store/ChannelsSearchStore";
+import { useEnhancedRemoteNavigation } from "../Remote/useMagicRemote";
 import { TV_TYPOGRAPHY, TV_SPACING, TV_RADIUS, TV_COLORS, TV_SIZES, TV_SHADOWS, TV_TIMING } from "../styles/tvConstants";
 
 const menuItems = [

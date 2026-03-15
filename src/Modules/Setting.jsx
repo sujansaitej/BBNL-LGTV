@@ -5,10 +5,10 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import InfoIcon from "@mui/icons-material/Info";
 import LogoutIcon from "@mui/icons-material/Logout";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
-import { useDeviceInformation } from "../Api/Deviceinformaction/LG-Devicesinformaction";
+import { useDeviceInformation } from "../server/Deviceinformaction/LG-Devicesinformaction";
 
-import useAppVersionStore from "../Global-storage/LogineOttp";
-import { useEnhancedRemoteNavigation } from "../Atomic-Common-Componenets/useMagicRemote";
+import useAppVersionStore from "../store/LogineOttp";
+import { useEnhancedRemoteNavigation } from "../Remote/useMagicRemote";
 
 const Setting = ({ onLogout }) => {
   const navigate = useNavigate();

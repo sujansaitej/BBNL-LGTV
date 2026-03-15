@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-import { API_ENDPOINTS } from "../Api/config";
+import { API_ENDPOINTS } from "../server/config";
 import { nowMs, postJson } from "./HomeStore";
 
 const LANG_TTL_MS = 2 * 60 * 60 * 1000;

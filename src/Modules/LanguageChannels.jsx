@@ -3,10 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { Box, Typography, Button, IconButton, Skeleton } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 
-import { fetchLanguages } from "../Api/modules-api/LanguageChannelsApi";
-import { fetchChannels } from "../Api/modules-api/ChannelApi";
-import { getDefaultHeaders } from "../Api/config";
-import { useEnhancedRemoteNavigation } from "../Atomic-Common-Componenets/useMagicRemote";
+import { fetchLanguages } from "../server/modules-api/LanguageChannelsApi";
+import { fetchChannels } from "../server/modules-api/ChannelApi";
+import { getDefaultHeaders } from "../server/config";
+import { useEnhancedRemoteNavigation } from "../Remote/useMagicRemote";
 
 // Gradient colors for each language card (unique gradient pairs)
 const GRADIENT_COLORS = [

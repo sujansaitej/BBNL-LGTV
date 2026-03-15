@@ -1,7 +1,7 @@
 import { Box, Typography, Button, CircularProgress } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { fetchComingSoonImage } from "../Api/OAuthentication-Api/LogoApi";
+import { fetchComingSoonImage } from "../server/OAuthentication-Api/LogoApi";
 
 const Favorites = () => {
 	const navigate = useNavigate();

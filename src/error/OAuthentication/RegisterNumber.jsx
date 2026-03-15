@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { Box, Paper, Typography, Button, CircularProgress } from "@mui/material";
-import { API_ENDPOINTS, API_BASE_URL_PROD, getDefaultHeaders } from "../Api/config";
+import { API_ENDPOINTS, API_BASE_URL_PROD, getDefaultHeaders } from "../../server/config";
 
 const FALLBACK_LOGIN_REQUIRED_IMAGE = "http://124.40.244.211/netmon/Cabletvapis/showimg/login_required.png";
 

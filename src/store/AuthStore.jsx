@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-import { API_ENDPOINTS } from "../Api/config";
+import { API_ENDPOINTS } from "../server/config";
 import { buildAuthPayload, postJson } from "./HomeStore";
 
 const useAuthStore = create((set) => ({
