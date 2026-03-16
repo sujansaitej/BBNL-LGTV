@@ -1,682 +1,633 @@
-import { useState, useEffect } from "react";
-import {  Box,  Paper, Typography, Button, TextField, CircularProgress} from "@mui/material";
+/**
+ * LoginOtp — LG webOS TV Remote Navigation (FIXED)
+ *
+ * Remote key mapping:
+ *   DOWN / UP     → move focus between: [digits] → [Get OTP btn] (step 1)
+ *                                        [digits] → [Verify btn] → [Resend/Back] (step 2)
+ *   OK / ENTER    → activate focused item
+ *   BACK (461)    → step 2 → step 1 (stopPropagation so GlobalBackHandler won't fire)
+ *   0-9           → digit input (no HTML <input> focus needed — pure state)
+ *   BACKSPACE / RED (403) → delete last digit
+ *
+ * Fixes applied vs previous version:
+ *  ✓ Buttons are NEVER `disabled` (disabled elements can't be DOM-focused)
+ *  ✓ tabIndex juggle: only the focused element gets tabIndex=0 (prevents webOS spatial nav conflict)
+ *  ✓ digitsRef added so the digit area can also receive real DOM focus
+ *  ✓ moveFocus() calls setFocused() + requestAnimationFrame(el.focus()) — works after React re-render
+ *  ✓ moveFocusRef stores moveFocus so the zero-dep keydown handler always has the latest copy
+ *  ✓ action handlers read phone/otp/loading from S.current (never stale)
+ */
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import NetworkErrorNotification from "../error/Modules-Erros/NetworkError";
-import RegisterNumber from "../error/RegisterNumber";
-import ValidOTP from "../error/ValidOTP";
+import RegisterNumber from "../error/OAuthentication/RegisterNumber";
+import ValidOTP from "../error/OAuthentication/ValidOTP";
 import useAuthStore from "../store/AuthStore";
 import { useDeviceInformation } from "../server/Deviceinformaction/LG-Devicesinformaction";
 import fetchLoginLogo from "../server/OAuthentication-Api/LogoApi";
-import { fetchLoginBackground } from "../server/OAuthentication-Api/LogoApi";
 
+/* ─── tiny spinner ───────────────────────────────────────────────────────── */
+const Spinner = ({ size = 22 }) => (
+  <span style={{
+    display: "inline-block", width: size, height: size,
+    border: "3px solid rgba(255,255,255,0.3)", borderTopColor: "#fff",
+    borderRadius: "50%", animation: "_spin 0.9s linear infinite",
+    verticalAlign: "middle",
+  }} />
+);
+
+/* ─── focus-order lists ─────────────────────────────────────────────────── */
+const S1        = ["digits", "btn-getotp"];
+const S2_TIMER  = ["digits", "btn-verify", "btn-back"];
+const S2_RESEND = ["digits", "btn-verify", "btn-resend", "btn-back"];
+
+const getList = (step, isTimerRunning) =>
+  step === 1 ? S1 : (isTimerRunning ? S2_TIMER : S2_RESEND);
+
+/* ══════════════════════════════════════════════════════════════════════════ */
 const PhoneAuthApp = ({ onLoginSuccess }) => {
   const navigate = useNavigate();
 
-  const [step, setStep] = useState(1);
-  const [phone, setPhone] = useState("");
-  const [otp, setOtp] = useState("");
-  const [serverOtp, setServerOtp] = useState(""); // OTP from /login response
-  const [loading, setLoading] = useState(false);
-  const { sendOtp, resendOtp } = useAuthStore();
+  const [step,    setStep]    = useState(1);
+  const [phone,   setPhone]   = useState("");
+  const [otp,     setOtp]     = useState("");
+  const [focused, setFocused] = useState("digits");   // ← single source of truth for focus
 
-  const [networkError, setNetworkError] = useState(false);
+  const [serverOtp,        setServerOtp]        = useState("");
+  const [loading,          setLoading]          = useState(false);
+  const { sendOtp, resendOtp }                  = useAuthStore();
+
+  const [networkError,      setNetworkError]      = useState(false);
   const [showRegisterError, setShowRegisterError] = useState(false);
-  const [registerErrorMsg, setRegisterErrorMsg] = useState("");
-  const [showOtpError, setShowOtpError] = useState(false);
-  const [timer, setTimer] = useState(30);
-  const [isTimerRunning, setIsTimerRunning] = useState(false);
-  const [dynamicLogo, setDynamicLogo] = useState("");
-  const [logoLoadFailed, setLogoLoadFailed] = useState(false);
-  const fallbackBgUrl = "http://124.40.244.211/netmon/Cabletvapis/showimg/lg_iptv_login_bg.png";
-  const [bgImage, setBgImage] = useState(fallbackBgUrl);
+  const [registerErrorMsg,  setRegisterErrorMsg]  = useState("");
+  const [showOtpError,      setShowOtpError]      = useState(false);
+  const [timer,             setTimer]             = useState(60);
+  const [isTimerRunning,    setIsTimerRunning]    = useState(false);
+  const [dynamicLogo,       setDynamicLogo]       = useState("");
+  const [logoLoadFailed,    setLogoLoadFailed]    = useState(false);
 
-  // Fetch device information (IP address and Device ID)
   const deviceInfo = useDeviceInformation();
 
-  // Background always ready — file is in public/Asset/
+  /* ── always-current state snapshot for zero-dep handlers ─────────────── */
+  const S = useRef({});
+  S.current = { step, phone, otp, focused, loading, serverOtp, isTimerRunning };
 
+  /* ── DOM refs (one per focusable item) ───────────────────────────────── */
+  const digitsRef          = useRef(null);
+  const hiddenPhoneInputRef = useRef(null);
+  const hiddenOtpInputRef   = useRef(null);
+  const btnGetOtpRef = useRef(null);
+  const btnVerifyRef = useRef(null);
+  const btnResendRef = useRef(null);
+  const btnBackRef   = useRef(null);
+
+  /* map id → ref so moveFocus can look up the right element.
+     digits → hidden <input type="tel"> so DOM focus triggers system keyboard */
+  const refsMap = useRef({});
+  refsMap.current = {
+    digits:        step === 1 ? hiddenPhoneInputRef : hiddenOtpInputRef,
+    "btn-getotp":  btnGetOtpRef,
+    "btn-verify":  btnVerifyRef,
+    "btn-resend":  btnResendRef,
+    "btn-back":    btnBackRef,
+  };
+
+  /* ── moveFocus: update React state + DOM focus after next paint ───────── */
+  /* Stored in a ref so the zero-dep keydown handler can always call it.     */
+  const moveFocusRef = useRef(null);
+  moveFocusRef.current = (nextId) => {
+    setFocused(nextId);
+    /* requestAnimationFrame fires after React flushes the setState above,
+       so tabIndex will already be 0 on the target element by this time.     */
+    requestAnimationFrame(() => {
+      refsMap.current[nextId]?.current?.focus({ preventScroll: true });
+    });
+  };
+
+  /* ── logo ──────────────────────────────────────────────────────────────── */
   useEffect(() => {
-    let isMounted = true;
-
-    const loadLogo = async () => {
-      const result = await fetchLoginLogo({
-        device_type: "LG TV",
-        device_name: "LG TV",
-      });
-
-      if (isMounted && result?.success && result?.logoPath) {
-        setDynamicLogo(result.logoPath);
-        setLogoLoadFailed(false);
-      }
-    };
-
-    loadLogo();
-    return () => {
-      isMounted = false;
-    };
+    let alive = true;
+    fetchLoginLogo({ device_type: "LG TV", device_name: "LG TV" }).then((res) => {
+      if (alive && res?.success && res?.logoPath) setDynamicLogo(res.logoPath);
+    });
+    return () => { alive = false; };
   }, []);
 
-  useEffect(() => {
-    let isMounted = true;
-    
-    const loadBg = async () => {
-      console.log("[LoginOtp] Starting background image load...");
-      const result = await fetchLoginBackground();
-      console.log("[LoginOtp] fetchLoginBackground result:", result);
-      
-      if (isMounted) {
-        if (result?.success && result?.bgUrl) {
-          console.log("[LoginOtp] Setting bgImage state to:", result.bgUrl);
-          setBgImage(result.bgUrl);
-        } else {
-          console.log("[LoginOtp] API failed, keeping fallback URL");
-        }
-      }
-    };
-    
-    loadBg();
-    
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  /* ---------------- TIMERS ---------------- */
+  /* ── OTP timer ────────────────────────────────────────────────────────── */
   useEffect(() => {
     if (step === 2) {
       setTimer(60);
       setIsTimerRunning(true);
+      moveFocusRef.current("digits");
     }
   }, [step]);
 
   useEffect(() => {
-    let interval;
-    if (isTimerRunning && timer > 0) {
-      interval = setInterval(() => setTimer((t) => t - 1), 1000);
-    }
-    if (timer === 0) setIsTimerRunning(false);
-    return () => clearInterval(interval);
+    if (!isTimerRunning || timer <= 0) { if (timer === 0) setIsTimerRunning(false); return; }
+    const id = setInterval(() => setTimer((t) => t - 1), 1000);
+    return () => clearInterval(id);
   }, [timer, isTimerRunning]);
 
-  /* ---------------- INPUT HANDLERS ---------------- */
-  const handlePhoneChange = (e) => {
-    const v = e.target.value.replace(/\D/g, "");
-    if (v.length <= 10) {
-      setPhone(v);
-    }
-  };
+  /* ── auto-focus digits on mount ──────────────────────────────────────── */
+  useEffect(() => {
+    requestAnimationFrame(() => digitsRef.current?.focus({ preventScroll: true }));
+  }, []);
 
-  const handlePhoneKeyDown = (e) => {
-    if (e.key === "Enter" && phone.length === 10 && !loading) {
-      handleGetOtp();
-    }
-  };
-
-  const handleOtpChange = (e) => {
-    const v = e.target.value.replace(/\D/g, "");
-    if (v.length <= 4) {
-      setOtp(v);
-      // Auto-submit when 4 digits entered
-      if (v.length === 4) {
-        setTimeout(() => handleVerifyOtp(), 300);
-      }
-    }
-  };
-
-  const handleOtpKeyDown = (e) => {
-    if (e.key === "Enter" && otp.length === 4 && !loading) {
-      handleVerifyOtp();
-    }
-  };
-
-  /* ---------------- HELPERS ---------------- */
-  const isNetworkError = (err) =>
-    !navigator.onLine ||
-    err.code === "ERR_NETWORK" ||
-    err.message === "Network Error" ||
-    !err.response;
-
-  /* ---------------- API CALLS ---------------- */
-  const handleGetOtp = async () => {
-    if (phone.length !== 10) return;
-
-    setLoading(true);
-    setNetworkError(false);
-
+  /* ─── actions (use S.current so they're never stale) ─────────────────── */
+  const handleGetOtp = useCallback(async () => {
+    const { phone, loading } = S.current;
+    if (phone.length !== 10 || loading) return;
+    setLoading(true); setNetworkError(false);
     try {
       const result = await sendOtp(phone, {
         ip_address: deviceInfo.privateIPv4 || deviceInfo.publicIPv4 || "",
-        device_name: "LG TV",
-        device_type: "LG TV",
-        devdets: {
-          brand: "LG",
-          model: deviceInfo.modelName || "",
-          mac: "",
-        },
+        device_name: "LG TV", device_type: "LG TV",
+        devdets: { brand: "LG", model: deviceInfo.modelName || "", mac: "" },
       });
-
       if (result.success) {
-        const responseUserId = result.data?.body?.[0]?.userid;
-        localStorage.setItem("userId", responseUserId || "");
+        localStorage.setItem("userId", result.data?.body?.[0]?.userid || "");
         localStorage.setItem("userPhone", phone);
         setServerOtp(String(result.otp || ""));
-        setTimeout(() => {
-          setStep(2);
-        }, 500);
+        setTimeout(() => setStep(2), 400);
+      } else if (result.networkError) {
+        setNetworkError(true);
       } else {
         setRegisterErrorMsg(result.message || "Invalid User / Mobile Number");
         setShowRegisterError(true);
       }
     } catch (e) {
-      console.error("OTP Send Error:", e);
-      if (isNetworkError(e)) {
-        setNetworkError(true);
-      } else {
-        setRegisterErrorMsg("Invalid User / Mobile Number");
-        setShowRegisterError(true);
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
+      setNetworkError(true);
+    } finally { setLoading(false); }
+  }, [sendOtp, deviceInfo]);
 
-  // OTP validated locally — /loginOtp is ONLY called by Resend, never here
-  const handleVerifyOtp = () => {
-    if (otp.length !== 4) return;
-
+  const handleVerifyOtp = useCallback(() => {
+    const { otp, serverOtp, loading } = S.current;
+    if (otp.length !== 4 || loading) return;
     if (serverOtp && otp === serverOtp) {
       setLoading(true);
-      setTimeout(() => {
-        setLoading(false);
-        onLoginSuccess?.();
-        navigate("/home");
-      }, 1000);
+      setTimeout(() => { setLoading(false); onLoginSuccess?.(); navigate("/home"); }, 800);
     } else {
       setShowOtpError(true);
     }
-  };
+  }, [onLoginSuccess, navigate]);
 
-  const handleResendOtp = async () => {
+  const handleResendOtp = useCallback(async () => {
+    const { phone } = S.current;
     setLoading(true);
-
     try {
       const result = await resendOtp(phone, {
         ip_address: deviceInfo.privateIPv4 || deviceInfo.publicIPv4 || "",
-        device_name: "LG TV",
-        device_type: "LG TV",
-        devdets: {
-          brand: "LG",
-          model: deviceInfo.modelName || "",
-          mac: "",
-        },
+        device_name: "LG TV", device_type: "LG TV",
+        devdets: { brand: "LG", model: deviceInfo.modelName || "", mac: "" },
       });
-
       if (result.success) {
         setServerOtp(String(result.otp || ""));
-        setTimer(60);
-        setIsTimerRunning(true);
-        setOtp("");
+        setTimer(60); setIsTimerRunning(true); setOtp("");
       }
-    } catch (e) {
-      if (isNetworkError(e)) setNetworkError(true);
-    } finally {
-      setLoading(false);
+    } catch (e) { setNetworkError(true); }
+    finally { setLoading(false); }
+  }, [resendOtp, deviceInfo]);
+
+  /* stable refs for zero-dep keydown handler */
+  const getOtpRef    = useRef(handleGetOtp);
+  const verifyRef    = useRef(handleVerifyOtp);
+  const resendRef    = useRef(handleResendOtp);
+  useEffect(() => { getOtpRef.current = handleGetOtp;    }, [handleGetOtp]);
+  useEffect(() => { verifyRef.current  = handleVerifyOtp; }, [handleVerifyOtp]);
+  useEffect(() => { resendRef.current  = handleResendOtp; }, [handleResendOtp]);
+
+  /* ── auto-verify OTP when 4 digits entered ────────────────────────────── */
+  useEffect(() => {
+    if (step === 2 && otp.length === 4 && !loading) {
+      const t = setTimeout(() => verifyRef.current(), 600);
+      return () => clearTimeout(t);
     }
+  }, [otp, step, loading]);
+
+  /* ════════════════════════════════════════════════════════════════════════
+   *  SINGLE TV REMOTE KEYDOWN HANDLER
+   *  — capture phase (fires before browser default & spatial nav)
+   *  — zero deps (reads everything via S.current / moveFocusRef / action refs)
+   * ════════════════════════════════════════════════════════════════════════ */
+  useEffect(() => {
+    const handle = (e) => {
+      const kc = e.keyCode;
+      const { step, phone, otp, focused, loading, isTimerRunning } = S.current;
+
+      /* ── prevent browser default for ALL navigation keys immediately ──── */
+      const navKeys = [461, 13, 37, 38, 39, 40, 8, 403];
+      const isDigit  = (kc >= 48 && kc <= 57) || (kc >= 96 && kc <= 105);
+      if (navKeys.includes(kc) || isDigit) e.preventDefault();
+
+      /* ── BACK (461) ─────────────────────────────────────────────────── */
+      if (kc === 461 || e.key === "GoBack" || e.key === "Back") {
+        if (step === 2) {
+          e.stopPropagation();          // block GlobalBackHandler
+          setStep(1);
+          setOtp("");
+          moveFocusRef.current("digits");
+        }
+        // step 1 → GlobalBackHandler navigates away
+        return;
+      }
+
+      /* ── OK / ENTER (13) ─────────────────────────────────────────────── */
+      if (kc === 13) {
+        if (step === 1) {
+          if (phone.length === 10 && !loading) getOtpRef.current();
+        } else {
+          if (focused === "btn-back") {
+            setStep(1); setOtp(""); moveFocusRef.current("digits");
+          } else if (focused === "btn-resend" && !isTimerRunning && !loading) {
+            resendRef.current();
+          } else if ((focused === "btn-verify" || focused === "digits") && otp.length === 4 && !loading) {
+            verifyRef.current();
+          }
+        }
+        return;
+      }
+
+      /* ── DOWN (40) ───────────────────────────────────────────────────── */
+      if (kc === 40) {
+        const list = getList(step, isTimerRunning);
+        const idx  = list.indexOf(focused);
+        if (idx !== -1 && idx < list.length - 1) {
+          moveFocusRef.current(list[idx + 1]);
+        }
+        return;
+      }
+
+      /* ── UP (38) ─────────────────────────────────────────────────────── */
+      if (kc === 38) {
+        const list = getList(step, isTimerRunning);
+        const idx  = list.indexOf(focused);
+        if (idx > 0) {
+          moveFocusRef.current(list[idx - 1]);
+        }
+        return;
+      }
+
+      /* ── LEFT (37) — always jump back to digit area ──────────────────── */
+      if (kc === 37 && focused !== "digits") {
+        moveFocusRef.current("digits");
+        return;
+      }
+
+      /* ── DIGITS 0-9 (number row 48-57, numpad 96-105) ────────────────── */
+      let digit = "";
+      if (kc >= 48 && kc <= 57)  digit = String(kc - 48);
+      else if (kc >= 96 && kc <= 105) digit = String(kc - 96);
+
+      if (digit) {
+        e.stopPropagation();
+        if (focused !== "digits") moveFocusRef.current("digits");
+        if (step === 1) { if (phone.length < 10) setPhone((p) => p + digit); }
+        else            { if (otp.length   < 4)  setOtp  ((o) => o + digit); }
+        return;
+      }
+
+      /* ── BACKSPACE (8) or RED key (403) ──────────────────────────────── */
+      if (kc === 8 || kc === 403) {
+        if (focused !== "digits") moveFocusRef.current("digits");
+        if (step === 1) setPhone((p) => p.slice(0, -1));
+        else            setOtp  ((o) => o.slice(0, -1));
+      }
+    };
+
+    window.addEventListener("keydown", handle, true);   // capture phase
+    return () => window.removeEventListener("keydown", handle, true);
+  }, []);   // ← zero deps — all state read via refs
+
+  /* ── helpers ──────────────────────────────────────────────────────────── */
+  /* Returns tabIndex for an item: 0 only when it's the focused one.
+     CRITICAL: disabled elements can't be focused, so we NEVER use `disabled`.
+     Instead we use tabIndex juggle: only 1 element is tabbable at a time,
+     so webOS spatial nav can't jump to unintended elements.                 */
+  const tb = (id) => (focused === id ? 0 : -1);
+
+  /* Focus ring style — applied to every focusable element */
+  const ring = (id) =>
+    focused === id
+      ? {
+          outline:      "3px solid #667eea",
+          outlineOffset: "2px",
+          boxShadow:    "0 0 0 7px rgba(102,126,234,0.28)",
+        }
+      : { outline: "none" };
+
+  /* ── phone digits display — formatted with spaces every 5 digits ──────── */
+  const phoneDisplay = () => {
+    if (!phone) return "";
+    return phone.replace(/(\d{5})(\d{0,5})/, "$1 $2").trim();
   };
 
-  if (networkError) {
-    return <NetworkErrorNotification onRetry={() => setNetworkError(false)} />;
-  }
+  if (networkError) return <NetworkErrorNotification onRetry={() => setNetworkError(false)} />;
 
-  /* ======================= UI ======================= */
+  /* ════════════════════════════════════════════════════════════════════════
+   *  RENDER
+   * ════════════════════════════════════════════════════════════════════════ */
   return (
     <div>
-    <style>{`
-      .login-phone-input {
-        font-size: 56px !important;
-        font-weight: 700 !important;
-        line-height: 1.2 !important;
-        color: #ffffff !important;
-        -webkit-text-fill-color: #ffffff;
-        text-size-adjust: 100%;
-        -webkit-text-size-adjust: 100%;
-        letter-spacing: 1px;
-      }
-      .login-phone-input::placeholder {
-        font-size: 44px;
-        font-weight: 700;
-        color: #94A3B8;
-        opacity: 1;
-      }
-    `}</style>
-    <Box
-      sx={{
-        width: "100vw",
-        height: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        px: 3,
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        overflow: "hidden",
-        bgcolor: "#0f172a",
-      }}
-    >
-      {/* Background image — native img element for better webOS support */}
-      <img
-        src={bgImage}
-        alt="Login Background"
-        onError={() => {
-          console.warn("[LoginBG] Image load failed for:", bgImage);
-          if (bgImage !== fallbackBgUrl) {
-            setBgImage(fallbackBgUrl);
-          }
-        }}
-        style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          width: "100%",
-          height: "100%",
-          objectFit: "cover",
-          objectPosition: "center",
-          zIndex: 0,
-          pointerEvents: "none",
-          userSelect: "none",
-          opacity: 1,
-        }}
-      />
-      <Paper
-        elevation={0}
-        sx={{
-          width: "100%",
-          maxWidth: { xs: 520, sm: 600, md: 680, lg: 1200 },
-          minHeight: 520,
-          p: { xs: 5, md: 7, lg: 22.25 },
-          borderRadius: "16px",
-          background: "rgba(255, 255, 255, 0.2)",
-          boxShadow: "0 4px 30px rgba(0, 0, 0, 0.1)",
-          backdropFilter: "blur(0px)",
-          WebkitBackdropFilter: "blur(0px)",
-          position: "relative",
-          zIndex: 1,
-          overflow: "hidden",
-          "@media (min-width: 900px)": {
-            maxWidth: "1200px",
-            padding: "178px",
-          },
-        }}
-      >
-        {/* public/Asset + logo API */}
-        <Box sx={{ display: "flex", justifyContent: "center", mb: 5 }}>
-          {!logoLoadFailed && (
-            <Box
-              component="img"
-              src={dynamicLogo || "/Asset/BBNL-Logo.png"}
-              alt="BBNL Logo"
-              onError={(e) => {
-                e.currentTarget.onerror = null;
-                if (dynamicLogo) {
-                  setDynamicLogo("");
-                  return;
-                }
-                setLogoLoadFailed(true);
-              }}
-              sx={{
-                height: { xs: "8rem", md: "11rem", lg: "12rem" },
-                width: { xs: "16rem", md: "22rem", lg: "24rem" },
-                maxWidth: "100%",
-                objectFit: "contain",
-              }}
-            />
-          )}
-          {logoLoadFailed && (
-            <Typography sx={{ color: "#fff", fontSize: 30, fontWeight: 800, letterSpacing: 2 }}>
-              BBNL
-            </Typography>
-          )}
-        </Box>
+      <style>{`
+        @keyframes _spin  { from { transform: rotate(0) }     to { transform: rotate(360deg) } }
+        @keyframes _blink { 0%,100% { opacity: 1 }  50% { opacity: 0 } }
+        /* remove browser default focus ring — we draw our own */
+        *:focus { outline: none; }
+      `}</style>
 
-        {/* ---------------- PHONE INPUT SCREEN ---------------- */}
-        {step === 1 && (
-          <Box>
-            <Typography 
-              sx={{ 
-                color: "#E2E8F0",
-                fontSize: 32,
-                fontWeight: 700,
-                mb: 2,
-              }}
-            >
-              Mobile Number
-            </Typography>
+      {/* ── full-screen backdrop ── */}
+      <div style={{
+        width: "100vw", height: "100vh", position: "fixed", top: 0, left: 0,
+        backgroundColor: "#040304",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
 
-            <Box
-              sx={{
-                display: "flex",
-                gap: 2,
-                mb: 4.5,
-              }}
-            >
-              <input
-                className="login-phone-input"
-                value={phone}
-                onChange={handlePhoneChange}
-                onKeyDown={handlePhoneKeyDown}
-                placeholder="Enter 10-digit mobile number"
-                type="tel"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                maxLength={10}
-                data-webos-input="true"
-                autoFocus
-                style={{
-                  width: "100%",
-                  minHeight: "85px",
-                  padding: "20px 24px",
-                  backgroundColor: "#1E293B",
-                  border: "1.5px solid #fff",
-                  borderRadius: "14px",
-                  fontSize: "48px",
-                  lineHeight: 1.1,
-                  fontWeight: 650,
-                  color: "#fff",
-                  caretColor: "#fff",
-                  outline: "none",
-                  boxSizing: "border-box",
+        {/* ── centre card ── */}
+        <div style={{
+          width: "52%", minWidth: "520px", maxWidth: "920px",
+          backgroundColor: "#152E54", borderRadius: "20px",
+          padding: "48px 56px", position: "relative",
+        }}>
+
+          {/* logo */}
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: "88px" }}>
+            {!logoLoadFailed ? (
+              <img
+                src={dynamicLogo || "/icons.png"}
+                alt="BBNL"
+                onError={(ev) => {
+                  ev.currentTarget.onerror = null;
+                  if (dynamicLogo) { setDynamicLogo(""); } else { setLogoLoadFailed(true); }
                 }}
+                style={{ height: "110px", width: "210px", objectFit: "contain" }}
               />
-            </Box>
+            ) : (
+              <span style={{ color: "#fff", fontSize: "36px", fontWeight: 800 }}>BBNL</span>
+            )}
+          </div>
 
-            <Button
-              fullWidth
-              onClick={handleGetOtp}
-              disabled={phone.length !== 10 || loading}
-              sx={{
-                height: 60,
-                borderRadius: "14px",
-                bgcolor: phone.length === 10 ? "#2563EB" : "#1E293B",
-                color: "#fff",
-                fontSize: 32,
-                fontWeight: 700,
-                textTransform: "none",
-                transition: "all 0.3s ease",
-                "&:hover": {
-                  bgcolor: phone.length === 10 ? "#1D4ED8" : "#1E293B",
-                  transform: phone.length === 10 ? "translateY(-2px)" : "none",
-                  boxShadow: phone.length === 10 ? "0 10px 30px -5px rgba(37, 99, 235, 0.4)" : "none",
-                },
-                "&:disabled": {
-                  bgcolor: "#1E293B",
-                  color: "#475569",
-                },
-              }}
-            >
-              {loading ? "Sending..." : "Get OTP"}
-            </Button>
+          {/* ── Hidden inputs — DOM focus triggers LG TV system keyboard ── */}
+          <input
+            ref={hiddenPhoneInputRef}
+            type="tel"
+            inputMode="numeric"
+            value={phone}
+            onChange={(e) => {
+              const digits = e.target.value.replace(/\D/g, "").slice(0, 10);
+              setPhone(digits);
+            }}
+            onFocus={() => setFocused("digits")}
+            style={{
+              position: "absolute", opacity: 0,
+              width: "1px", height: "1px", top: 0, left: 0,
+              border: "none", padding: 0, margin: 0, overflow: "hidden",
+            }}
+          />
+          <input
+            ref={hiddenOtpInputRef}
+            type="tel"
+            inputMode="numeric"
+            value={otp}
+            onChange={(e) => {
+              const digits = e.target.value.replace(/\D/g, "").slice(0, 4);
+              setOtp(digits);
+            }}
+            onFocus={() => setFocused("digits")}
+            style={{
+              position: "absolute", opacity: 0,
+              width: "1px", height: "1px", top: 0, left: 0,
+              border: "none", padding: 0, margin: 0, overflow: "hidden",
+            }}
+          />
 
-            {/* Device Information Section */}
-            <Box
-              sx={{
-                mt: 4,
-                p: { xs: 3, md: 4 },
-                borderRadius: "20px",
-                bgcolor: "rgba(31, 41, 55, 0.85)",
-                border: "1px solid rgba(148, 163, 184, 0.25)",
-              }}
-            >
-              <Box sx={{ display: "flex", alignItems: "stretch", justifyContent: "space-between", gap: 3 }}>
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography sx={{ fontSize: 20, color: "#ffffff", fontWeight: 700, mb: 1, letterSpacing: 1 }}>
-                    GATEWAY IP
-                  </Typography>
-                  <Typography sx={{ fontSize: 46, color: "#F8FAFC", fontWeight: 700, lineHeight: 1.05 }}>
-                    {deviceInfo.loading ? <CircularProgress size={16} sx={{ color: "#fff" }} /> : (deviceInfo.privateIPv4 || deviceInfo.publicIPv4 || "Not available")}
-                  </Typography>
-                </Box>
+          {/* ══════ STEP 1 — PHONE ══════ */}
+          {step === 1 && (
+            <div>
+              <p style={{ color: "rgba(255,255,255,0.85)", fontSize: "26px", fontWeight: 600, marginBottom: "15px" }}>
+                Mobile Number
+              </p>
 
-                <Box sx={{ width: "2px", bgcolor: "rgba(148, 163, 184, 0.35)", borderRadius: "99px" }} />
-
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography sx={{ fontSize: 20, color: "#ffffff", fontWeight: 700, mb: 1, letterSpacing: 1 }}>
-                    TV MODEL NAME
-                  </Typography>
-                  <Typography sx={{ fontSize: 46, color: "#F8FAFC", fontWeight: 700, lineHeight: 1.05 }} noWrap>
-                    {deviceInfo.loading ? <CircularProgress size={16} sx={{ color: "#fff" }} /> : (deviceInfo.modelName || "Not available")}
-                  </Typography>
-                </Box>
-              </Box>
-            </Box>
-          </Box>
-        )}
-
-        {/* ---------------- OTP INPUT SCREEN WITH UNDERSCORES ---------------- */}
-        {step === 2 && (
-          <Box>
-            {/* OTP Display with Underscores */}
-            <Box
-              onClick={() => document.getElementById("otp-hidden-input")?.focus()}
-              sx={{
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-                gap: { xs: 2.5, md: 3.5 },
-                mb: 5.5,
-                px: 2,
-                cursor: "text",
-              }}
-            >
-              {[0, 1, 2, 3].map((i) => (
-                <Box
-                  key={i}
-                  sx={{
-                    width: { xs: 40, md: 50 },
-                    height: { xs: 56, md: 64 },
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    position: "relative",
-                  }}
-                >
-                  <Typography
-                    sx={{
-                      fontSize: { xs: 32, md: 40 },
-                      fontWeight: 700,
-                      color: otp[i] ? "#fff" : "#1E293B",
-                      fontFamily: "monospace",
-                      lineHeight: 1,
-                    }}
-                  >
-                    {otp[i] || "·"}
-                  </Typography>
-                  <Box
-                    sx={{
-                      position: "absolute",
-                      bottom: 0,
-                      left: 0,
-                      right: 0,
-                      height: 3,
-                      bgcolor: otp[i] ? "#2563EB" : "#1E293B",
-                      borderRadius: "2px",
-                      transition: "all 0.2s ease",
-                    }}
-                  />
-                </Box>
-              ))}
-            </Box>
-
-            {/* Hidden Input for OTP - MAKE IT FOCUSABLE */}
-            <TextField
-              id="otp-hidden-input"
-              autoFocus
-              value={otp}
-              onChange={handleOtpChange}
-              onKeyDown={handleOtpKeyDown}
-              type="tel"
-              inputProps={{ 
-                maxLength: 4,
-                inputMode: "numeric",
-                pattern: "[0-9]*",
-                autoComplete: "one-time-code",
-                "data-webos-input": "true",
-              }}
-              sx={{ 
-                position: "absolute",
-                left: "-9999px",
-                width: "1px",
-                height: "1px",
-              }}
-            />
-
-            {/* Verify Button */}
-            <Button
-              fullWidth
-              onClick={handleVerifyOtp}
-              disabled={otp.length !== 4 || loading}
-              sx={{
-                height: 60,
-                borderRadius: "14px",
-                bgcolor: otp.length === 4 ? "#2563EB" : "#1E293B",
-                color: "#fff",
-                fontSize: 32,
-                fontWeight: 700,
-                textTransform: "none",
-                mb: 3,
-                transition: "all 0.3s ease",
-                "&:hover": {
-                  bgcolor: otp.length === 4 ? "#1D4ED8" : "#1E293B",
-                  transform: otp.length === 4 ? "translateY(-2px)" : "none",
-                  boxShadow: otp.length === 4 ? "0 10px 30px -5px rgba(37, 99, 235, 0.4)" : "none",
-                },
-                "&:disabled": {
-                  bgcolor: "#1E293B",
-                  color: "#475569",
-                },
-              }}
-            >
-              {loading ? "Verifying..." : "Verify"}
-            </Button>
-
-            {/* Device Information Section */}
-            <Box
-              sx={{
-                mb: 3,
-                p: { xs: 3, md: 4 },
-                borderRadius: "20px",
-                bgcolor: "rgba(31, 41, 55, 0.85)",
-                border: "1px solid rgba(148, 163, 184, 0.25)",
-              }}
-            >
-              <Box sx={{ display: "flex", alignItems: "stretch", justifyContent: "space-between", gap: 3 }}>
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography sx={{ fontSize: 20, color: "#9CA3AF", fontWeight: 700, mb: 1, letterSpacing: 1 }}>
-                    GATEWAY IP
-                  </Typography>
-                  <Typography sx={{ fontSize: 46, color: "#F8FAFC", fontWeight: 700, lineHeight: 1.05 }}>
-                    {deviceInfo.loading ? <CircularProgress size={16} sx={{ color: "#fff" }} /> : (deviceInfo.privateIPv4 || deviceInfo.publicIPv4 || "Not available")}
-                  </Typography>
-                </Box>
-
-                <Box sx={{ width: "2px", bgcolor: "rgba(148, 163, 184, 0.35)", borderRadius: "99px" }} />
-
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography sx={{ fontSize: 20, color: "#9CA3AF", fontWeight: 700, mb: 1, letterSpacing: 1 }}>
-                    TV MODEL NAME
-                  </Typography>
-                  <Typography sx={{ fontSize: 46, color: "#F8FAFC", fontWeight: 700, lineHeight: 1.05 }} noWrap>
-                    {deviceInfo.loading ? <CircularProgress size={16} sx={{ color: "#fff" }} /> : (deviceInfo.modelName || "Not available")}
-                  </Typography>
-                </Box>
-              </Box>
-            </Box>
-
-            {/* Resend Code Section */}
-            <Box sx={{ textAlign: "center" }}>
-              {isTimerRunning ? (
-                <Typography sx={{ color: "#00214f", fontSize: 32, fontWeight: 700 }}>
-                  Didn't receive the code? <strong>Resend Code</strong> in{" "}
-                  <span style={{ color: "#2563EB", fontWeight: 700 }}>
-                    00:{timer < 10 ? `0${timer}` : timer}
+              {/* ── digit display (focusable div, NOT an <input>) ── */}
+              <div
+                ref={digitsRef}
+                tabIndex={tb("digits")}
+                onClick={() => moveFocusRef.current("digits")}
+                onFocus={() => setFocused("digits")}
+                style={{
+                  width: "100%", minHeight: "80px",
+                  padding: "16px 24px",
+                  backgroundColor: focused === "digits" ? "#0D2140" : "#0B1A2E",
+                  borderRadius: "16px", boxSizing: "border-box",
+                  marginBottom: "55px",
+                  display: "flex", alignItems: "center",
+                  justifyContent: phone ? "flex-start" : "center",
+                  transition: "all 0.18s",
+                  cursor: "text",
+                  ...ring("digits"),
+                }}
+              >
+                {phone ? (
+                  <>
+                    <span style={{
+                      fontSize: "44px", fontWeight: 700,
+                      letterSpacing: "6px", fontFamily: "monospace",
+                      color: "#fff",
+                    }}>
+                      {phoneDisplay()}
+                    </span>
+                    {focused === "digits" && phone.length < 10 && (
+                      <span style={{
+                        display: "inline-block", width: "3px", height: "52px",
+                        backgroundColor: "#667eea", marginLeft: "8px",
+                        animation: "_blink 1s step-end infinite", borderRadius: "2px",
+                      }} />
+                    )}
+                  </>
+                ) : (
+                  <span style={{
+                    fontSize: "24px", fontWeight: 400,
+                    color: "rgba(255,255,255,0.35)",
+                    letterSpacing: "0px",
+                  }}>
+                    Enter 10 Digit Number
                   </span>
-                </Typography>
-              ) : (
-                <>
-                  <Typography sx={{ color: "rgba(15, 23, 42, 0.6)", fontSize: 32, mb: 2, fontWeight: 700 }}>
-                    Didn't receive the code?
-                  </Typography>
-                  <Button
-                    fullWidth
+                )}
+              </div>
+
+
+              {/* ── Get OTP button — NEVER disabled, visually dimmed instead ── */}
+              <button
+                ref={btnGetOtpRef}
+                tabIndex={tb("btn-getotp")}
+                onClick={handleGetOtp}
+                onFocus={() => setFocused("btn-getotp")}
+                style={{
+                  width: "100%", height: "64px", borderRadius: "19px",
+                  backgroundColor: phone.length === 10 && !loading ? "#1313EC" : "#0a0a7a",
+                  color: "#fff", fontSize: "28px", fontWeight: 700, border: "2px solid transparent",
+                  cursor: "pointer", marginBottom: "157px",
+                  opacity: phone.length === 10 && !loading ? 1 : 0.45,
+                  transition: "all 0.18s",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: "12px",
+                  ...ring("btn-getotp"),
+                }}
+              >
+                {loading ? <><Spinner /> Sending…</> : "Get OTP"}
+              </button>
+
+              
+
+              {/* device info */}
+              <div style={{
+                backgroundColor: "#0B0B18", borderRadius: "35px",
+                padding: "24px 32px", display: "flex", alignItems: "center", gap: "24px",
+              }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: "18px", color: "#8B9AB5", fontWeight: 600, marginBottom: "4px", letterSpacing: "1px", textTransform: "uppercase" }}>Gateway IP</p>
+                  <p style={{ fontSize: "28px", color: "#fff", fontWeight: 700, margin: 0 }}>
+                    {deviceInfo.loading ? <Spinner size={18} /> : (deviceInfo.privateIPv4 || deviceInfo.publicIPv4 || "–")}
+                  </p>
+                </div>
+                <div style={{ width: "1px", alignSelf: "stretch", backgroundColor: "rgba(255,255,255,0.12)" }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: "18px", color: "#8B9AB5", fontWeight: 600, marginBottom: "4px", letterSpacing: "1px", textTransform: "uppercase" }}>TV Model</p>
+                  <p style={{ fontSize: "28px", color: "#fff", fontWeight: 700, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {deviceInfo.loading ? <Spinner size={18} /> : (deviceInfo.modelName || "–")}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ══════ STEP 2 — OTP ══════ */}
+          {step === 2 && (
+            <div>
+              <p style={{ color: "#fff", fontSize: "22px", fontWeight: 600, textAlign: "center", marginBottom: "24px" }}>
+                Enter the vaild OTP Code
+              </p>
+
+              {/* ── OTP digit boxes (focusable container) ── */}
+              <div
+                ref={digitsRef}
+                tabIndex={tb("digits")}
+                onClick={() => moveFocusRef.current("digits")}
+                onFocus={() => setFocused("digits")}
+                style={{
+                  display: "flex", justifyContent: "center", gap: "32px",
+                  marginBottom: "32px", padding: "20px 28px", borderRadius: "16px",
+                  cursor: "text", transition: "all 0.18s",
+                  ...ring("digits"),
+                }}
+              >
+                {[0, 1, 2, 3].map((i) => (
+                  <div key={i} style={{ width: "64px", height: "80px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", position: "relative" }}>
+                    <span style={{
+                      fontSize: "52px", fontWeight: 700, fontFamily: "monospace",
+                      color: otp[i] ? "#fff" : "rgba(255,255,255,0.15)",
+                      marginBottom: "8px",
+                    }}>
+                      {otp[i] || (focused === "digits" && otp.length === i ? "" : "·")}
+                    </span>
+                    {/* blinking caret on active slot */}
+                    {focused === "digits" && otp.length === i && (
+                      <span style={{
+                        position: "absolute", top: "50%", left: "50%",
+                        transform: "translate(-50%, -50%)",
+                        width: "3px", height: "46px",
+                        backgroundColor: "#667eea",
+                        animation: "_blink 1s step-end infinite", borderRadius: "2px",
+                      }} />
+                    )}
+                    {/* underline */}
+                    <div style={{
+                      width: "100%", height: "3px", borderRadius: "2px",
+                      backgroundColor: otp[i] ? "#fff" : "rgba(255,255,255,0.3)",
+                      transition: "all 0.2s",
+                    }} />
+                  </div>
+                ))}
+              </div>
+
+              {/* ── Verify button ── */}
+              <button
+                ref={btnVerifyRef}
+                tabIndex={tb("btn-verify")}
+                onClick={handleVerifyOtp}
+                onFocus={() => setFocused("btn-verify")}
+                style={{
+                  width: "60%", height: "56px", borderRadius: "40px",
+                  backgroundColor: "#1313EC",
+                  color: "#fff", fontSize: "24px", fontWeight: 700, border: "2px solid transparent",
+                  cursor: "pointer", marginBottom: "28px", marginLeft: "20%",
+                  opacity: otp.length === 4 ? 1 : 0.5,
+                  transition: "all 0.18s",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: "10px",
+                  ...ring("btn-verify"),
+                }}
+              >
+                {loading ? "Verifying OTP" : "Verify OTP"}
+              </button>
+
+              {/* ── Resend / Timer ── */}
+              <div style={{ marginBottom: "20px", textAlign: "center" }}>
+                {isTimerRunning ? (
+                  <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "18px" }}>
+                    Did&apos;nt receive the code?{" "}
+                    <strong style={{ color: "#fff" }}>Resend Code</strong>
+                    {" "}in{" "}
+                    <strong style={{ color: "#fff" }}>
+                      00:{timer < 10 ? `0${timer}` : timer}
+                    </strong>
+                  </p>
+                ) : (
+                  <button
+                    ref={btnResendRef}
+                    tabIndex={tb("btn-resend")}
                     onClick={handleResendOtp}
-                    disabled={loading}
-                    sx={{
-                      height: 52,
-                      borderRadius: "12px",
-                      border: "1px solid #2563EB",
-                      color: "#f61134",
-                      fontSize: 32,
-                      fontWeight: 700,
-                      textTransform: "none",
-                      bgcolor: "transparent",
-                      "&:hover": {
-                        bgcolor: "rgba(246, 17, 52, 0.05)",
-                        border: "1px solid #f61134",
-                      },
+                    onFocus={() => setFocused("btn-resend")}
+                    style={{
+                      width: "60%", height: "52px", borderRadius: "40px",
+                      border: "2px solid rgba(255,255,255,0.4)", color: "#fff",
+                      fontSize: "20px", fontWeight: 600, backgroundColor: "transparent",
+                      cursor: "pointer", transition: "all 0.18s", marginLeft: "20%",
+                      ...ring("btn-resend"),
                     }}
                   >
                     Resend Code
-                  </Button>
-                </>
-              )}
-            </Box>
+                  </button>
+                )}
+              </div>
 
-            {/* Back Button */}
-            <Button
-              fullWidth
-              onClick={() => {
-                setStep(1);
-                setOtp("");
-              }}
-              sx={{
-                mt: 2,
-                color: "rgba(15, 23, 42, 0.6)",
-                fontSize: 32,
-                fontWeight: 700,
-                textTransform: "none",
-                "&:hover": {
-                  color: "rgba(15, 23, 42, 0.6)",
-                  bgcolor: "transparent",
-                },
-              }}
-            >
-              ← Back to Phone Number
-            </Button>
-          </Box>
-        )}
-      </Paper>
-    </Box>
+              {/* ── Back button ── */}
+              <button
+                ref={btnBackRef}
+                tabIndex={tb("btn-back")}
+                onClick={() => { setStep(1); setOtp(""); moveFocusRef.current("digits"); }}
+                onFocus={() => setFocused("btn-back")}
+                style={{
+                  width: "60%", height: "52px", borderRadius: "40px",
+                  backgroundColor: "#1313EC",
+                  border: "none",
+                  color: "#fff", fontSize: "20px", fontWeight: 600,
+                  cursor: "pointer", transition: "all 0.18s", marginLeft: "20%",
+                  ...ring("btn-back"),
+                }}
+              >
+                Exit the Back
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
 
-      {/* Overlay notifications — rendered on top of the login page */}
       {showRegisterError && (
         <RegisterNumber
           message={registerErrorMsg}
-          onRetry={() => {
-            setShowRegisterError(false);
-            setRegisterErrorMsg("");
-            setPhone("");
-          }}
+          onRetry={() => { setShowRegisterError(false); setRegisterErrorMsg(""); setPhone(""); }}
         />
       )}
       {showOtpError && (
-        <ValidOTP
-          onRetry={() => {
-            setShowOtpError(false);
-            setOtp("");
-          }}
-        />
+        <ValidOTP onRetry={() => { setShowOtpError(false); setOtp(""); }} />
       )}
     </div>
   );

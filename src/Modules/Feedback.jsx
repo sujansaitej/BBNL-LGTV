@@ -1,13 +1,11 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Box, Typography, TextField, Button, IconButton } from "@mui/material";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import StarIcon from "@mui/icons-material/Star";
-import StarBorderIcon from "@mui/icons-material/StarBorder";
-
-
 import useFeedbackStore from "../store/FeedbackStore";
 import { useEnhancedRemoteNavigation } from "../Remote/useMagicRemote";
+
+const ArrowBackIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" /></svg>;
+const StarFilledIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="42" height="42" fill="currentColor"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" /></svg>;
+const StarOutlineIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="42" height="42" fill="currentColor"><path d="M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z" /></svg>;
 
 const Feedback = () => {
   const navigate = useNavigate();
@@ -16,359 +14,107 @@ const Feedback = () => {
   const [successMessage, setSuccessMessage] = useState("");
   const [error, setError] = useState("");
   const { isSubmitting, submitFeedback } = useFeedbackStore();
-
-  // Get device info
   const userid = localStorage.getItem("userId") || "";
   const mobile = localStorage.getItem("userPhone") || "";
 
-  // Magic Remote Navigation for interactive elements
-  // [0-4] = Stars, [5] = TextField, [6] = Cancel, [7] = Submit
-  const interactiveItems = [
-    ...Array(5).fill({ type: 'star' }),
-    { type: 'textfield' },
-    { type: 'button', label: 'Cancel' },
-    { type: 'button', label: 'Submit' },
-  ];
-
-  const {
-    focusedIndex,
-    hoveredIndex,
-    getItemProps,
-  } = useEnhancedRemoteNavigation(interactiveItems, {
-    orientation: 'vertical',
-    useMagicRemotePointer: true,
-    focusThreshold: 120,
+  const interactiveItems = [...Array(5).fill({ type: "star" }), { type: "textfield" }, { type: "button", label: "Cancel" }, { type: "button", label: "Submit" }];
+  const { getItemProps } = useEnhancedRemoteNavigation(interactiveItems, {
+    orientation: "vertical", useMagicRemotePointer: true, focusThreshold: 120,
     onSelect: (index) => {
-      if (index >= 0 && index <= 4) {
-        // Star rating
-        setRating(index + 1);
-      } else if (index === 6) {
-        // Cancel button
-        handleCancel();
-      } else if (index === 7) {
-        // Submit button
-        handleSubmit();
-      }
+      if (index >= 0 && index <= 4) setRating(index + 1);
+      else if (index === 6) handleCancel();
+      else if (index === 7) handleSubmit();
     },
   });
 
   const handleSubmit = async () => {
-    // Validation
-    if (rating === 0) {
-      setError("Please select a rating");
-      return;
-    }
-    if (!feedback.trim()) {
-      setError("Please enter detailed feedback");
-      return;
-    }
-
+    if (rating === 0) { setError("Please select a rating"); return; }
+    if (!feedback.trim()) { setError("Please enter detailed feedback"); return; }
     try {
       setError("");
-
-      const payload = {
-        userid: userid,
-        mobile: mobile,
-        rate_count: rating.toString(),
-        feedback: feedback,
-        mac_address: "26:F2:AE:D8:3F:99",
-        device_name: "rk3368_box",
-        device_type: "FOFI",
-      };
-
-      const response = await submitFeedback(payload);
-
+      const response = await submitFeedback({ userid, mobile, rate_count: rating.toString(), feedback, mac_address: "26:F2:AE:D8:3F:99", device_name: "rk3368_box", device_type: "FOFI" });
       if (response.success) {
         setSuccessMessage(response.data?.status?.err_msg || "Feedback submitted");
-        // Clear form
-        setRating(0);
-        setFeedback("");
-        // Hide message after 3 seconds
-        setTimeout(() => {
-          setSuccessMessage("");
-          navigate(-1);
-        }, 3000);
+        setRating(0); setFeedback("");
+        setTimeout(() => { setSuccessMessage(""); navigate(-1); }, 3000);
       } else {
         setError(response.message || "Failed to submit feedback");
       }
-    } catch (err) {
-      setError("Failed to submit feedback. Please try again.");
-      console.error(err);
-    }
+    } catch (err) { setError("Failed to submit feedback. Please try again."); console.error(err); }
   };
 
-  const handleCancel = () => {
-    navigate(-1);
-  };
+  const handleCancel = () => navigate(-1);
 
   return (
-    <Box
-      sx={{
-        background: "#000",
-        minHeight: "100vh",
-        color: "#fff",
-        p: 5,
-        fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
-        textRendering: "optimizeLegibility",
-        WebkitFontSmoothing: "antialiased",
-        MozOsxFontSmoothing: "grayscale",
-        letterSpacing: "0.3px",
-      }}
-    >
+    <div style={{ background: "#000", minHeight: "100vh", color: "#fff", padding: "40px", fontFamily: '"Roboto","Helvetica","Arial",sans-serif', letterSpacing: "0.3px" }}>
       {/* Back Button */}
-      <IconButton
-        onClick={() => navigate(-1)}
-        sx={{
-          color: "#fff",
-          mb: 4,
-          display: "flex",
-          alignItems: "center",
-          gap: 1.5,
-          padding: "12px",
-          border: "2px solid rgba(255,255,255,0.4)",
-          borderRadius: "10px",
-          "&:hover": {
-            background: "rgba(255,255,255,0.15)",
-          },
-        }}
-      >
-        <ArrowBackIcon sx={{ fontSize: 26 }} />
-        <Typography sx={{ ml: 0.5, fontSize: 20, fontWeight: 600, letterSpacing: "0.3px" }}>Back</Typography>
-      </IconButton>
+      <button onClick={() => navigate(-1)} style={{ color: "#fff", marginBottom: "32px", display: "flex", alignItems: "center", gap: "12px", padding: "12px", border: "2px solid rgba(255,255,255,0.4)", borderRadius: "10px", background: "none", cursor: "pointer" }}>
+        <ArrowBackIcon />
+        <span style={{ fontSize: "20px", fontWeight: 600 }}>Back</span>
+      </button>
 
       {/* Main Content */}
-      <Box
-        sx={{
-          maxWidth: 880,
-          mx: "auto",
-          border: "2px solid rgba(255,255,255,0.3)",
-          borderRadius: "24px",
-          p: 6,
-        }}
-      >
-        {/* Title */}
-        <Typography sx={{ fontSize: 38, fontWeight: 700, mb: 1.5, lineHeight: 1.1, letterSpacing: "0.5px" }}>
-          Give Feedback
-        </Typography>
-        <Typography sx={{ fontSize: 20, color: "#999", mb: 5, letterSpacing: "0.2px" }}>
-          Help us improving viewer experience
-        </Typography>
+      <div style={{ maxWidth: "880px", margin: "0 auto", border: "2px solid rgba(255,255,255,0.3)", borderRadius: "24px", padding: "48px" }}>
+        <p style={{ fontSize: "38px", fontWeight: 700, marginBottom: "12px", lineHeight: 1.1 }}>Give Feedback</p>
+        <p style={{ fontSize: "20px", color: "#999", marginBottom: "40px" }}>Help us improving viewer experience</p>
 
-        {/* Submit Feedback Section */}
-        <Box
-          sx={{
-            border: "2px solid rgba(255,255,255,0.3)",
-            borderRadius: "18px",
-            p: 4.5,
-          }}
-        >
-          <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 4 }}>
-            <Box
-              sx={{
-                width: 32,
-                height: 32,
-                border: "2px solid #fff",
-                borderRadius: "6px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Typography sx={{ fontSize: 18 }}>📝</Typography>
-            </Box>
-            <Box>
-              <Typography sx={{ fontSize: 22, fontWeight: 700, letterSpacing: "0.3px" }}>
-                Submit Feedback
-              </Typography>
-              <Typography sx={{ fontSize: 18, color: "#999", letterSpacing: "0.2px" }}>
-                Tell us about experience
-              </Typography>
-            </Box>
-          </Box>
+        <div style={{ border: "2px solid rgba(255,255,255,0.3)", borderRadius: "18px", padding: "36px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "32px" }}>
+            <div style={{ width: "32px", height: "32px", border: "2px solid #fff", borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18px" }}>📝</div>
+            <div>
+              <p style={{ fontSize: "22px", fontWeight: 700, margin: 0 }}>Submit Feedback</p>
+              <p style={{ fontSize: "18px", color: "#999", margin: 0 }}>Tell us about experience</p>
+            </div>
+          </div>
 
           {/* Star Rating */}
-          <Box sx={{ mb: 4 }}>
-            <Typography sx={{ fontSize: 19, mb: 1.5, color: "#fff", fontWeight: 600, letterSpacing: "0.2px" }}>
-              How would you rate us?
-            </Typography>
-            <Box sx={{ display: "flex", gap: 1.5, mb: 1 }}>
+          <div style={{ marginBottom: "32px" }}>
+            <p style={{ fontSize: "19px", marginBottom: "12px", color: "#fff", fontWeight: 600 }}>How would you rate us?</p>
+            <div style={{ display: "flex", gap: "12px", marginBottom: "8px" }}>
               {[1, 2, 3, 4, 5].map((star) => {
                 const starIndex = star - 1;
-                const isFocused = focusedIndex === starIndex;
-                const isHovered = hoveredIndex === starIndex;
-
                 return (
-                  <IconButton
-                    key={star}
-                    {...getItemProps(starIndex)}
-                    className={`focusable-button ${isFocused ? 'focused' : ''} ${isHovered ? 'hovered' : ''}`}
-                    onClick={() => setRating(star)}
-                    sx={{
-                      color: star <= rating ? "#ffd700" : "rgba(255,255,255,0.3)",
-                      p: 0.5,
-                      outline: "none",
-                      border: isFocused ? "3px solid #00aaff" : "2px solid transparent",
-                      borderRadius: "8px",
-                      transform: isFocused ? "scale(1.2)" : isHovered ? "scale(1.1)" : "scale(1)",
-                      transition: "all 0.2s ease",
-                      boxShadow: isFocused ? "0 0 20px rgba(0, 170, 255, 0.8)" : "none",
-                    }}
-                  >
-                    {star <= rating ? (
-                      <StarIcon sx={{ fontSize: 42 }} />
-                    ) : (
-                      <StarBorderIcon sx={{ fontSize: 42 }} />
-                    )}
-                  </IconButton>
+                  <button key={star} {...getItemProps(starIndex)} className="focusable-button" onClick={() => setRating(star)}
+                    style={{ color: star <= rating ? "#ffd700" : "rgba(255,255,255,0.3)", padding: "4px", outline: "none", border: "2px solid transparent", borderRadius: "8px", background: "none", cursor: "pointer" }}>
+                    {star <= rating ? <StarFilledIcon /> : <StarOutlineIcon />}
+                  </button>
                 );
               })}
-            </Box>
-            <Typography sx={{ fontSize: 17, color: "#999", letterSpacing: "0.2px" }}>
-              Tap a star to rate
-            </Typography>
-          </Box>
+            </div>
+            <p style={{ fontSize: "17px", color: "#999" }}>Tap a star to rate</p>
+          </div>
 
           {/* Detailed Feedback */}
-          <Box sx={{ mb: 4 }}>
-            <Typography sx={{ fontSize: 19, mb: 1.5, color: "#fff", fontWeight: 600, letterSpacing: "0.2px" }}>
-              Detailed Feedback <span style={{ color: "red" }}>*</span>
-            </Typography>
-            <TextField
+          <div style={{ marginBottom: "32px" }}>
+            <p style={{ fontSize: "19px", marginBottom: "12px", color: "#fff", fontWeight: 600 }}>Detailed Feedback <span style={{ color: "red" }}>*</span></p>
+            <textarea
               {...getItemProps(5)}
-              className={`focusable-input ${focusedIndex === 5 ? 'focused' : ''} ${hoveredIndex === 5 ? 'hovered' : ''}`}
-              fullWidth
-              multiline
+              className="focusable-input"
               rows={5}
               placeholder="What did you like? what can we do better?"
               value={feedback}
               onChange={(e) => setFeedback(e.target.value)}
-              sx={{
-                "& .MuiOutlinedInput-root": {
-                  color: "#fff",
-                  background: "#1a1a1a",
-                  borderRadius: "12px",
-                  fontSize: 18,
-                  outline: "none",
-                  "& fieldset": {
-                    borderColor: focusedIndex === 5 ? "#00aaff" : "rgba(255,255,255,0.3)",
-                    borderWidth: focusedIndex === 5 ? "3px" : "2px",
-                  },
-                  "&:hover fieldset": {
-                    borderColor: "rgba(255,255,255,0.5)",
-                  },
-                  "&.Mui-focused fieldset": {
-                    borderColor: "#667eea",
-                    borderWidth: "3px",
-                  },
-                },
-                "& .MuiInputBase-input": {
-                  fontSize: 18,
-                  letterSpacing: "0.2px",
-                },
-                boxShadow: focusedIndex === 5 ? "0 0 20px rgba(0, 170, 255, 0.6)" : "none",
-              }}
+              style={{ width: "100%", color: "#fff", background: "#1a1a1a", borderRadius: "12px", fontSize: "18px", outline: "none", border: "2px solid rgba(255,255,255,0.3)", padding: "16px", boxSizing: "border-box", resize: "vertical" }}
             />
-          </Box>
+          </div>
 
-          {/* Error Message */}
-          {error && (
-            <Box
-              sx={{
-                mb: 3,
-                p: 3,
-                borderRadius: "12px",
-                border: "2px solid red",
-                background: "rgba(255,0,0,0.15)",
-                color: "#ff6b6b",
-              }}
-            >
-              <Typography sx={{ fontSize: 18, letterSpacing: "0.2px" }}>{error}</Typography>
-            </Box>
-          )}
-
-          {/* Success Message */}
-          {successMessage && (
-            <Box
-              sx={{
-                mb: 3,
-                p: 3,
-                borderRadius: "12px",
-                border: "2px solid #4caf50",
-                background: "rgba(76,175,80,0.15)",
-                color: "#4caf50",
-                textAlign: "center",
-              }}
-            >
-              <Typography sx={{ fontSize: 19, fontWeight: 600, letterSpacing: "0.2px" }}>✓ {successMessage}</Typography>
-            </Box>
-          )}
+          {error && <div style={{ marginBottom: "24px", padding: "24px", borderRadius: "12px", border: "2px solid red", background: "rgba(255,0,0,0.15)", color: "#ff6b6b" }}><p style={{ fontSize: "18px", margin: 0 }}>{error}</p></div>}
+          {successMessage && <div style={{ marginBottom: "24px", padding: "24px", borderRadius: "12px", border: "2px solid #4caf50", background: "rgba(76,175,80,0.15)", color: "#4caf50", textAlign: "center" }}><p style={{ fontSize: "19px", fontWeight: 600, margin: 0 }}>✓ {successMessage}</p></div>}
 
           {/* Buttons */}
-          <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 3 }}>
-            <Button
-              {...getItemProps(6)}
-              className={`focusable-button ${focusedIndex === 6 ? 'focused' : ''} ${hoveredIndex === 6 ? 'hovered' : ''}`}
-              onClick={handleCancel}
-              disabled={isSubmitting}
-              sx={{
-                px: 5,
-                py: 2,
-                fontSize: 19,
-                fontWeight: 600,
-                color: "#fff",
-                background: "#2a2a2a",
-                borderRadius: "12px",
-                textTransform: "none",
-                letterSpacing: "0.3px",
-                minHeight: 52,
-                outline: "none",
-                border: focusedIndex === 6 ? "3px solid #00aaff" : "2px solid transparent",
-                transform: focusedIndex === 6 ? "scale(1.08)" : hoveredIndex === 6 ? "scale(1.04)" : "scale(1)",
-                boxShadow: focusedIndex === 6 ? "0 0 25px rgba(0, 170, 255, 0.8)" : "none",
-                transition: "all 0.2s ease",
-                "&:hover": {
-                  background: "#3a3a3a",
-                },
-              }}
-            >
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: "24px" }}>
+            <button {...getItemProps(6)} className="focusable-button" onClick={handleCancel} disabled={isSubmitting}
+              style={{ padding: "0 40px", fontSize: "19px", fontWeight: 600, color: "#fff", background: "#2a2a2a", borderRadius: "12px", minHeight: "52px", outline: "none", border: "2px solid transparent", cursor: isSubmitting ? "not-allowed" : "pointer" }}>
               Cancel
-            </Button>
-            <Button
-              {...getItemProps(7)}
-              className={`focusable-button ${focusedIndex === 7 ? 'focused' : ''} ${hoveredIndex === 7 ? 'hovered' : ''}`}
-              onClick={handleSubmit}
-              disabled={isSubmitting}
-              sx={{
-                px: 5,
-                py: 2,
-                fontSize: 19,
-                fontWeight: 600,
-                color: "#fff",
-                background: "#0066ff",
-                borderRadius: "12px",
-                textTransform: "none",
-                letterSpacing: "0.3px",
-                minHeight: 52,
-                outline: "none",
-                border: focusedIndex === 7 ? "3px solid #00aaff" : "2px solid transparent",
-                transform: focusedIndex === 7 ? "scale(1.08)" : hoveredIndex === 7 ? "scale(1.04)" : "scale(1)",
-                boxShadow: focusedIndex === 7 ? "0 0 25px rgba(0, 170, 255, 0.8)" : "none",
-                transition: "all 0.2s ease",
-                "&:hover": {
-                  background: "#0052cc",
-                },
-                "&:disabled": {
-                  background: "#555",
-                  color: "#999",
-                },
-              }}
-            >
+            </button>
+            <button {...getItemProps(7)} className="focusable-button" onClick={handleSubmit} disabled={isSubmitting}
+              style={{ padding: "0 40px", fontSize: "19px", fontWeight: 600, color: "#fff", background: "#0066ff", borderRadius: "12px", minHeight: "52px", outline: "none", border: "2px solid transparent", cursor: isSubmitting ? "not-allowed" : "pointer" }}>
               {isSubmitting ? "Submitting..." : "Submit"}
-            </Button>
-          </Box>
-        </Box>
-      </Box>
-    </Box>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 

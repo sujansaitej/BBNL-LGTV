@@ -1,20 +1,32 @@
 // API Configuration
+import axios from "axios";
 
 // Base URL for API endpoints
 export const API_BASE_URL_PROD = "http://124.40.244.211/netmon/cabletvapis";
 
-// Default headers for all API requests
-// Returns headers with deviceID read dynamically from localStorage at call time
-export const getDefaultHeaders = () => {
-  const pinnedDeviceId = localStorage.getItem("lgtv_device_id_pinned");
-  const deviceID = pinnedDeviceId ? `TV-${pinnedDeviceId}` : localStorage.getItem("lgtv_device_uuid") || "unknown-device";
-
-  return {
-    "Content-Type": "application/json",
-    Authorization: "Basic Zm9maWxhYkBnbWFpbC5jb206MTIzNDUtNTQzMjE=",
-    deviceID,
-  };
+// Reads the pinned device ID from localStorage at call time
+const getDeviceID = () => {
+  const pinned = localStorage.getItem("lgtv_device_id_pinned");
+  return pinned
+    ? `TV-${pinned}`
+    : localStorage.getItem("lgtv_device_uuid") || "unknown-device";
 };
+
+// Default headers for all API requests
+export const getDefaultHeaders = () => ({
+  "Content-Type": "application/json",
+  Authorization: "Basic Zm9maWxhYkBnbWFpbC5jb206MTIzNDUtNTQzMjE=",
+  deviceID: getDeviceID(),
+});
+
+// ── Global axios interceptor ─────────────────────────────────────────────────
+// Guarantees deviceID + Authorization are on EVERY axios request automatically,
+// even if a caller forgets to pass getDefaultHeaders().
+axios.interceptors.request.use((config) => {
+  config.headers["deviceID"]       = getDeviceID();
+  config.headers["Authorization"]  = "Basic Zm9maWxhYkBnbWFpbC5jb206MTIzNDUtNTQzMjE=";
+  return config;
+});
 
 // API Endpoints
 export const API_ENDPOINTS = {

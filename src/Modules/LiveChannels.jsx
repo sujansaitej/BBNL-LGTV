@@ -1,15 +1,59 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback, memo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Box, Typography, ButtonBase, Button, InputAdornment, IconButton, Skeleton } from "@mui/material";
-import SearchIcon from "@mui/icons-material/Search";
-import ClearIcon from "@mui/icons-material/Clear";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 
-import SearchTextField from "../Atomic-Reusable-Componenets/Search";
-import ChannelBox from "../Atomic-Reusable-Componenets/ChannelBox";
 import useLiveChannelsStore from "../store/LiveChannelsStore";
 import useLanguageStore from "../store/LivePlayersStore";
-import {  TV_TYPOGRAPHY,  TV_SPACING,  TV_RADIUS, TV_COLORS,  TV_SIZES, TV_GRID, TV_SAFE_ZONE } from "../styles/tvConstants";
+
+const ArrowBackIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" /></svg>;
+const SearchIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" /></svg>;
+const ClearIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" /></svg>;
+
+const formatPrice = (value) => {
+  if (value === undefined || value === null) return "";
+  const text = String(value).trim();
+  if (!text) return "";
+  if (text === "0" || text === "0.0" || text === "0.00") return "Free";
+  return /^[0-9]+(\.[0-9]+)?$/.test(text) ? `₹${text}` : text;
+};
+
+const ChannelCard = memo(({ channel, onClick }) => {
+  const priceLabel = formatPrice(channel.chprice);
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } }}
+      style={{ borderRadius: "16px", overflow: "hidden", backgroundColor: "rgba(255,255,255,0.06)", border: "2px solid rgba(255,255,255,0.1)", cursor: "pointer", transition: "all 0.25s ease", outline: "none" }}
+    >
+      <div style={{ width: "100%", aspectRatio: "16/9", backgroundColor: "#111", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+        {channel.chlogo ? (
+          <img src={channel.chlogo} alt={channel.chtitle} style={{ width: "100%", height: "100%", objectFit: "contain", padding: "8px" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />
+        ) : (
+          <span style={{ fontSize: "28px", color: "rgba(255,255,255,0.3)" }}>📺</span>
+        )}
+      </div>
+      <div style={{ padding: "12px" }}>
+        <p style={{ fontSize: "14px", fontWeight: 600, margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "#fff" }}>{channel.chtitle}</p>
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: "6px" }}>
+          <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)" }}>Ch {channel.channelno}</span>
+          {priceLabel && <span style={{ fontSize: "12px", color: priceLabel === "Free" ? "#43e97b" : "#ffd700", fontWeight: 600 }}>{priceLabel}</span>}
+        </div>
+      </div>
+    </div>
+  );
+});
+
+const ShimmerCard = () => (
+  <>
+    <style>{`@keyframes _shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}`}</style>
+    <div style={{ borderRadius: "16px", overflow: "hidden", background: "linear-gradient(90deg,rgba(255,255,255,0.06) 25%,rgba(255,255,255,0.12) 50%,rgba(255,255,255,0.06) 75%)", backgroundSize: "400px 100%", animation: "_shimmer 1.4s ease infinite", height: "9rem" }} />
+  </>
+);
+
+const ShimmerTab = () => (
+  <div style={{ width: "10rem", height: "2.75rem", borderRadius: "12px", background: "linear-gradient(90deg,rgba(255,255,255,0.06) 25%,rgba(255,255,255,0.12) 50%,rgba(255,255,255,0.06) 75%)", backgroundSize: "400px 100%", animation: "_shimmer 1.4s ease infinite", flexShrink: 0 }} />
+);
 
 const LiveChannels = () => {
   const location = useLocation();
@@ -23,13 +67,12 @@ const LiveChannels = () => {
   const [selectedLanguageTitle, setSelectedLanguageTitle] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [channelJumpBuffer, setChannelJumpBuffer] = useState("");
-  const { categories,channelsCache,isLoadingCategories,error,fetchCategories,fetchChannels,clearError,} = useLiveChannelsStore();
+  const { categories, channelsCache, isLoadingCategories, error, fetchCategories, fetchChannels, clearError } = useLiveChannelsStore();
   const { languagesCache, fetchLanguages } = useLanguageStore();
   const lastAutoPlayKey = useRef("");
   const numberBufferRef = useRef("");
   const numberTimerRef = useRef(null);
 
-  // Get userid + mobile
   const userid = localStorage.getItem("userId") || "";
   const mobile = localStorage.getItem("userPhone") || "";
   const channelsKey = `${userid}|${mobile}|`;
@@ -41,21 +84,17 @@ const LiveChannels = () => {
   const langEntry = languagesCache[langKey] || {};
   const languages = useMemo(() => langEntry.data || [], [langEntry.data]);
 
-  // Calculate columns dynamically based on viewport width
-  const getColumnsCount = () => {
-    const width = window.innerWidth;
-    return TV_GRID.getColumns(width);
-  };
+  const columnsCount = 5;
+  // Windowed rendering state (calculations happen after filteredChannels is defined)
+  const CARD_ROW_HEIGHT = 220; // px per row (card ~170px + 2.5rem gap ~40px)
+  const VISIBLE_ROWS = 3;
+  const BUFFER_ROWS = 2;
+  const gridContainerRef = useRef(null);
+  const [windowStart, setWindowStart] = useState(0);
 
-  const [columnsCount, setColumnsCount] = useState(getColumnsCount());
-
-  // Handle window resize for responsive columns
-  useEffect(() => {
-    const handleResize = () => {
-      setColumnsCount(getColumnsCount());
-    };
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
+  const handleGridScroll = useCallback((e) => {
+    const row = Math.floor(e.currentTarget.scrollTop / CARD_ROW_HEIGHT);
+    setWindowStart((prev) => (prev !== row ? row : prev));
   }, []);
 
   useEffect(() => {
@@ -67,13 +106,14 @@ const LiveChannels = () => {
       setSearchTerm("");
       return;
     }
-
     if (state.filter) {
       setSelectedLanguageId("");
       setActiveFilter(state.filter);
       setSearchTerm("");
     }
   }, [location.state]);
+
+  const payloadBase = { userid, mobile };
 
   useEffect(() => {
     if (!mobile) return;
@@ -83,53 +123,29 @@ const LiveChannels = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mobile, selectedLanguageId]);
 
-  // When languages load, sync the selected language title from list
   useEffect(() => {
     if (!selectedLanguageId || languages.length === 0) return;
     const match = languages.find((lang) => String(lang.langid) === String(selectedLanguageId));
-    if (match?.langtitle) {
-      setSelectedLanguageTitle(match.langtitle);
-    }
+    if (match?.langtitle) setSelectedLanguageTitle(match.langtitle);
   }, [languages, selectedLanguageId]);
 
-  // ================= SEARCH + FILTER =================
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      setDebouncedSearchTerm(searchTerm);
-    }, 1500);
-
+    const timeoutId = setTimeout(() => setDebouncedSearchTerm(searchTerm), 1500);
     return () => clearTimeout(timeoutId);
   }, [searchTerm]);
 
   const filteredChannels = useMemo(() => {
     const term = debouncedSearchTerm.toLowerCase().trim();
     const isNumericTerm = term !== "" && /^\d+$/.test(term);
-
-    const selectedLanguage = languages.find(
-      (lang) => String(lang.langid) === String(selectedLanguageId)
-    );
+    const selectedLanguage = languages.find((lang) => String(lang.langid) === String(selectedLanguageId));
     const selectedLanguageTitleLower = (selectedLanguage?.langtitle || selectedLanguageTitle || "").toLowerCase();
 
     const matchesLanguage = (channel) => {
       if (!selectedLanguageId && !selectedLanguageTitle) return true;
-      const langIdValue =
-        channel.langid ||
-        channel.lang_id ||
-        channel.languageid ||
-        channel.language_id ||
-        channel.lang;
-      const langTitleValue =
-        channel.langtitle ||
-        channel.langname ||
-        channel.language ||
-        channel.language_name;
-
-      if (langIdValue && String(langIdValue) === String(selectedLanguageId)) {
-        return true;
-      }
-      if (langTitleValue && selectedLanguageTitleLower) {
-        return String(langTitleValue).toLowerCase().includes(selectedLanguageTitleLower);
-      }
+      const langIdValue = channel.langid || channel.lang_id || channel.languageid || channel.language_id || channel.lang;
+      const langTitleValue = channel.langtitle || channel.langname || channel.language || channel.language_name;
+      if (langIdValue && String(langIdValue) === String(selectedLanguageId)) return true;
+      if (langTitleValue && selectedLanguageTitleLower) return String(langTitleValue).toLowerCase().includes(selectedLanguageTitleLower);
       return false;
     };
 
@@ -138,36 +154,32 @@ const LiveChannels = () => {
       if (activeFilter === "Subscribed Channels") {
         baseChannels = channels.filter((c) => c.subscribed === "yes");
       } else if (activeFilter === "Language") {
-        // Language filter is handled separately by selectedLanguageId below
         baseChannels = channels;
       } else {
         const selectedCategory = categories.find((cat) => cat.title === activeFilter);
-        if (selectedCategory) {
-          baseChannels = channels.filter((c) => c.grid === selectedCategory.grid);
-        }
+        if (selectedCategory) baseChannels = channels.filter((c) => c.grid === selectedCategory.grid);
       }
     }
 
-    if (selectedLanguageId) {
-      baseChannels = baseChannels.filter(matchesLanguage);
-    }
+    if (selectedLanguageId) baseChannels = baseChannels.filter(matchesLanguage);
+    if (!term) return baseChannels;
 
-    if (!term) {
-      return baseChannels;
-    }
-
-    // Search in channelno and chtitle
     return baseChannels.filter((channel) => {
       const channelNo = (channel.channelno || "").toString().toLowerCase();
       const channelTitle = (channel.chtitle || "").toLowerCase();
-      if (isNumericTerm) {
-        return channelNo === term;
-      }
+      if (isNumericTerm) return channelNo === term;
       return channelTitle.includes(term) || channelNo.includes(term);
     });
   }, [activeFilter, categories, channels, debouncedSearchTerm, languages, selectedLanguageId, selectedLanguageTitle]);
 
-  // Enhanced categories with custom filters
+  // Windowed rendering — calculated after filteredChannels is defined
+  const totalRows = Math.ceil(filteredChannels.length / columnsCount);
+  const renderStart = Math.max(0, windowStart - BUFFER_ROWS);
+  const renderEnd = Math.min(totalRows, windowStart + VISIBLE_ROWS + BUFFER_ROWS);
+  const paddingTop = renderStart * CARD_ROW_HEIGHT;
+  const paddingBottom = Math.max(0, (totalRows - renderEnd) * CARD_ROW_HEIGHT);
+  const visibleChannels = filteredChannels.slice(renderStart * columnsCount, renderEnd * columnsCount);
+
   const enhancedCategories = useMemo(() => {
     const customCategories = [
       { title: "All Channels", grid: "all" },
@@ -176,7 +188,6 @@ const LiveChannels = () => {
     ];
     const normalized = [...customCategories, ...categories];
     const seen = new Set();
-
     return normalized.filter((cat) => {
       const key = String(cat.title || "").trim().toLowerCase();
       if (!key || seen.has(key)) return false;
@@ -185,18 +196,8 @@ const LiveChannels = () => {
     });
   }, [categories]);
 
-  const payloadBase = {
-    userid,
-    mobile,
-  };
-
-  // Handle channel selection for playback
   const handleChannelSelect = useCallback((ch) => {
-    // Try to find any stream URL
-    let streamUrl = ch.streamlink || ch.stream_link || ch.streamurl || ch.stream_url ||
-                    ch.url || ch.link || ch.videourl || ch.video_url ||
-                    ch.hlsurl || ch.hls_url || ch.manifest || ch.manifesturl;
-
+    const streamUrl = ch.streamlink || ch.stream_link || ch.streamurl || ch.stream_url || ch.url || ch.link || ch.videourl || ch.video_url || ch.hlsurl || ch.hls_url || ch.manifest || ch.manifesturl;
     if (streamUrl) {
       navigate("/player", { state: { streamlink: streamUrl, title: ch.chtitle, channelData: ch } });
     } else {
@@ -204,24 +205,11 @@ const LiveChannels = () => {
     }
   }, [navigate]);
 
-
-
-  // Handle search input change
-  const handleSearchChange = (event) => {
-    const value = event.target.value;
-    setSearchTerm(value);
-  };
-
-  // Clear search
-  const handleClearSearch = () => {
-    setSearchTerm("");
-  };
+  const handleSearchChange = (e) => setSearchTerm(e.target.value);
+  const handleClearSearch = () => setSearchTerm("");
 
   useEffect(() => {
-    if (!mobile) {
-      setAuthError("NO_LOGIN");
-      return;
-    }
+    if (!mobile) { setAuthError("NO_LOGIN"); return; }
     setAuthError("");
     clearError();
     fetchCategories(payloadBase);
@@ -229,43 +217,28 @@ const LiveChannels = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mobile]);
 
-  // ================= FILTER HANDLER =================
   const handleFilter = (cat) => {
-
     setActiveFilter(cat.title);
-    setSearchTerm(""); // Clear search when changing category
+    setSearchTerm("");
     setLocalError("");
-
-    if (cat.title === "Language") {
-      navigate("/languagechannels");
-      return;
-    }
-
-    // Reset language selection when leaving language tab
+    if (cat.title === "Language") { navigate("/languagechannels"); return; }
     setSelectedLanguageId("");
   };
 
-  // Auto-play when the search matches a single channel
   useEffect(() => {
     const term = searchTerm.toLowerCase().trim();
-    if (!term || filteredChannels.length !== 1) {
-      lastAutoPlayKey.current = "";
-      return;
-    }
-
+    if (!term || filteredChannels.length !== 1) { lastAutoPlayKey.current = ""; return; }
     const match = filteredChannels[0];
     const title = (match.chtitle || "").toLowerCase();
     const channelNo = (match.channelno || "").toString().toLowerCase();
     const isExactMatch = term === title || term === channelNo;
     const autoPlayKey = `${match.channelno || ""}-${match.chtitle || ""}`;
-
     if (isExactMatch && lastAutoPlayKey.current !== autoPlayKey) {
       lastAutoPlayKey.current = autoPlayKey;
       handleChannelSelect(match);
     }
   }, [filteredChannels, debouncedSearchTerm, searchTerm, handleChannelSelect]);
 
-  // ================= NUMERIC CHANNEL JUMP (IPTV FEATURE) =================
   useEffect(() => {
     const getDigitFromEvent = (event) => {
       if (/^[0-9]$/.test(event.key)) return event.key;
@@ -281,28 +254,17 @@ const LiveChannels = () => {
       if (!value) return;
       setChannelJumpBuffer("");
       numberBufferRef.current = "";
-      if (numberTimerRef.current) {
-        clearTimeout(numberTimerRef.current);
-        numberTimerRef.current = null;
-      }
-
+      if (numberTimerRef.current) { clearTimeout(numberTimerRef.current); numberTimerRef.current = null; }
       const target = filteredChannels.find((item) => {
         const rawNo = item.channelno || item.channel_no || item.chno || "";
         if (String(rawNo).trim() === String(value).trim()) return true;
         const parsedRaw = parseInt(rawNo, 10);
         const parsedValue = parseInt(value, 10);
-        if (!Number.isNaN(parsedRaw) && !Number.isNaN(parsedValue)) {
-          return parsedRaw === parsedValue;
-        }
+        if (!Number.isNaN(parsedRaw) && !Number.isNaN(parsedValue)) return parsedRaw === parsedValue;
         return false;
       });
-
-      if (target) {
-        setLocalError("");
-        handleChannelSelect(target);
-      } else {
-        setLocalError(`Channel ${value} not found.`);
-      }
+      if (target) { setLocalError(""); handleChannelSelect(target); }
+      else setLocalError(`Channel ${value} not found.`);
     };
 
     const handleKey = (event) => {
@@ -312,9 +274,7 @@ const LiveChannels = () => {
         event.stopPropagation();
         numberBufferRef.current = `${numberBufferRef.current}${digit}`.slice(0, 4);
         setChannelJumpBuffer(numberBufferRef.current);
-        if (numberTimerRef.current) {
-          clearTimeout(numberTimerRef.current);
-        }
+        if (numberTimerRef.current) clearTimeout(numberTimerRef.current);
         numberTimerRef.current = setTimeout(commitChannelJump, 1000);
       }
     };
@@ -322,301 +282,107 @@ const LiveChannels = () => {
     window.addEventListener("keydown", handleKey, true);
     return () => {
       window.removeEventListener("keydown", handleKey, true);
-      if (numberTimerRef.current) {
-        clearTimeout(numberTimerRef.current);
-      }
+      if (numberTimerRef.current) clearTimeout(numberTimerRef.current);
     };
   }, [filteredChannels, isSearchFocused, handleChannelSelect]);
 
-  // Handle channel selection
-  // Show login required message
   if (authError === "NO_LOGIN") {
     return (
-      <Box
-        sx={{
-          background: TV_COLORS.background.primary,
-          minHeight: "100vh",
-          color: TV_COLORS.text.primary,
-          px: TV_SAFE_ZONE.horizontal,
-          py: TV_SAFE_ZONE.vertical,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <Typography sx={{ ...TV_TYPOGRAPHY.h1, mb: TV_SPACING.lg }}>
-          Login Required
-        </Typography>
-        <Typography sx={{ ...TV_TYPOGRAPHY.body1, mb: TV_SPACING.md, color: TV_COLORS.text.tertiary }}>
-          Please log in with your phone number to view TV channels.
-        </Typography>
-        <Button
-          variant="contained"
-          onClick={() => navigate("/login")}
-          sx={{
-            ...TV_SIZES.button.large,
-            ...TV_TYPOGRAPHY.button,
-            background: `linear-gradient(135deg, ${TV_COLORS.accent.primary} 0%, ${TV_COLORS.accent.secondary} 100%)`,
-            borderRadius: TV_RADIUS.xl,
-            "&:hover": {
-              background: `linear-gradient(135deg, ${TV_COLORS.accent.secondary} 0%, ${TV_COLORS.accent.primary} 100%)`,
-            },
-          }}
-        >
-          Go to Login
-        </Button>
-      </Box>
+      <div style={{ background: "#000", minHeight: "100vh", color: "#fff", padding: "32px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: '"Roboto","Helvetica","Arial",sans-serif' }}>
+        <p style={{ fontSize: "28px", fontWeight: 700, marginBottom: "16px" }}>Login Required</p>
+        <p style={{ fontSize: "16px", color: "#999", marginBottom: "8px" }}>Please log in with your phone number to view TV channels.</p>
+        <button onClick={() => navigate("/login")} style={{ padding: "12px 32px", fontSize: "16px", fontWeight: 600, background: "linear-gradient(135deg,#667eea 0%,#764ba2 100%)", color: "#fff", border: "none", borderRadius: "12px", cursor: "pointer", marginTop: "16px" }}>Go to Login</button>
+      </div>
     );
   }
 
   return (
-    <Box
-      sx={{
-        background: "#000",
-        minHeight: "100vh",
-        color: "#fff",
-        px: "4rem",
-        pt: "4.5rem",
-        pb: "3rem",
-        fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
-        textRendering: "optimizeLegibility",
-        WebkitFontSmoothing: "antialiased",
-        MozOsxFontSmoothing: "grayscale",
-        position: "relative",
-      }}
-    >
-      {/* ================= CHANNEL JUMP HUD ================= */}
-      {channelJumpBuffer && (
-        <Box
-          sx={{
-            position: "fixed",
-            top: "2rem",
-            right: "2rem",
-            bgcolor: "#667eea",
-            color: "#fff",
-            px: "2rem",
-            py: "1rem",
-            borderRadius: "0.75rem",
-            fontSize: "1.75rem",
-            fontWeight: 700,
-            boxShadow: "0 0 20px rgba(102, 126, 234, 0.5)",
-            zIndex: 100,
-            animation: "pulse 0.6s ease",
-            "@keyframes pulse": {
-              "0%, 100%": { opacity: 1 },
-              "50%": { opacity: 0.7 },
-            },
-          }}
-        >
-          Channel: {channelJumpBuffer}
-        </Box>
-      )}
-      {/* ================= HEADER WITH BACK BUTTON AND TITLE ================= */}
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between"}}>
-        {/* Back Button */}
-        <IconButton
-          onClick={() => navigate(-1)}
-          sx={{
-            color: "#fff",
-            border: "2px solid rgba(255,255,255,0.4)",
-            borderRadius: "0.75rem",
-            width: "3.5rem",
-            height: "3.5rem",
-            "&:hover": {
-              background: "rgba(255,255,255,0.1)",
-            },
-          }}
-        >
-          <ArrowBackIcon sx={{ fontSize: "2rem" }} />
-        </IconButton>
+    <div style={{ background: "#000", minHeight: "100vh", color: "#fff", padding: "4.5rem 4rem 3rem", fontFamily: '"Roboto","Helvetica","Arial",sans-serif', textRendering: "optimizeLegibility", WebkitFontSmoothing: "antialiased", position: "relative" }}>
 
-        {/* Title */}
-        <Typography sx={{ fontSize: "2.5rem", fontWeight: 700, lineHeight: 1.2 }}>
+      {/* Channel Jump HUD */}
+      {channelJumpBuffer && (
+        <div style={{ position: "fixed", top: "2rem", right: "2rem", backgroundColor: "#667eea", color: "#fff", padding: "1rem 2rem", borderRadius: "0.75rem", fontSize: "1.75rem", fontWeight: 700, boxShadow: "0 0 20px rgba(102,126,234,0.5)", zIndex: 100 }}>
+          Channel: {channelJumpBuffer}
+        </div>
+      )}
+
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <button onClick={() => navigate(-1)} style={{ color: "#fff", border: "2px solid rgba(255,255,255,0.4)", borderRadius: "0.75rem", width: "3.5rem", height: "3.5rem", display: "flex", alignItems: "center", justifyContent: "center", background: "none", cursor: "pointer", flexShrink: 0 }}>
+          <ArrowBackIcon />
+        </button>
+
+        <p style={{ fontSize: "2.5rem", fontWeight: 700, lineHeight: 1.2, margin: 0 }}>
           {selectedLanguageTitle ? `TV Channels - ${selectedLanguageTitle}` : "TV Channels"}
-        </Typography>
+        </p>
 
         {/* Search Bar */}
-        <Box
-          sx={{
-            width: "26rem",
-            display: "flex",
-            alignItems: "center",
-          }}
-        >
-          <SearchTextField
+        <div style={{ width: "26rem", display: "flex", alignItems: "center", backgroundColor: "rgba(255,255,255,0.08)", border: isSearchFocused ? "2px solid #667eea" : "2px solid rgba(255,255,255,0.3)", borderRadius: "28px", minHeight: "3.5rem", padding: "0 1rem", gap: "8px" }}>
+          <span style={{ color: "rgba(255,255,255,0.5)", display: "flex", flexShrink: 0 }}><SearchIcon /></span>
+          <input
             value={searchTerm}
             onChange={handleSearchChange}
             onFocus={() => setIsSearchFocused(true)}
             onBlur={() => setIsSearchFocused(false)}
             placeholder="Search Channels"
-            type="text"
-            autoFocus={false}
             maxLength={50}
-            sx={{
-              "& .MuiOutlinedInput-root": {
-                color: "#fff",
-                background: "rgba(255,255,255,0.08)",
-                borderRadius: "28px",
-                minHeight: "3.5rem",
-                "& fieldset": {
-                  borderColor: "rgba(255,255,255,0.3)",
-                  borderWidth: "2px",
-                },
-                "&:hover fieldset": {
-                  borderColor: "rgba(255,255,255,0.5)",
-                },
-                "&.Mui-focused fieldset": {
-                  borderColor: "#667eea",
-                  borderWidth: "2px",
-                },
-              },
-              "& .MuiInputBase-input": {
-                fontSize: "1.25rem",
-                padding: "0.875rem 1rem",
-                fontWeight: 500,
-              },
-              "& .MuiInputBase-input::placeholder": {
-                color: "rgba(255,255,255,0.6)",
-                opacity: 1,
-              },
-            }}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon sx={{ color: "rgba(255,255,255,0.5)", fontSize: "1.5rem" }} />
-                </InputAdornment>
-              ),
-              endAdornment: searchTerm && (
-                <InputAdornment position="end">
-                  <IconButton onClick={handleClearSearch} size="small" sx={{ color: "#fff" }}>
-                    <ClearIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              ),
-            }}
+            style={{ flex: 1, background: "none", border: "none", outline: "none", color: "#fff", fontSize: "1.25rem", fontWeight: 500 }}
           />
-        </Box>
-      </Box>
+          {searchTerm && (
+            <button onClick={handleClearSearch} style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", display: "flex", padding: "4px", flexShrink: 0 }}><ClearIcon /></button>
+          )}
+        </div>
+      </div>
 
-      {/* ================= CATEGORY FILTER TABS (WITH LANGUAGE) ================= */}
-      <Box className="cat-titlel" sx={{ mb: "1.5rem", display: "flex", gap: "0.75rem", flexWrap: "wrap", width: "100%", px: "4rem", py: "1rem", background: "#000" }}>
+      {/* Category Filter Tabs */}
+      <div style={{ marginBottom: "1.5rem", display: "flex", gap: "0.75rem", flexWrap: "wrap", width: "100%", padding: "1rem 4rem", background: "#000" }}>
         {isLoadingCategories
-          ? Array.from({ length: 4 }).map((_, index) => (
-              <Skeleton
-                key={`cat-skel-${index}`}
-                variant="rounded"
-                sx={{ width: "10rem", height: "2.75rem", borderRadius: "12px" }}
-              />
-            ))
-          : enhancedCategories.map((cat, index) => {
+          ? Array.from({ length: 4 }).map((_, i) => <ShimmerTab key={i} />)
+          : enhancedCategories.map((cat) => {
               const isActive = activeFilter === cat.title;
-              const langLabel = cat.title === "Language" && selectedLanguageTitle
-                ? `${cat.title} (${selectedLanguageTitle})`
-                : cat.title;
-
+              const langLabel = cat.title === "Language" && selectedLanguageTitle ? `${cat.title} (${selectedLanguageTitle})` : cat.title;
               return (
-                <ButtonBase
+                <button
                   key={cat.grid || cat.title}
                   onClick={() => handleFilter(cat)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      handleFilter(cat);
-                    }
-                  }}
-                  sx={{
-                    fontSize: "1rem",
-                    fontWeight: 600,
-                    px: "1.75rem",
-                    py: "0.65rem",
-                    borderRadius: "12px",
-                    bgcolor: isActive ? "#3b5bfe" : "rgba(255,255,255,0.06)",
-                    color: isActive ? "#fff" : "rgba(255,255,255,0.7)",
-                    border: isActive ? "1px solid rgba(59, 91, 254, 0.4)" : "1px solid rgba(255,255,255,0.08)",
-                    transition: "all 0.2s",
-                    "&:hover": {
-                      bgcolor: isActive ? "#4c6bff" : "rgba(255,255,255,0.1)",
-                      color: "#fff",
-                    },
-                  }}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleFilter(cat); } }}
+                  style={{ fontSize: "1rem", fontWeight: 600, padding: "0.65rem 1.75rem", borderRadius: "12px", backgroundColor: isActive ? "#3b5bfe" : "rgba(255,255,255,0.06)", color: isActive ? "#fff" : "rgba(255,255,255,0.7)", border: isActive ? "1px solid rgba(59,91,254,0.4)" : "1px solid rgba(255,255,255,0.08)", transition: "all 0.2s", cursor: "pointer" }}
                 >
                   {langLabel}
-                </ButtonBase>
+                </button>
               );
             })}
-      </Box>
+      </div>
 
-      {/* ================= ERROR/LOADING STATES ================= */}
-      {error && (
-        <Typography sx={{ fontSize: "1.25rem", color: "#f44336", mb: "1.5rem" }}>
-          {error}
-        </Typography>
-      )}
+      {/* Errors */}
+      {error && <p style={{ fontSize: "1.25rem", color: "#f44336", marginBottom: "1.5rem" }}>{error}</p>}
+      {localError && <p style={{ fontSize: "1.25rem", color: "#ff9800", marginBottom: "1.5rem" }}>{localError}</p>}
 
-      {localError && (
-        <Typography sx={{ fontSize: "1.25rem", color: "#ff9800", mb: "1.5rem" }}>
-          {localError}
-        </Typography>
-      )}
-
-      {/* ================= CHANNELS GRID ================= */}
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: `repeat(${columnsCount || 5}, 1fr)`,
-          gap: "2.5rem",
-        }}
+      {/* Channels Grid — windowed: only renders visible rows + buffer */}
+      <div
+        ref={gridContainerRef}
+        onScroll={handleGridScroll}
+        style={{ overflowY: "auto", maxHeight: "520px" }}
       >
-        {isLoadingChannels
-          ? Array.from({ length: 10 }).map((_, index) => (
-              <Skeleton
-                key={`channel-skel-${index}`}
-                variant="rounded"
-                sx={{ width: "100%", height: "9rem", borderRadius: "1rem" }}
-              />
-            ))
-          : filteredChannels.length === 0 ? (
-              <Box sx={{ gridColumn: "1 / -1", textAlign: "center", py: "4rem" }}>
-                <Typography sx={{ fontSize: "1.75rem", fontWeight: 600, color: "rgba(255,255,255,0.6)" }}>
-                  No channels found
-                </Typography>
-              </Box>
-            ) : (
-              filteredChannels.map((channel, index) => {
+        <div style={{ display: "grid", gridTemplateColumns: `repeat(${columnsCount}, 1fr)`, gap: "2.5rem", paddingTop, paddingBottom }}>
+          {isLoadingChannels
+            ? Array.from({ length: 10 }).map((_, i) => <ShimmerCard key={i} />)
+            : filteredChannels.length === 0
+            ? (
+              <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "4rem 0" }}>
+                <p style={{ fontSize: "1.75rem", fontWeight: 600, color: "rgba(255,255,255,0.6)", margin: 0 }}>No channels found</p>
+              </div>
+            )
+            : visibleChannels.map((channel, i) => {
+                const index = renderStart * columnsCount + i;
                 return (
-                  <Box
-                    key={`${channel.channelno}-${index}`}
-                    role="button"
-                    onClick={() => handleChannelSelect(channel)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        handleChannelSelect(channel);
-                      }
-                    }}
-                    sx={{
-                      outline: "none",
-                      transition: "all 0.25s ease",
-                      borderRadius: TV_RADIUS.xl,
-                      "&:hover": {
-                        transform: "scale(1.05)",
-                      },
-                    }}
-                  >
-                    <ChannelBox
-                      logo={channel.chlogo}
-                      name={channel.chtitle}
-                      channelNo={channel.channelno}
-                      price={channel.chprice}
-                      onClick={() => handleChannelSelect(channel)}
-                    />
-                  </Box>
+                  <ChannelCard key={`${channel.channelno}-${index}`} channel={channel} onClick={() => handleChannelSelect(channel)} />
                 );
               })
-            )}
-      </Box>
-    </Box>
+          }
+        </div>
+      </div>
+    </div>
   );
 };
 

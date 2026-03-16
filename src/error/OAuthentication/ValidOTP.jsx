@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { Box, Paper, Typography, Button, CircularProgress } from "@mui/material";
 import { API_ENDPOINTS, API_BASE_URL_PROD, getDefaultHeaders } from "../../server/config";
 
 const FALLBACK_NO_LOGIN_IMAGE = `${API_BASE_URL_PROD}/showimg/no_login.png`;
@@ -11,150 +10,49 @@ const ValidOTP = ({ onRetry }) => {
 
   useEffect(() => {
     let isMounted = true;
-
     const fetchErrorImages = async () => {
       try {
         const mobile = localStorage.getItem("userPhone") || "0000000000";
-        const requestPayload = {
-          userid: "lgiptv",
-          mobile,
-          device_type: "LG TV",
-          mac_address: "",
-          device_name: "LG TV",
-          app_package: "com.lgiptv.bbnl",
-        };
-        const response = await axios.post(
-          API_ENDPOINTS.ERROR_IMAGES,
-          requestPayload,
-          { headers: getDefaultHeaders() }
-        );
-
+        const response = await axios.post(API_ENDPOINTS.ERROR_IMAGES, { userid: "lgiptv", mobile, device_type: "LG TV", mac_address: "", device_name: "LG TV", app_package: "com.lgiptv.bbnl" }, { headers: getDefaultHeaders() });
         const errImgs = response?.data?.errImgs || [];
-        const noLoginItem = errImgs.find((item) =>
-          Object.prototype.hasOwnProperty.call(item, "NO_LOGIN")
-        );
+        const noLoginItem = errImgs.find((item) => Object.prototype.hasOwnProperty.call(item, "NO_LOGIN"));
         const noLoginUrl = noLoginItem?.NO_LOGIN;
-
-        if (isMounted && noLoginUrl) {
-          setImageUrl(noLoginUrl);
-        }
+        if (isMounted && noLoginUrl) setImageUrl(noLoginUrl);
       } catch {
-        if (isMounted) {
-          setImageUrl(FALLBACK_NO_LOGIN_IMAGE);
-        }
+        if (isMounted) setImageUrl(FALLBACK_NO_LOGIN_IMAGE);
       } finally {
-        if (isMounted) {
-          setLoadingImage(false);
-        }
+        if (isMounted) setLoadingImage(false);
       }
     };
-
     fetchErrorImages();
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, []);
 
   return (
-    <Box
-      sx={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        width: "100vw",
-        height: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "rgba(15, 23, 42, 0.55)",
-        backdropFilter: "blur(18px) saturate(180%)",
-        WebkitBackdropFilter: "blur(18px) saturate(180%)",
-        zIndex: 9999,
-        p: 3,
-      }}
-    >
-      <Paper
-        elevation={0}
-        sx={{
-          width: "100%",
-          maxWidth: 900,
-          borderRadius: "40px",
-          border: "2px solid rgba(255,255,255,0.9)",
-          bgcolor: "#2F2F35",
-          p: { xs: 3, md: 5 },
-        }}
-      >
+    <div style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(15,23,42,0.55)", backdropFilter: "blur(18px) saturate(180%)", WebkitBackdropFilter: "blur(18px) saturate(180%)", zIndex: 9999, padding: "24px" }}>
+      <div style={{ width: "100%", maxWidth: "900px", borderRadius: "40px", border: "2px solid rgba(255,255,255,0.9)", backgroundColor: "#2F2F35", padding: "40px" }}>
+
         {/* Image area */}
-        <Box
-          sx={{
-            width: "100%",
-            minHeight: { xs: 240, md: 360 },
-            borderRadius: "30px",
-            bgcolor: "#F6F6F2",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            mb: 5,
-            overflow: "hidden",
-          }}
-        >
+        <div style={{ width: "100%", minHeight: "360px", borderRadius: "30px", backgroundColor: "#F6F6F2", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "40px", overflow: "hidden" }}>
           {loadingImage ? (
-            <CircularProgress sx={{ color: "#111" }} />
+            <>
+              <style>{`@keyframes _spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}`}</style>
+              <div style={{ width: "40px", height: "40px", border: "4px solid rgba(0,0,0,0.2)", borderTopColor: "#111", borderRadius: "50%", animation: "_spin 1s linear infinite" }} />
+            </>
           ) : (
-            <Box
-              component="img"
-              src={imageUrl}
-              alt="Invalid OTP"
-              onError={(e) => {
-                e.currentTarget.onerror = null;
-                e.currentTarget.src = FALLBACK_NO_LOGIN_IMAGE;
-              }}
-              sx={{
-                width: "100%",
-                height: "100%",
-                objectFit: "contain",
-                p: { xs: 1, md: 2 },
-              }}
-            />
+            <img src={imageUrl} alt="Invalid OTP" onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = FALLBACK_NO_LOGIN_IMAGE; }} style={{ width: "100%", height: "100%", objectFit: "contain", padding: "16px" }} />
           )}
-        </Box>
+        </div>
 
-        {/* Message */}
-        <Typography
-          sx={{
-            color: "#fff",
-            fontSize: { xs: 36, md: 52 },
-            fontWeight: 700,
-            textAlign: "center",
-            mb: 5,
-          }}
-        >
-          Please Enter valid OTP
-        </Typography>
+        <p style={{ color: "#fff", fontSize: "52px", fontWeight: 700, textAlign: "center", marginBottom: "40px" }}>Please Enter valid OTP</p>
 
-        {/* Try Again button */}
-        <Box sx={{ display: "flex", justifyContent: "center" }}>
-          <Button
-            onClick={() => onRetry?.()}
-            sx={{
-              minWidth: { xs: 220, md: 260 },
-              height: { xs: 60, md: 72 },
-              borderRadius: "50px",
-              bgcolor: "#F2BC1B",
-              color: "#111",
-              fontSize: { xs: 28, md: 36 },
-              fontWeight: 700,
-              textTransform: "none",
-              "&:hover": {
-                bgcolor: "#e0ab0f",
-              },
-            }}
-          >
+        <div style={{ display: "flex", justifyContent: "center" }}>
+          <button onClick={() => onRetry?.()} style={{ minWidth: "260px", height: "72px", borderRadius: "50px", backgroundColor: "#F2BC1B", color: "#111", fontSize: "36px", fontWeight: 700, border: "none", cursor: "pointer" }}>
             Try Again
-          </Button>
-        </Box>
-      </Paper>
-    </Box>
+          </button>
+        </div>
+      </div>
+    </div>
   );
 };
 

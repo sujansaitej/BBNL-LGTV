@@ -1,26 +1,26 @@
-# 1. Build your React app
-cd C:\LG-BBNL-UI\lg-iptv-app
+# BBNL IPTV — LG webOS Developer Mode Deploy Guide
+
+## App Info
+- **App ID:** `com.bbnl.iptv`   ← CHANGED (was com.lg.bbnl — reserved for LG system apps)
+- **Version:** `2.0.0`
+- **IPK file:** `com.bbnl.iptv_2.0.0_all.ipk`
+
+---
+
+## Full deploy (build → package → install → launch)
+
+```bash
+# 1. Build React app
 npm run build
+ares-package build --outdir .
+ares-install --device mylgtv --remove com.lg.bbnl
+ares-install --device mylgtv com.bbnl.iptv_2.0.0_all.ipk
+ares-launch --device mylgtv com.bbnl.iptv
+ares-inspect --device mylgtv --app com.bbnl.iptv --open
+```
 
-# 2. Package the app
-ares-package build
+## Quick one-liner re-deploy
 
-# 3. Install/Update on TV (this will overwrite the existing app)
-ares-install --device mylgtv com.lg.bbnl_2.0.0_all.ipk
-
-# 4. Launch the app
-ares-launch --device mylgtv com.lg.bbnl
-
-
-# Open inspector in your terminal
-ares-inspect --device mylgtv --app com.lg.bbnl --open
-
-
-
-
-cd C:\LG-BBNL-UI\lg-iptv-app 
-npm run build 
-ares-package build 
-ares-install --device mylgtv com.lg.bbnl_2.0.0_all.ipk 
-ares-launch --device mylgtv com.lg.bbnl 
-ares-inspect --device mylgtv --app com.lg.bbnl --open
+```bash
+npm run build && ares-package build --outdir . && ares-install --device mylgtv com.bbnl.iptv_2.0.0_all.ipk && ares-launch --device mylgtv com.bbnl.iptv
+```

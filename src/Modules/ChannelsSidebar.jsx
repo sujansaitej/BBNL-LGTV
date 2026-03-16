@@ -1,8 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
-import { Box, Typography, List, ListItemButton, Avatar, Tabs, Tab } from "@mui/material";
 
 import useLiveChannelsStore from "../store/LiveChannelsStore";
-import { TV_TYPOGRAPHY, TV_SPACING, TV_RADIUS, TV_COLORS, TV_FOCUS, TV_TIMING } from "../styles/tvConstants";
 import { useEnhancedRemoteNavigation } from "../Remote/useMagicRemote";
 
 const ChannelsSidebar = ({ onChannelSelect, currentChannel }) => {
@@ -13,15 +11,12 @@ const ChannelsSidebar = ({ onChannelSelect, currentChannel }) => {
   const { categories: cachedCategories, channelsCache, fetchCategories, fetchChannels } = useLiveChannelsStore();
   const [selectedCategory, setSelectedCategory] = useState(0);
 
-  // Get device info from config
   const userid = localStorage.getItem("userId") || "";
   const mobile = localStorage.getItem("userPhone") || "";
 
   const payloadBase = {
     userid,
     mobile,
-    ip_address: "192.168.101.110",
-    mac: "26:F2:AE:D8:3F:99",
   };
 
   const formatPrice = (value) => {
@@ -32,7 +27,6 @@ const ChannelsSidebar = ({ onChannelSelect, currentChannel }) => {
     return /^[0-9]+(\.[0-9]+)?$/.test(text) ? `₹${text}` : text;
   };
 
-  // Fetch categories on mount
   useEffect(() => {
     const loadCategories = async () => {
       try {
@@ -49,22 +43,16 @@ const ChannelsSidebar = ({ onChannelSelect, currentChannel }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Fetch channels
   useEffect(() => {
     const loadChannels = async () => {
       try {
         setLoading(true);
         setError("");
         const currentGrid = categories[selectedCategory]?.grid || "";
-        const payload = {
-          ...payloadBase,
-          grid: currentGrid,
-        };
+        const payload = { ...payloadBase, grid: currentGrid };
         const key = `${userid}|${mobile}|${currentGrid}`;
         const cached = channelsCache[key]?.data;
-        if (cached) {
-          setChannels(cached || []);
-        }
+        if (cached) setChannels(cached || []);
         const channelsData = await fetchChannels(payload, { key });
         setChannels(channelsData || []);
       } catch (err) {
@@ -75,276 +63,120 @@ const ChannelsSidebar = ({ onChannelSelect, currentChannel }) => {
       }
     };
 
-    if (categories.length > 0) {
-      loadChannels();
-    }
+    if (categories.length > 0) loadChannels();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCategory, categories]);
 
-  // Magic Remote Navigation: Categories + Channels combined
-  const allNavigableItems = useMemo(() => {
-    return [...categories, ...channels];
-  }, [categories, channels]);
+  const allNavigableItems = useMemo(() => [...categories, ...channels], [categories, channels]);
 
-  const {
-    focusedIndex,
-    hoveredIndex,
-    getItemProps,
-    magicRemoteReady,
-  } = useEnhancedRemoteNavigation(allNavigableItems, {
-    orientation: 'vertical',
+  const { getItemProps } = useEnhancedRemoteNavigation(allNavigableItems, {
+    orientation: "vertical",
     useMagicRemotePointer: true,
     focusThreshold: 150,
     onSelect: (index) => {
       if (index < categories.length) {
-        // Category selected
         setSelectedCategory(index);
       } else {
-        // Channel selected
         const channelIndex = index - categories.length;
-        if (channels[channelIndex] && onChannelSelect) {
-          onChannelSelect(channels[channelIndex]);
-        }
+        if (channels[channelIndex] && onChannelSelect) onChannelSelect(channels[channelIndex]);
       }
     },
   });
 
-
   return (
-    <Box
-      sx={{
-        width: "28rem",
-        bgcolor: "rgba(0, 0, 0, 0.7)",
-        height: "100vh",
-        display: "flex",
-        flexDirection: "column",
-        pt: TV_SPACING.xl,
-        px: TV_SPACING.lg,
-      }}
-    >
-      {/* Magic Remote Status */}
-      {magicRemoteReady && (
-        <Box sx={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-          mb: 2,
-          px: '0.75rem',
-          py: '0.5rem',
-          borderRadius: '8px',
-          bgcolor: 'rgba(67, 233, 123, 0.15)',
-          border: '2px solid rgba(67, 233, 123, 0.5)',
-        }}>
-          <Box sx={{
-            width: 6,
-            height: 6,
-            borderRadius: '50%',
-            bgcolor: '#43e97b',
-            boxShadow: '0 0 10px rgba(67, 233, 123, 0.8)',
-            animation: 'pulse-dot 1.5s ease-in-out infinite',
-          }} />
-          <Typography sx={{ fontSize: '0.75rem', color: '#43e97b', fontWeight: 600 }}>
-            Magic Remote
-          </Typography>
-        </Box>
-      )}
+    <div style={{ width: "28rem", backgroundColor: "rgba(0,0,0,0.7)", height: "100vh", display: "flex", flexDirection: "column", paddingTop: "32px", paddingLeft: "16px", paddingRight: "16px" }}>
+      {/* Category Tabs */}
+      <div style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "8px", flexShrink: 0 }}>
+        {categories.map((cat, idx) => {
+          const isSelected = selectedCategory === idx;
+          return (
+            <button
+              key={idx}
+              {...getItemProps(idx)}
+              className="focusable-category-tab"
+              onClick={() => setSelectedCategory(idx)}
+              style={{
+                minHeight: "2.75rem",
+                minWidth: "5.5rem",
+                fontSize: "14px",
+                fontWeight: 600,
+                color: isSelected ? "#000" : "rgba(255,255,255,0.6)",
+                backgroundColor: isSelected ? "#fff" : "transparent",
+                borderRadius: "9999px",
+                padding: "0 20px",
+                border: "2px solid transparent",
+                transition: "border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+                flexShrink: 0,
+              }}
+            >
+              {cat.title}
+            </button>
+          );
+        })}
+      </div>
 
-      <Tabs
-          value={selectedCategory}
-          onChange={(e, newValue) => setSelectedCategory(newValue)}
-          variant="scrollable"
-          scrollButtons="auto"
-          sx={{
-            minHeight: "3rem",
-            "& .MuiTab-root": {
-              minHeight: "2.75rem",
-              minWidth: "5.5rem",
-              ...TV_TYPOGRAPHY.body2,
-              color: TV_COLORS.text.tertiary,
-              textTransform: "none",
-              borderRadius: TV_RADIUS.pill,
-              px: TV_SPACING.lg,
-              py: TV_SPACING.sm,
-              mr: TV_SPACING.sm,
-              transition: `all ${TV_TIMING.fast}`,
-              "&.Mui-selected": {
-                color: "#000",
-                bgcolor: "#fff",
-                fontWeight: 700,
-              },
-              "&:focus": {
-                ...TV_FOCUS.primary,
-              },
-            },
-            "& .MuiTabs-indicator": {
-              display: "none",
-            },
-          }}
-        >
-          {categories.map((cat, idx) => {
-            const isFocused = focusedIndex === idx;
-            const isHovered = hoveredIndex === idx;
-            
-            return (
-              <Tab 
-                key={idx} 
-                label={cat.title}
-                {...getItemProps(idx)}
-                className={`focusable-category-tab ${isFocused ? 'focused' : ''} ${isHovered ? 'hovered' : ''}`}
-                sx={{
-                  border: isFocused ? "2px solid #667eea !important" : undefined,
-                  transform: isFocused ? "scale(1.08) !important" : isHovered ? "scale(1.03) !important" : undefined,
-                  boxShadow: isFocused ? "0 4px 12px rgba(102, 126, 234, 0.4) !important" : undefined,
-                }}
-              />
-            );
-          })}
-        </Tabs>
-
-      {/* -------- CHANNEL LIST -------- */}
-      <Box sx={{ flex: 1, overflowY: "auto", px: TV_SPACING.md, py: TV_SPACING.md }}>
-        {loading && (
-          <Typography
-            sx={{
-              textAlign: "center",
-              ...TV_TYPOGRAPHY.body2,
-              color: TV_COLORS.text.secondary,
-              mt: TV_SPACING.xl,
-            }}
-          >
-            Loading channels...
-          </Typography>
-        )}
-
-        {error && (
-          <Typography
-            sx={{
-              textAlign: "center",
-              ...TV_TYPOGRAPHY.body2,
-              color: TV_COLORS.error,
-              mt: TV_SPACING.xl,
-            }}
-          >
-            {error}
-          </Typography>
-        )}
-
+      {/* Channel List */}
+      <div style={{ flex: 1, overflowY: "auto", padding: "12px 8px" }}>
+        {loading && <p style={{ textAlign: "center", fontSize: "14px", color: "rgba(255,255,255,0.6)", marginTop: "32px" }}>Loading channels...</p>}
+        {error && <p style={{ textAlign: "center", fontSize: "14px", color: "#f44336", marginTop: "32px" }}>{error}</p>}
         {!loading && !error && channels.length === 0 && (
-          <Typography
-            sx={{
-              textAlign: "center",
-              ...TV_TYPOGRAPHY.body2,
-              color: TV_COLORS.text.tertiary,
-              mt: TV_SPACING.xl,
-            }}
-          >
-            No channels found
-          </Typography>
+          <p style={{ textAlign: "center", fontSize: "14px", color: "rgba(255,255,255,0.5)", marginTop: "32px" }}>No channels found</p>
         )}
 
-        <List sx={{ p: 0 }}>
+        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
           {channels.map((channel, index) => {
             const globalIndex = categories.length + index;
-            const isFocused = focusedIndex === globalIndex;
-            const isHovered = hoveredIndex === globalIndex;
             const isActive = currentChannel?.channelno === channel.channelno;
             const priceLabel = formatPrice(channel.chprice);
 
             return (
-              <ListItemButton
-                key={`${channel.channelno}-${index}`}
-                {...getItemProps(globalIndex)}
-                className={`focusable-sidebar-item ${isFocused ? 'focused' : ''} ${isHovered ? 'hovered' : ''}`}
-                onClick={() => onChannelSelect && onChannelSelect(channel)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    if (onChannelSelect) onChannelSelect(channel);
-                  }
-                }}
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: TV_SPACING.md,
-                  borderRadius: TV_RADIUS.xl,
-                  px: TV_SPACING.md,
-                  py: TV_SPACING.md,
-                  mb: TV_SPACING.sm,
-                  bgcolor: isActive
-                    ? "rgba(255, 255, 255, 0.18)"
-                    : "transparent",
-                  transition: `all ${TV_TIMING.fast}`,
-                  border: isFocused 
-                    ? "3px solid #667eea" 
-                    : "2px solid transparent",
-                  transform: isFocused 
-                    ? "scale(1.05)" 
-                    : isHovered 
-                    ? "scale(1.02)" 
-                    : "scale(1)",
-                  boxShadow: isFocused 
-                    ? "0 6px 16px rgba(102, 126, 234, 0.4)" 
-                    : "none",
-                  "&:hover": {
-                    bgcolor: "rgba(255, 255, 255, 0.08)",
-                  },
-                  "&:focus-visible": {
-                    outline: "none",
-                  },
-                }}
-              >
-                <Avatar
-                  src={channel.chlogo}
-                  sx={{
-                    width: "4rem",
-                    height: "4rem",
-                    bgcolor: "#fff",
-                    borderRadius: TV_RADIUS.lg,
-                    border: "2px solid rgba(255, 255, 255, 0.15)",
-                  }}
-                />
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography
-                    sx={{
-                      ...TV_TYPOGRAPHY.body2,
-                      fontWeight: 600,
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {channel.chtitle}
-                  </Typography>
-                  {priceLabel && (
-                    <Typography
-                      sx={{
-                        ...TV_TYPOGRAPHY.body2,
-                        color: TV_COLORS.text.tertiary,
-                        mt: 0.25,
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                      }}
-                    >
-                      {priceLabel}
-                    </Typography>
-                  )}
-                </Box>
-                <Typography
-                  sx={{
-                    ...TV_TYPOGRAPHY.body2,
-                    fontWeight: 700,
-                    color: TV_COLORS.text.secondary,
+              <li key={`${channel.channelno}-${index}`}>
+                <button
+                  {...getItemProps(globalIndex)}
+                  className="focusable-sidebar-item"
+                  onClick={() => onChannelSelect && onChannelSelect(channel)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (onChannelSelect) onChannelSelect(channel); } }}
+                  style={{
+                    width: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "12px",
+                    borderRadius: "12px",
+                    padding: "12px",
+                    marginBottom: "8px",
+                    backgroundColor: isActive ? "rgba(255,255,255,0.18)" : "transparent",
+                    border: "2px solid transparent",
+                    transition: "border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease",
+                    cursor: "pointer",
+                    textAlign: "left",
+                    color: "#fff",
+                    background: isActive ? "rgba(255,255,255,0.18)" : "transparent",
                   }}
                 >
-                  {channel.channelno}
-                </Typography>
-              </ListItemButton>
+                  {channel.chlogo ? (
+                    <img
+                      src={channel.chlogo}
+                      alt={channel.chtitle}
+                      style={{ width: "4rem", height: "4rem", objectFit: "contain", backgroundColor: "#fff", borderRadius: "8px", border: "2px solid rgba(255,255,255,0.15)", flexShrink: 0 }}
+                      onError={(e) => { e.currentTarget.style.display = "none"; }}
+                    />
+                  ) : (
+                    <div style={{ width: "4rem", height: "4rem", backgroundColor: "rgba(255,255,255,0.1)", borderRadius: "8px", border: "2px solid rgba(255,255,255,0.15)", flexShrink: 0 }} />
+                  )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: "14px", fontWeight: 600, margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{channel.chtitle}</p>
+                    {priceLabel && <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.55)", margin: "2px 0 0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{priceLabel}</p>}
+                  </div>
+                  <span style={{ fontSize: "14px", fontWeight: 700, color: "rgba(255,255,255,0.55)", flexShrink: 0 }}>{channel.channelno}</span>
+                </button>
+              </li>
             );
           })}
-        </List>
-      </Box>
-    </Box>
+        </ul>
+      </div>
+    </div>
   );
 };
 

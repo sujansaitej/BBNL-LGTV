@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Box, Typography } from "@mui/material";
 import { useLocation, useNavigate } from "react-router-dom";
 import StreamPlayer from "../Pages/Channels/StreamPlayer";
 import ChannelsSidebar from "./ChannelsSidebar";
@@ -32,61 +31,32 @@ const LivePlayer = () => {
   const showDetails = useCallback((durationMs = 3000) => {
     if (isSidebarOpen) return;
     setIsDetailsVisible(true);
-    if (detailsTimerRef.current) {
-      clearTimeout(detailsTimerRef.current);
-    }
-    detailsTimerRef.current = setTimeout(() => {
-      setIsDetailsVisible(false);
-    }, durationMs);
+    if (detailsTimerRef.current) clearTimeout(detailsTimerRef.current);
+    detailsTimerRef.current = setTimeout(() => setIsDetailsVisible(false), durationMs);
   }, [isSidebarOpen]);
 
   const toggleDetails = useCallback(() => {
     if (isSidebarOpen) return;
-    
-    // Use functional state update for immediate response
     setIsDetailsVisible(prev => {
       if (prev) {
-        // If already visible, close it immediately
-        if (detailsTimerRef.current) {
-          clearTimeout(detailsTimerRef.current);
-          detailsTimerRef.current = null;
-        }
+        if (detailsTimerRef.current) { clearTimeout(detailsTimerRef.current); detailsTimerRef.current = null; }
         return false;
       } else {
-        // If not visible, show it and auto-close after 3 seconds
-        if (detailsTimerRef.current) {
-          clearTimeout(detailsTimerRef.current);
-        }
-        detailsTimerRef.current = setTimeout(() => {
-          setIsDetailsVisible(false);
-        }, 3000);
+        if (detailsTimerRef.current) clearTimeout(detailsTimerRef.current);
+        detailsTimerRef.current = setTimeout(() => setIsDetailsVisible(false), 3000);
         return true;
       }
     });
   }, [isSidebarOpen]);
-  // Helper function to get stream URL from channel data
-  const getStreamUrl = useCallback((channel) =>
-    channel?.streamlink ||
-    channel?.stream_link ||
-    channel?.streamurl ||
-    channel?.stream_url ||
-    channel?.url ||
-    channel?.link ||
-    channel?.videourl ||
-    channel?.video_url ||
-    channel?.hlsurl ||
-    channel?.hls_url ||
-    channel?.manifest ||
-    channel?.manifesturl ||
-    "", []);
 
-  // Handle channel selection
+  const getStreamUrl = useCallback((channel) =>
+    channel?.streamlink || channel?.stream_link || channel?.streamurl || channel?.stream_url ||
+    channel?.url || channel?.link || channel?.videourl || channel?.video_url ||
+    channel?.hlsurl || channel?.hls_url || channel?.manifest || channel?.manifesturl || "", []);
+
   const handleChannelSelect = useCallback((channel) => {
     const streamUrl = getStreamUrl(channel);
-    if (!streamUrl) {
-      setLocalError("No stream URL found for this channel.");
-      return;
-    }
+    if (!streamUrl) { setLocalError("No stream URL found for this channel."); return; }
     setLocalError("");
     setCurrentStream(streamUrl);
     setCurrentChannel(channel);
@@ -98,58 +68,32 @@ const LivePlayer = () => {
     const findChannelIndex = (channel) => {
       if (!channel || channelsList.length === 0) return -1;
       return channelsList.findIndex((item) => {
-        if (channel.channelno && item.channelno) {
-          return String(item.channelno) === String(channel.channelno);
-        }
-        if (channel.channelid && item.channelid) {
-          return String(item.channelid) === String(channel.channelid);
-        }
-        if (channel.chid && item.chid) {
-          return String(item.chid) === String(channel.chid);
-        }
+        if (channel.channelno && item.channelno) return String(item.channelno) === String(channel.channelno);
+        if (channel.channelid && item.channelid) return String(item.channelid) === String(channel.channelid);
+        if (channel.chid && item.chid) return String(item.chid) === String(channel.chid);
         return item.streamlink && channel.streamlink && item.streamlink === channel.streamlink;
       });
     };
-    
     const currentIndex = findChannelIndex(currentChannel);
-    const nextIndex = currentIndex === -1
-      ? 0
-      : (currentIndex + direction + channelsList.length) % channelsList.length;
+    const nextIndex = currentIndex === -1 ? 0 : (currentIndex + direction + channelsList.length) % channelsList.length;
     const nextChannel = channelsList[nextIndex];
-    if (nextChannel) {
-      handleChannelSelect(nextChannel);
-      showDetails();
-    }
+    if (nextChannel) { handleChannelSelect(nextChannel); showDetails(); }
   }, [channelsList, currentChannel, showDetails, handleChannelSelect]);
 
-  // Integrate Magic Remote for standardized remote control
   useMagicRemote({
     enabled: !isSidebarOpen,
-    onOKKey: () => {
-      if (!isSidebarOpen) {
-        toggleDetails();
-      }
-    },
+    onOKKey: () => { if (!isSidebarOpen) toggleDetails(); },
     onBackKey: () => {
-      if (isSidebarOpen) {
-        setIsSidebarOpen(false);
-      } else if (isDetailsVisible) {
+      if (isSidebarOpen) { setIsSidebarOpen(false); }
+      else if (isDetailsVisible) {
         setIsDetailsVisible(false);
-        if (detailsTimerRef.current) {
-          clearTimeout(detailsTimerRef.current);
-          detailsTimerRef.current = null;
-        }
-      } else {
-        navigate(-1);
-      }
+        if (detailsTimerRef.current) { clearTimeout(detailsTimerRef.current); detailsTimerRef.current = null; }
+      } else { navigate(-1); }
     },
     onArrowKey: (direction) => {
-      if (direction === 'up') {
-        handleChannelStep(1);
-      } else if (direction === 'down') {
-        handleChannelStep(-1);
-      }
-    }
+      if (direction === "up") handleChannelStep(1);
+      else if (direction === "down") handleChannelStep(-1);
+    },
   });
 
   const userid = localStorage.getItem("userId") || "";
@@ -159,48 +103,25 @@ const LivePlayer = () => {
   useEffect(() => {
     const streamForTrp = String(currentStream || "").trim();
     const dynamicIp =
-      deviceInfo.privateIPv4 && deviceInfo.privateIPv4 !== "Not available"
-        ? deviceInfo.privateIPv4
-        : deviceInfo.publicIPv4 && deviceInfo.publicIPv4 !== "Not available"
-        ? deviceInfo.publicIPv4
-        : "";
-
+      deviceInfo.privateIPv4 && deviceInfo.privateIPv4 !== "Not available" ? deviceInfo.privateIPv4
+      : deviceInfo.publicIPv4 && deviceInfo.publicIPv4 !== "Not available" ? deviceInfo.publicIPv4
+      : "";
     if (!streamForTrp || !mobile || !dynamicIp) return;
     if (lastTrpStreamRef.current === streamForTrp) return;
-
     lastTrpStreamRef.current = streamForTrp;
-
     postTrpData({ mobile, ip_address: dynamicIp })
       .then((res) => {
-        if (res?.success) {
-          console.log("[TRP] Submitted successfully", {
-            mobile,
-            ip_address: dynamicIp,
-            stream: streamForTrp,
-          });
-        } else {
-          console.warn("[TRP] Submission failed", {
-            message: res?.message,
-            mobile,
-            ip_address: dynamicIp,
-          });
-        }
+        if (res?.success) console.log("[TRP] Submitted successfully", { mobile, ip_address: dynamicIp, stream: streamForTrp });
+        else console.warn("[TRP] Submission failed", { message: res?.message, mobile, ip_address: dynamicIp });
       })
-      .catch((err) => {
-        console.error("[TRP] Submission error", err);
-      });
+      .catch((err) => console.error("[TRP] Submission error", err));
   }, [currentStream, mobile, deviceInfo.privateIPv4, deviceInfo.publicIPv4]);
 
-  // Load channels once and cache; keep list locally for navigation order
   useEffect(() => {
     const payload = { userid, mobile, grid: "1" };
-    fetchChannels(payload).then((channels) => {
-      if (Array.isArray(channels)) {
-        setChannelsList(channels);
-      }
-    });
+    fetchChannels(payload).then((channels) => { if (Array.isArray(channels)) setChannelsList(channels); });
   }, [fetchChannels, userid, mobile]);
-// Handle numeric channel jump (Magic Remote handles arrow keys)
+
   useEffect(() => {
     const getDigitFromEvent = (event) => {
       if (/^[0-9]$/.test(event.key)) return event.key;
@@ -215,98 +136,65 @@ const LivePlayer = () => {
       const value = numberBufferRef.current;
       if (!value) return;
       numberBufferRef.current = "";
-      setTypedChannelNumber(""); // Clear display
-      if (numberTimerRef.current) {
-        clearTimeout(numberTimerRef.current);
-        numberTimerRef.current = null;
-      }
-
+      setTypedChannelNumber("");
+      if (numberTimerRef.current) { clearTimeout(numberTimerRef.current); numberTimerRef.current = null; }
       const target = getChannelByNumber({ userid, mobile, grid: "1" }, value) || findChannelByNumber(channelsList, value);
-      if (target) {
-        setLocalError("");
-        handleChannelSelect(target);
-        showDetails();
-      } else {
-        setLocalError(`Channel ${value} not found.`);
-      }
+      if (target) { setLocalError(""); handleChannelSelect(target); showDetails(); }
+      else setLocalError(`Channel ${value} not found.`);
     };
 
     const handleKey = (event) => {
-      // Handle numeric input for channel jump
       const digit = getDigitFromEvent(event);
       if (digit) {
         event.preventDefault();
         event.stopPropagation();
         numberBufferRef.current = `${numberBufferRef.current}${digit}`.slice(0, 4);
-        setTypedChannelNumber(numberBufferRef.current); // Show on screen
-        if (numberTimerRef.current) {
-          clearTimeout(numberTimerRef.current);
-        }
-        numberTimerRef.current = setTimeout(commitNumberJump, 2000); // wait 2s after last digit
+        setTypedChannelNumber(numberBufferRef.current);
+        if (numberTimerRef.current) clearTimeout(numberTimerRef.current);
+        numberTimerRef.current = setTimeout(commitNumberJump, 2000);
         return;
       }
-
-      // Handle left arrow to open sidebar
       if (event.key === "ArrowLeft" && !isSidebarOpen && !isDetailsVisible) {
         event.preventDefault();
         event.stopPropagation();
         setIsSidebarOpen(true);
-        return;
       }
     };
 
     window.addEventListener("keydown", handleKey, true);
     return () => {
       window.removeEventListener("keydown", handleKey, true);
-      if (numberTimerRef.current) {
-        clearTimeout(numberTimerRef.current);
-      }
+      if (numberTimerRef.current) clearTimeout(numberTimerRef.current);
     };
   }, [isSidebarOpen, isDetailsVisible, channelsList, showDetails, handleChannelSelect, getChannelByNumber, userid, mobile]);
 
   useEffect(() => {
     if (!isSidebarOpen) return;
     setIsDetailsVisible(false);
-    if (detailsTimerRef.current) {
-      clearTimeout(detailsTimerRef.current);
-    }
+    if (detailsTimerRef.current) clearTimeout(detailsTimerRef.current);
   }, [isSidebarOpen]);
 
   return (
-    <Box sx={{ background: "#000", width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", top: 0, left: 0, margin: 0, padding: 0 }}>
-      {/* Channel Number Display Overlay */}
+    <div style={{ background: "#000", width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", top: 0, left: 0, margin: 0, padding: 0 }}>
       <ChannelNumberDisplay channelNumber={typedChannelNumber} />
       {!currentStream ? (
-        <Box sx={{ p: 3 }}>
-          <Typography sx={{ color: "#ff9a9a", mb: 1 }}>No stream link provided.</Typography>
-          {localError ? (
-            <Typography sx={{ color: "#ffb347" }}>{localError}</Typography>
-          ) : null}
-        </Box>
+        <div style={{ padding: "24px" }}>
+          <p style={{ color: "#ff9a9a", marginBottom: "8px" }}>No stream link provided.</p>
+          {localError && <p style={{ color: "#ffb347" }}>{localError}</p>}
+        </div>
       ) : (
-        <Box sx={{ width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", top: 0, left: 0, margin: 0, padding: 0 }}>
+        <div style={{ width: "100vw", height: "100vh", overflow: "hidden", position: "fixed", top: 0, left: 0, margin: 0, padding: 0 }}>
           <StreamPlayer key={currentStream} src={currentStream} />
-          
           <ChannelsDetails channel={currentChannel} visible={isDetailsVisible} />
-          
-          <Box
+          <div
             ref={sidebarRef}
-            sx={{ 
-              position: "absolute", 
-              top: 0, 
-              left: 0, 
-              height: "100%", 
-              zIndex: 20,
-              display: isSidebarOpen ? "block" : "none",
-              transform: "translateZ(0)",
-              willChange: "display",
-            }}
+            style={{ position: "absolute", top: 0, left: 0, height: "100%", zIndex: 20, display: isSidebarOpen ? "block" : "none", transform: "translateZ(0)", willChange: "display" }}
           >
             <ChannelsSidebar onChannelSelect={handleChannelSelect} currentChannel={currentChannel} />
-          </Box>
-        </Box>
+          </div>
+        </div>
       )}
-    </Box>
+    </div>
   );
 };
 

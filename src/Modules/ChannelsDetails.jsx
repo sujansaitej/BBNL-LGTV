@@ -1,167 +1,61 @@
 import { useEffect, useMemo, useState } from "react";
-import { Box, Typography, Avatar } from "@mui/material";
-import { TV_TYPOGRAPHY, TV_SPACING, TV_RADIUS, TV_SHADOWS, TV_BLUR, TV_COLORS } from "../styles/tvConstants";
 
 const ChannelsDetails = ({ channel, visible = false }) => {
-	const [now, setNow] = useState(new Date());
+  const [now, setNow] = useState(new Date());
 
-	useEffect(() => {
-		const id = setInterval(() => setNow(new Date()), 60000);
-		return () => clearInterval(id);
-	}, []);
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(id);
+  }, []);
 
-	const deviceId =
-		localStorage.getItem("deviceId") ||
-		localStorage.getItem("devslno") ||
-		"N/A";
+  const deviceId = localStorage.getItem("deviceId") || localStorage.getItem("devslno") || "N/A";
 
-	const expiryText = useMemo(() => {
-		const raw = channel?.expirydate;
-		if (!raw) return "Expires: N/A";
+  const expiryText = useMemo(() => {
+    const raw = channel?.expirydate;
+    if (!raw) return "Expires: N/A";
+    const parsed = new Date(raw);
+    if (Number.isNaN(parsed.getTime())) return "Expires: N/A";
+    const diffDays = Math.ceil((parsed.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    if (diffDays <= 0) return "Expired";
+    return `Expires in ${diffDays} days`;
+  }, [channel?.expirydate, now]);
 
-		const parsed = new Date(raw);
-		if (Number.isNaN(parsed.getTime())) return "Expires: N/A";
+  if (!channel) return null;
 
-		const diffMs = parsed.getTime() - now.getTime();
-		const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-		if (diffDays <= 0) return "Expired";
-		return `Expires in ${diffDays} days`;
-	}, [channel?.expirydate, now]);
+  return (
+    <div style={{ position: "absolute", bottom: "24px", left: "50%", transform: "translate(-50%, 0) translateZ(0)", width: "80%", maxWidth: "1200px", minHeight: "7rem", padding: "16px 24px", display: visible ? "flex" : "none", alignItems: "center", justifyContent: "space-between", gap: "16px", color: "#fff", background: "rgba(0,0,0,0.75)", backdropFilter: "blur(20px)", border: "2px solid rgba(255,255,255,0.2)", borderRadius: "20px", boxShadow: "0 8px 32px rgba(0,0,0,0.6)", pointerEvents: "none", zIndex: 30, willChange: "display" }}>
 
-	if (!channel) return null;
+      {/* Left: logo + channel info */}
+      <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+        <img src={channel.chlogo} alt={channel.chtitle} style={{ width: "5rem", height: "5rem", backgroundColor: "#fff", borderRadius: "12px", objectFit: "contain", boxShadow: "0 4px 12px rgba(0,0,0,0.4)" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />
+        <div>
+          <p style={{ fontSize: "1rem", fontWeight: 700, opacity: 0.9, margin: 0 }}>{String(channel.channelno || "--").padStart(3, "0")}</p>
+          <p style={{ fontSize: "1.5rem", fontWeight: 700, margin: "4px 0 0" }}>{channel.chtitle || "Unknown Channel"}</p>
+          <p style={{ fontSize: "0.85rem", opacity: 0.75, margin: "4px 0 0" }}>{expiryText}</p>
+        </div>
+      </div>
 
-	return (
-		<Box
-			sx={{
-				position: "absolute",
-				bottom: TV_SPACING.xl,
-				left: "50%",
-				transform: "translate(-50%, 0) translateZ(0)",
-				width: "80%",
-				maxWidth: "1200px",
-				minHeight: "7rem",
-				px: TV_SPACING.xl,
-				py: TV_SPACING.lg,
-				display: visible ? "flex" : "none",
-				alignItems: "center",
-				justifyContent: "space-between",
-				gap: TV_SPACING.lg,
-				color: TV_COLORS.text.primary,
-				background: TV_COLORS.background.overlay,
-				backdropFilter: TV_BLUR.lg,
-				border: "2px solid rgba(255,255,255,0.2)",
-				borderRadius: TV_RADIUS.xxl,
-				boxShadow: TV_SHADOWS.xl,
-				pointerEvents: "none",
-				zIndex: 30,
-				willChange: "display",
-			}}
-		>
-			<Box sx={{ display: "flex", alignItems: "center", gap: TV_SPACING.lg }}>
-				<Avatar
-					src={channel.chlogo}
-					variant="rounded"
-					sx={{ 
-						width: "5rem", 
-						height: "5rem", 
-						bgcolor: "#fff",
-						borderRadius: TV_RADIUS.lg,
-						boxShadow: TV_SHADOWS.md,
-					}}
-				/>
-				<Box>
-					<Typography sx={{ 
-						...TV_TYPOGRAPHY.body2,
-						fontWeight: 700,
-						opacity: 0.9,
-					}}>
-						{String(channel.channelno || "--").padStart(3, "0")}
-					</Typography>
-					<Typography sx={{ 
-						...TV_TYPOGRAPHY.h3,
-						mt: 0.5,
-					}}>
-						{channel.chtitle || "Unknown Channel"}
-					</Typography>
-					<Typography sx={{ 
-						...TV_TYPOGRAPHY.caption,
-						opacity: 0.75,
-						mt: 0.5,
-					}}>
-						{expiryText}
-					</Typography>
-				</Box>
-			</Box>
+      {/* Middle: price + device ID + subscribed */}
+      <div style={{ display: "flex", gap: "32px", alignItems: "center" }}>
+        {[
+          { label: "Channel Price:", value: channel.chprice || "N/A" },
+          { label: "Device ID:", value: deviceId },
+          { label: "Subscribed:", value: channel.subscribed ? channel.subscribed.toUpperCase() : "N/A" },
+        ].map(({ label, value }) => (
+          <div key={label} style={{ textAlign: "left" }}>
+            <p style={{ fontSize: "0.8rem", opacity: 0.7, marginBottom: "4px" }}>{label}</p>
+            <p style={{ fontSize: "1rem", fontWeight: 700, margin: 0 }}>{value}</p>
+          </div>
+        ))}
+      </div>
 
-			<Box sx={{ display: "flex", gap: TV_SPACING.xl, alignItems: "center" }}>
-				<Box sx={{ textAlign: "left" }}>
-					<Typography sx={{ 
-						...TV_TYPOGRAPHY.label,
-						opacity: 0.7,
-						mb: 0.5,
-					}}>
-						Channel Price:
-					</Typography>
-					<Typography sx={{ 
-						...TV_TYPOGRAPHY.body2,
-						fontWeight: 700,
-					}}>
-						{channel.chprice || "N/A"}
-					</Typography>
-				</Box>
-				<Box sx={{ textAlign: "left" }}>
-					<Typography sx={{ 
-						...TV_TYPOGRAPHY.label,
-						opacity: 0.7,
-						mb: 0.5,
-					}}>
-						Device ID:
-					</Typography>
-					<Typography sx={{ 
-						...TV_TYPOGRAPHY.body2,
-						fontWeight: 700,
-					}}>
-						{deviceId}
-					</Typography>
-				</Box>
-				<Box sx={{ textAlign: "left" }}>
-					<Typography sx={{ 
-						...TV_TYPOGRAPHY.label,
-						opacity: 0.7,
-						mb: 0.5,
-					}}>
-						Subscribed:
-					</Typography>
-					<Typography sx={{ 
-						...TV_TYPOGRAPHY.body2,
-						fontWeight: 700,
-					}}>
-						{channel.subscribed ? channel.subscribed.toUpperCase() : "N/A"}
-					</Typography>
-				</Box>
-			</Box>
-
-			<Box sx={{ textAlign: "right" }}>
-				<Typography sx={{ 
-					...TV_TYPOGRAPHY.h3,
-					fontWeight: 700,
-				}}>
-					{now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
-				</Typography>
-				<Typography sx={{ 
-					...TV_TYPOGRAPHY.caption,
-					opacity: 0.75,
-					mt: 0.5,
-				}}>
-					{now.toLocaleDateString("en-US", {
-						day: "2-digit",
-						month: "short",
-						year: "numeric",
-					})}
-				</Typography>
-			</Box>
-		</Box>
-	);
+      {/* Right: time + date */}
+      <div style={{ textAlign: "right" }}>
+        <p style={{ fontSize: "1.5rem", fontWeight: 700, margin: 0 }}>{now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</p>
+        <p style={{ fontSize: "0.85rem", opacity: 0.75, marginTop: "4px" }}>{now.toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" })}</p>
+      </div>
+    </div>
+  );
 };
 
 export default ChannelsDetails;

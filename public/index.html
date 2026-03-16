@@ -3,50 +3,145 @@
   <head>
     <meta charset="utf-8" />
 
-    <!-- Favicon -->
-    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+    <!-- webOS TV viewport — must not allow user zoom -->
+    <meta name="viewport" content="width=1280, initial-scale=1, maximum-scale=1, user-scalable=no" />
 
-    <!-- IMPORTANT: WebOS TV viewport fix -->
-    <meta name="viewport" 
-      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-
-    <!-- Theme color -->
+    <!-- Theme -->
     <meta name="theme-color" content="#000000" />
+    <meta name="description" content="BBNL IPTV — LG Smart TV" />
 
-    <!-- App Description -->
-    <meta name="description" content="WebOS React Application" />
-
-    <!-- Apple Icon -->
-    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
-
-    <!-- PWA manifest (not required but OK to keep) -->
+    <!-- PWA manifest (optional, harmless on TV) -->
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
 
-    <!-- Prevent WebOS Text Scaling Issue -->
+    <title>BBNL IPTV</title>
+
     <style>
+      /* ── Reset for webOS TV ──────────────────────────────────────────────── */
+      *, *::before, *::after { box-sizing: border-box; }
+
       html, body {
-        -webkit-text-size-adjust: 100%;
         margin: 0;
         padding: 0;
-        background-color: #000;
-        overflow: hidden; /* Prevent unwanted scroll on TV */
+        width: 1280px;          /* LG TV full-HD logical width  */
+        height: 720px;          /* LG TV full-HD logical height */
+        background: #000;
+        overflow: hidden;       /* no scrollbars on TV          */
+        -webkit-text-size-adjust: 100%;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        /* ── Sharp text rendering on LG webOS TV ── */
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        text-rendering: optimizeLegibility;
       }
 
-      /* Prevent WebOS focusing outline destroying layout */
-      *:focus {
-        outline: none !important;
+      #root {
+        width: 100%;
+        height: 100%;
+        position: relative;
+      }
+
+      /* Remove default browser focus ring — our code draws its own */
+      *:focus { outline: none; }
+
+      /* Prevent tap-highlight on webOS */
+      * { -webkit-tap-highlight-color: transparent; }
+
+      /* Prevent GPU compositing blur from transform on text elements */
+      p, span, button, div { -webkit-backface-visibility: hidden; backface-visibility: hidden; }
+
+      /* ── TV DOM Focus Engine ─────────────────────────────────────────── */
+      /* Focus/hover applied via DOM attribute manipulation — zero React re-renders */
+
+      [class^="focusable-"],
+      [class*=" focusable-"] {
+        transition: transform 0.1s ease, border-color 0.1s ease, box-shadow 0.1s ease !important;
+        will-change: transform;
+        outline: none;
+      }
+
+      /* Sidebar channel items */
+      .focusable-sidebar-item[data-focused="true"] {
+        border: 3px solid #667eea !important;
+        transform: scale(1.04) !important;
+        box-shadow: 0 6px 16px rgba(102,126,234,0.45) !important;
+      }
+      .focusable-sidebar-item[data-hovered="true"]:not([data-focused="true"]) {
+        transform: scale(1.02) !important;
+      }
+
+      /* Category tabs */
+      .focusable-category-tab[data-focused="true"] {
+        border: 2px solid #667eea !important;
+        transform: scale(1.06) !important;
+        box-shadow: 0 4px 12px rgba(102,126,234,0.4) !important;
+      }
+      .focusable-category-tab[data-hovered="true"]:not([data-focused="true"]) {
+        transform: scale(1.03) !important;
+      }
+
+      /* Language cards */
+      .focusable-language-card[data-focused="true"] {
+        border: 4px solid rgba(255,255,255,0.9) !important;
+        transform: translateY(-12px) scale(1.07) !important;
+        box-shadow: 0 20px 50px rgba(0,0,0,0.65), 0 0 30px rgba(255,255,255,0.35) !important;
+      }
+      .focusable-language-card[data-hovered="true"]:not([data-focused="true"]) {
+        transform: translateY(-8px) scale(1.04) !important;
+        box-shadow: 0 12px 30px rgba(0,0,0,0.5) !important;
+      }
+
+      /* Generic buttons (stars, cancel, submit, OTT) */
+      .focusable-button[data-focused="true"] {
+        border: 3px solid #00aaff !important;
+        transform: scale(1.08) !important;
+        box-shadow: 0 0 20px rgba(0,170,255,0.7) !important;
+      }
+      .focusable-button[data-hovered="true"]:not([data-focused="true"]) {
+        transform: scale(1.04) !important;
+      }
+
+      /* Input / textarea */
+      .focusable-input[data-focused="true"] {
+        border: 3px solid #667eea !important;
+        box-shadow: 0 0 18px rgba(102,126,234,0.5) !important;
+      }
+
+      /* Icon buttons (header settings, home sidebar icons) */
+      .focusable-icon-button[data-focused="true"] {
+        border: 3px solid #667eea !important;
+        transform: scale(1.08) !important;
+        box-shadow: 0 0 18px rgba(102,126,234,0.55) !important;
+      }
+      .focusable-icon-button[data-hovered="true"]:not([data-focused="true"]) {
+        transform: scale(1.04) !important;
+      }
+
+      /* Settings menu items */
+      .focusable-settings-item[data-focused="true"] {
+        border: 3px solid #667eea !important;
+        transform: scale(1.05) !important;
+        box-shadow: 0 8px 20px rgba(102,126,234,0.4) !important;
+      }
+      .focusable-settings-item[data-hovered="true"]:not([data-focused="true"]) {
+        transform: scale(1.02) !important;
+      }
+      .focusable-settings-item[data-logout="true"][data-focused="true"] {
+        border: 3px solid #f44336 !important;
+        box-shadow: 0 8px 20px rgba(244,67,54,0.45) !important;
       }
     </style>
 
-    <title>React WebOS App</title>
-
-    <!-- CRITICAL: WebOS TV JavaScript Library - Required for all webOS APIs -->
-    <!-- This MUST be loaded before your React app starts -->
-    <script src="https://web.webostv.com/api/tv/webosTV.js"></script>
+    <!--
+      CRITICAL — webOSTV.js must be loaded SYNCHRONOUSLY before React boots.
+      Using a LOCAL copy (./webOSTV.js) so the app works even when the TV
+      has no internet access.  On a real LG TV, window.webOS already exists
+      and the stub inside webOSTV.js skips itself automatically.
+    -->
+    <script src="%PUBLIC_URL%/webOSTV.js"></script>
   </head>
 
   <body>
-    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <noscript>JavaScript must be enabled to run BBNL IPTV.</noscript>
     <div id="root"></div>
   </body>
 </html>

@@ -1,14 +1,12 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Box, Typography, Button, IconButton, Skeleton } from "@mui/material";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 
 import { fetchLanguages } from "../server/modules-api/LanguageChannelsApi";
-import { fetchChannels } from "../server/modules-api/ChannelApi";
 import { getDefaultHeaders } from "../server/config";
 import { useEnhancedRemoteNavigation } from "../Remote/useMagicRemote";
 
-// Gradient colors for each language card (unique gradient pairs)
+const ArrowBackIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" /></svg>;
+
 const GRADIENT_COLORS = [
   "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
   "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
@@ -31,22 +29,14 @@ const GRADIENT_COLORS = [
 const LanguageChannels = () => {
   const navigate = useNavigate();
   const [languages, setLanguages] = useState([]);
-  // const [channels, setChannels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // Get userid + mobile
   const userid = localStorage.getItem("userId") || "";
   const mobile = localStorage.getItem("userPhone") || "";
-
-  const payloadBase = {
-    userid,
-    mobile,
-  };
-
+  const payloadBase = { userid, mobile };
   const headers = getDefaultHeaders();
 
-  // ================= FETCH LANGUAGES =================
   const handleFetchLanguages = async () => {
     try {
       setLoading(true);
@@ -60,312 +50,129 @@ const LanguageChannels = () => {
     }
   };
 
-  // ================= FETCH CHANNELS =================
-  const handleFetchChannels = async () => {
-    try {
-      const apiChannels = await fetchChannels(payloadBase, headers, setError);
-      // Channels fetched but not stored locally (used elsewhere)
-      console.log("Channels loaded:", apiChannels?.length || 0);
-    } catch (err) {
-      console.error("Failed to load channels:", err);
-    }
-  };
-
   useEffect(() => {
-    if (!mobile) {
-      setError("NO_LOGIN");
-      return;
-    }
+    if (!mobile) { setError("NO_LOGIN"); return; }
     handleFetchLanguages();
-    handleFetchChannels();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mobile]);
 
-  // Handle language card click
   const handleLanguageClick = (langid, langtitle) => {
     if (langid === "subs") {
       navigate("/live-channels", { state: { filter: "Subscribed Channels" } });
     } else if (langid === "") {
       navigate("/live-channels", { state: { filter: "All Channels" } });
     } else {
-      // Navigate to channels filtered by language (include title for UI)
       navigate("/live-channels", { state: { filterByLanguage: langid, languageTitle: langtitle } });
     }
   };
 
-  // Magic Remote Grid Navigation
-  const columnsCount = 4; // Based on auto-fit minmax(280px, 1fr)
-  const {
-    focusedIndex,
-    hoveredIndex,
-    getItemProps,
-    magicRemoteReady,
-  } = useEnhancedRemoteNavigation(languages, {
-    orientation: 'grid',
+  const columnsCount = 4;
+  const { getItemProps } = useEnhancedRemoteNavigation(languages, {
+    orientation: "grid",
     columns: columnsCount,
     useMagicRemotePointer: true,
     focusThreshold: 150,
     onSelect: (index) => {
-      if (languages[index]) {
-        handleLanguageClick(languages[index].langid, languages[index].langtitle);
-      }
+      if (languages[index]) handleLanguageClick(languages[index].langid, languages[index].langtitle);
     },
   });
 
-  // Show login required message
   if (error === "NO_LOGIN") {
     return (
-      <Box
-        sx={{
-          background: "#000",
-          minHeight: "100vh",
-          color: "#fff",
-          p: 4,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <Typography sx={{ fontSize: 28, fontWeight: 700, mb: 2 }}>
-          Login Required
-        </Typography>
-        <Typography sx={{ fontSize: 16, mb: 1, color: "#999" }}>
-          Please log in with your phone number to view TV channels.
-        </Typography>
-        <Button
-          variant="contained"
-          onClick={() => navigate("/login")}
-          sx={{
-            px: 4,
-            py: 1.5,
-            fontSize: 16,
-            background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-            "&:hover": {
-              background: "linear-gradient(135deg, #764ba2 0%, #667eea 100%)",
-            },
-          }}
-        >
-          Go to Login
-        </Button>
-      </Box>
+      <div style={{ background: "#000", minHeight: "100vh", color: "#fff", padding: "32px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: '"Roboto","Helvetica","Arial",sans-serif' }}>
+        <p style={{ fontSize: "28px", fontWeight: 700, marginBottom: "16px" }}>Login Required</p>
+        <p style={{ fontSize: "16px", color: "#999", marginBottom: "8px" }}>Please log in with your phone number to view TV channels.</p>
+        <button onClick={() => navigate("/login")} style={{ padding: "12px 32px", fontSize: "16px", fontWeight: 600, background: "linear-gradient(135deg,#667eea 0%,#764ba2 100%)", color: "#fff", border: "none", borderRadius: "12px", cursor: "pointer", marginTop: "16px" }}>Go to Login</button>
+      </div>
     );
   }
 
   return (
-    <Box sx={{ background: "#000", minHeight: "100vh", color: "#fff", p: 3 }}>
-      {/* ================= HEADER WITH BACK BUTTON AND TITLE ================= */}
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 6 }}>
-        {/* Back Button */}
-        <IconButton
-          onClick={() => navigate(-1)}
-          sx={{
-            color: "#fff",
-            border: "1px solid rgba(255,255,255,0.3)",
-            borderRadius: "8px",
-            width: 50,
-            height: 50,
-            "&:hover": {
-              background: "rgba(255,255,255,0.1)",
-            },
-          }}
-        >
+    <div style={{ background: "#000", minHeight: "100vh", color: "#fff", padding: "24px", fontFamily: '"Roboto","Helvetica","Arial",sans-serif' }}>
+
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "48px" }}>
+        <button onClick={() => navigate(-1)} style={{ color: "#fff", border: "1px solid rgba(255,255,255,0.3)", borderRadius: "8px", width: "50px", height: "50px", display: "flex", alignItems: "center", justifyContent: "center", background: "none", cursor: "pointer" }}>
           <ArrowBackIcon />
-        </IconButton>
+        </button>
 
-        {/* Title */}
-        <Typography sx={{ fontSize: 32, fontWeight: 700, flex: 1, textAlign: "center" }}>
-          Select Language
-        </Typography>
+        <p style={{ fontSize: "32px", fontWeight: 700, flex: 1, textAlign: "center", margin: 0 }}>Select Language</p>
+      </div>
 
-        {/* Magic Remote Status */}
-        {magicRemoteReady && (
-          <Box sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            px: '1rem',
-            py: '0.5rem',
-            borderRadius: '8px',
-            bgcolor: 'rgba(67, 233, 123, 0.15)',
-            border: '2px solid rgba(67, 233, 123, 0.5)',
-          }}>
-            <Box sx={{
-              width: 8,
-              height: 8,
-              borderRadius: '50%',
-              bgcolor: '#43e97b',
-              boxShadow: '0 0 10px rgba(67, 233, 123, 0.8)',
-              animation: 'pulse-dot 1.5s ease-in-out infinite',
-            }} />
-            <Typography sx={{ fontSize: '0.875rem', color: '#43e97b', fontWeight: 600 }}>
-              Magic Remote
-            </Typography>
-          </Box>
-        )}
-
-        {/* Empty space for balance (only when status indicator is hidden) */}
-        {!magicRemoteReady && <Box sx={{ width: 50 }} />}
-      </Box>
-
-      {/* ================= ERROR BOX ================= */}
+      {/* Error */}
       {error && error !== "NO_LOGIN" && (
-        <Box
-          sx={{
-            mb: 3,
-            p: 2,
-            borderRadius: 2,
-            border: "1px solid red",
-            background: "rgba(255,0,0,0.15)",
-            color: "#ff9a9a",
-          }}
-        >
+        <div style={{ marginBottom: "24px", padding: "16px", borderRadius: "8px", border: "1px solid red", background: "rgba(255,0,0,0.15)", color: "#ff9a9a" }}>
           {error}
-        </Box>
+        </div>
       )}
 
-      {/* ================= LOADING STATE ================= */}
+      {/* Loading Skeleton */}
       {loading && (
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-            gap: 3,
-            pb: 4,
-          }}
-        >
-          {Array.from({ length: 8 }).map((_, index) => (
-            <Skeleton
-              key={`lang-skel-${index}`}
-              variant="rounded"
-              sx={{ width: "100%", height: "280px", borderRadius: "20px" }}
-            />
-          ))}
-        </Box>
+        <>
+          <style>{`@keyframes _shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}`}</style>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: "24px", paddingBottom: "32px" }}>
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} style={{ borderRadius: "20px", height: "280px", background: "linear-gradient(90deg,rgba(255,255,255,0.06) 25%,rgba(255,255,255,0.12) 50%,rgba(255,255,255,0.06) 75%)", backgroundSize: "400px 100%", animation: "_shimmer 1.4s ease infinite" }} />
+            ))}
+          </div>
+        </>
       )}
 
-      {/* ================= LANGUAGE CARDS GRID ================= */}
+      {/* Language Cards */}
       {!loading && (
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-            gap: 3,
-            pb: 4,
-          }}
-        >
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: "24px", paddingBottom: "32px" }}>
           {languages.map((lang, index) => {
-            const isFocused = focusedIndex === index;
-            const isHovered = hoveredIndex === index;
-
             return (
-              <Box
+              <div
                 key={index}
                 {...getItemProps(index)}
-                className={`focusable-language-card ${isFocused ? 'focused' : ''} ${isHovered ? 'hovered' : ''}`}
+                className="focusable-language-card"
+                role="button"
+                tabIndex={0}
                 onClick={() => handleLanguageClick(lang.langid, lang.langtitle)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    handleLanguageClick(lang.langid, lang.langtitle);
-                  }
-                }}
-                sx={{
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleLanguageClick(lang.langid, lang.langtitle); } }}
+                style={{
                   background: GRADIENT_COLORS[index % GRADIENT_COLORS.length],
                   borderRadius: "20px",
                   padding: "30px",
                   cursor: "pointer",
-                  transition: "all 0.25s ease",
                   display: "flex",
                   flexDirection: "column",
                   alignItems: "center",
                   justifyContent: "center",
                   minHeight: "280px",
-                  border: isFocused ? "4px solid #fff" : "2px solid transparent",
+                  border: "2px solid transparent",
                   outline: "none",
-                  transform: isFocused 
-                    ? "translateY(-15px) scale(1.08)" 
-                    : isHovered 
-                    ? "translateY(-10px) scale(1.05)" 
-                    : "translateY(0) scale(1)",
-                  boxShadow: isFocused 
-                    ? "0 25px 60px rgba(0,0,0,0.7), 0 0 40px rgba(255,255,255,0.5)" 
-                    : isHovered 
-                    ? "0 20px 40px rgba(0,0,0,0.5)" 
-                    : "0 4px 15px rgba(0,0,0,0.3)",
-                  "&:focus-visible": {
-                    outline: "4px solid #fff",
-                    outlineOffset: "4px",
-                  },
+                  boxShadow: "0 4px 15px rgba(0,0,0,0.3)",
                 }}
               >
-                {/* Language Logo */}
                 {lang.langlogo && (
                   <img
-                  src={lang.langlogo}
-                  alt={lang.langtitle}
-                  style={{
-                    width: "120px",
-                    height: "120px",
-                    objectFit: "contain",
-                    marginBottom: "20px",
-                    filter: "drop-shadow(0 4px 8px rgba(0,0,0,0.3))",
-                  }}
-                  onError={(e) => {
-                    e.target.style.display = "none";
-                  }}
-                />
+                    src={lang.langlogo}
+                    alt={lang.langtitle}
+                    style={{ width: "120px", height: "120px", objectFit: "contain", marginBottom: "20px", filter: "drop-shadow(0 4px 8px rgba(0,0,0,0.3))" }}
+                    onError={(e) => { e.currentTarget.style.display = "none"; }}
+                  />
                 )}
-
-                {/* Language Title */}
-                <Typography
-                sx={{
-                  fontSize: 24,
-                  fontWeight: 700,
-                  color: "#fff",
-                  textAlign: "center",
-                  textShadow: "0 2px 4px rgba(0,0,0,0.3)",
-                }}
-                >
-                  {lang.langtitle}
-                </Typography>
-
-                {/* Language Details if available */}
+                <p style={{ fontSize: "24px", fontWeight: 700, color: "#fff", textAlign: "center", textShadow: "0 2px 4px rgba(0,0,0,0.3)", margin: 0 }}>{lang.langtitle}</p>
                 {lang.langdetails && lang.langdetails.trim() && (
-                  <Typography
-                  sx={{
-                    fontSize: 13,
-                    color: "rgba(255,255,255,0.8)",
-                    textAlign: "center",
-                    mt: 1,
-                    textShadow: "0 1px 2px rgba(0,0,0,0.2)",
-                  }}
-                  >
+                  <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.8)", textAlign: "center", marginTop: "8px", textShadow: "0 1px 2px rgba(0,0,0,0.2)" }}>
                     {lang.langdetails.replace(/<[^>]*>/g, "")}
-                  </Typography>
+                  </p>
                 )}
-              </Box>
+              </div>
             );
           })}
-        </Box>
+        </div>
       )}
 
-      {/* ================= EMPTY STATE ================= */}
+      {/* Empty State */}
       {!loading && languages.length === 0 && (
-        <Box
-          sx={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            minHeight: "60vh",
-          }}
-        >
-          <Typography sx={{ fontSize: 18, color: "#999" }}>
-            No languages available
-          </Typography>
-        </Box>
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}>
+          <p style={{ fontSize: "18px", color: "#999" }}>No languages available</p>
+        </div>
       )}
-    </Box>
+    </div>
   );
 };
 

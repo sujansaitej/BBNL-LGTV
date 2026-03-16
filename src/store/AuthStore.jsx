@@ -35,8 +35,9 @@ const useAuthStore = create((set) => ({
       return { success: false, message, data };
     } catch (err) {
       const message = err?.message || "Network error";
+      const isNetwork = !err?.response || err?.code === "ERR_NETWORK" || err?.code === "ECONNABORTED";
       set({ isLoading: false, error: message });
-      return { success: false, message };
+      return { success: false, message, networkError: isNetwork };
     }
   },
 

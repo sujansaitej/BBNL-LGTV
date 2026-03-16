@@ -1,13 +1,10 @@
-import './App.css';
-import './styles/magic-remote-ui-fix.css';
-import './styles/webos-navigation.css';
-import { MemoryRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { MemoryRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { initializeWebOSEnvironment, preventWebOSDefaults } from './utils/webos';
 import { initializeMagicRemoteUIStability, cleanupMagicRemoteUIStability } from './utils/magicRemoteUIStability';
 import checkAppLock from './server/OAuthentication-Api/Applock';
 import { useDeviceInformation } from './server/Deviceinformaction/LG-Devicesinformaction';
-import ServiceLocked from './error/ServiceLocked';
+import ServiceLocked from './error/OAuthentication/ServiceLocked';
 
 const lazyWithPreload = (importer) => {
   const Component = lazy(importer);
@@ -25,7 +22,63 @@ const MoviesOtt = lazyWithPreload(() => import('./Modules/MoviesOtt'));
 const Favorites = lazyWithPreload(() => import('./Modules/Favorites'));
 const Feedback = lazyWithPreload(() => import('./Modules/Feedback'));
 const Setting = lazyWithPreload(() => import('./Modules/Setting'));
-// Spatial navigation disabled for now - will add back after testing basic app
+/**
+ * GlobalBackHandler — listens for the LG webOS BACK key (keyCode 461).
+ *
+ * Short press  → navigate(-1)  (returns to previous page in MemoryRouter history)
+ * Long press   → webOS platformBack() or window.history.back() (exits app / shows
+ *               the "exit app?" dialog on webOS TV 6.0+)
+ *
+ * Pages that need custom BACK behaviour (e.g. LivePlayer) attach their own
+ * handler with capture=true and call e.stopPropagation() — that prevents this
+ * global handler from also firing.
+ */
+const GlobalBackHandler = () => {
+  const navigate = useNavigate();
+  const longPressTimer = useRef(null);
+  const longPressed = useRef(false);
+
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.keyCode !== 461 && e.key !== 'GoBack' && e.key !== 'Back') return;
+      e.preventDefault();
+      longPressed.current = false;
+      longPressTimer.current = setTimeout(() => {
+        longPressed.current = true;
+        // Long-press: hand off to webOS (shows exit dialog on webOS 6+) or go to home
+        if (window.webOS?.platformBack) {
+          window.webOS.platformBack();
+        } else {
+          window.history.back();
+        }
+      }, 700);
+    };
+
+    const onKeyUp = (e) => {
+      if (e.keyCode !== 461 && e.key !== 'GoBack' && e.key !== 'Back') return;
+      if (longPressTimer.current) {
+        clearTimeout(longPressTimer.current);
+        longPressTimer.current = null;
+      }
+      if (!longPressed.current) {
+        // Short-press: go back one step in MemoryRouter history
+        navigate(-1);
+      }
+      longPressed.current = false;
+    };
+
+    // Bubble phase — per-page capture-phase handlers fire first and can stopPropagation
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+      if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    };
+  }, [navigate]);
+
+  return null;
+};
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
@@ -113,6 +166,7 @@ function App() {
     <>
     <Router>
       <div data-focusable-container>
+        <GlobalBackHandler />
         <Suspense
           fallback={
             <div style={{ color: "#fff", padding: 24, fontSize: 24 }}>

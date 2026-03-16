@@ -1,43 +1,30 @@
+import axios from "axios";
 import { getDefaultHeaders } from "../server/config";
 
-export const postJson = async (url, payload, headers = {}) => {
-	const response = await fetch(url, {
-		method: "POST",
+export const postJson = async (url, payload, extraHeaders = {}) => {
+	const response = await axios.post(url, payload, {
 		headers: {
 			...getDefaultHeaders(),
-			...headers,
+			...extraHeaders,
 		},
-		body: JSON.stringify(payload),
 	});
-
-	if (!response.ok) {
-		throw new Error(`HTTP ${response.status}`);
-	}
-
-	return response.json();
+	return response.data;
 };
 
-export const postForm = async (url, payload, headers = {}) => {
+export const postForm = async (url, payload, extraHeaders = {}) => {
 	const form = new URLSearchParams();
 	Object.entries(payload).forEach(([k, v]) => {
 		if (v !== undefined && v !== null) form.append(k, String(v));
 	});
 
-	const response = await fetch(url, {
-		method: "POST",
+	const response = await axios.post(url, form, {
 		headers: {
 			...getDefaultHeaders(),
 			"Content-Type": "application/x-www-form-urlencoded",
-			...headers,
+			...extraHeaders,
 		},
-		body: form.toString(),
 	});
-
-	if (!response.ok) {
-		throw new Error(`HTTP ${response.status}`);
-	}
-
-	return response.json();
+	return response.data;
 };
 
 export const nowMs = () => (typeof performance !== "undefined" ? performance.now() : Date.now());

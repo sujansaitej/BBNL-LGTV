@@ -1,672 +1,379 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Hls from "hls.js";
 
-// App identity — sourced from build/appinfo.json
-// Used in HLS xhrSetup so every .m3u8 / .ts / .key request carries these headers
-const PACKAGE_ID  = "com.lgiptv.bbnl";   // appinfo.json → id
-const APP_NAME    = "LG BBNL iptv";    // appinfo.json → title
-const PLATFORM    = "LG-TV";         // appinfo.json → vendor (LG-BBNL)
-const APP_VERSION = "2.0.0";         // appinfo.json → version
+const PACKAGE_ID  = "com.lgiptv.bbnl";
+const APP_NAME    = "LG BBNL iptv";
+const PLATFORM    = "LG-TV";
+const APP_VERSION = "2.0.0";
 
-
-
+// ── Media key maps ────────────────────────────────────────────────────────────
 const MEDIA_KEY_MAP = new Map([
-  ["MediaPlay", "play"],
-  ["MediaPause", "pause"],
-  ["MediaPlayPause", "playPause"],
-  ["Play", "play"],
-  ["Pause", "pause"],
-  ["Stop", "stop"],
-  ["MediaStop", "stop"],
-  ["FastForward", "fastForward"],
-  ["MediaFastForward", "fastForward"],
-  ["Rewind", "rewind"],
-  ["MediaRewind", "rewind"],
+  ["MediaPlay","play"],["MediaPause","pause"],["MediaPlayPause","playPause"],
+  ["Play","play"],["Pause","pause"],["Stop","stop"],["MediaStop","stop"],
+  ["FastForward","fastForward"],["MediaFastForward","fastForward"],
+  ["Rewind","rewind"],["MediaRewind","rewind"],
 ]);
-
 const MEDIA_KEYCODE_MAP = new Map([
-  [415, "play"],
-  [19, "pause"],
-  [179, "playPause"],
-  [413, "stop"],
-  [417, "fastForward"],
-  [412, "rewind"],
+  [415,"play"],[19,"pause"],[179,"playPause"],
+  [413,"stop"],[417,"fastForward"],[412,"rewind"],
 ]);
-
-const getMediaAction = (event) => {
-  if (!event) return null;
-  const fromKey = MEDIA_KEY_MAP.get(event.key);
+const getMediaAction = (e) => {
+  if (!e) return null;
+  const fromKey = MEDIA_KEY_MAP.get(e.key);
   if (fromKey) return fromKey;
-  if (typeof event.keyCode === "number") {
-    return MEDIA_KEYCODE_MAP.get(event.keyCode) || null;
-  }
-  return null;
+  return typeof e.keyCode === "number" ? (MEDIA_KEYCODE_MAP.get(e.keyCode) || null) : null;
 };
 
-const MAX_NETWORK_RETRIES = 3;
-const STALL_TIMEOUT = 10000; // 10 seconds
-const BUFFER_CLEANUP_INTERVAL = 120000; // 2 minutes
+// ── HLS config — tuned for LG webOS slow MSE + IPTV live streams ─────────────
+//
+// Key choices:
+//   startLevel: 0            — always lowest quality → fastest first frame decode
+//   maxBufferLength: 2       — tiny buffer = less to fill before first frame
+//   backBufferLength: 0      — don't keep past segments (saves LG's limited RAM)
+//   startFragPrefetch: true  — begin fetching first segment during manifest parse
+//   progressive: true        — push partial segments to MSE as they arrive
+//   abrEwmaDefaultEstimate   — optimistic bandwidth so ABR picks quality faster
+//   lowLatencyMode: true     — stay at live edge, minimal latency
+//
+const makeHls = (xhrSetup) => new Hls({
+  enableWorker:              true,
+  lowLatencyMode:            true,
+  xhrSetup,
+  backBufferLength:          0,
+  maxBufferLength:           2,
+  maxMaxBufferLength:        6,
+  maxBufferSize:             8 * 1000 * 1000,
+  maxBufferHole:             0.5,
+  liveSyncDuration:          1,
+  liveMaxLatencyDuration:    4,
+  abrEwmaDefaultEstimate:    500000,
+  startLevel:                0,
+  capLevelToPlayerSize:      true,
+  autoStartLoad:             true,
+  startFragPrefetch:         true,
+  progressive:               true,
+  initialLiveManifestSize:   1,
+  manifestLoadingTimeOut:    8000,
+  manifestLoadingMaxRetry:   2,
+  manifestLoadingRetryDelay: 500,
+  levelLoadingTimeOut:       8000,
+  levelLoadingMaxRetry:      2,
+  levelLoadingRetryDelay:    500,
+  fragLoadingTimeOut:        10000,
+  fragLoadingMaxRetry:       3,
+  fragLoadingRetryDelay:     500,
+  debug:                     false,
+  nudgeOffset:               0.2,
+  nudgeMaxRetry:             5,
+  liveDurationInfinity:      true,
+});
 
-const HLSPlayer = ({ src, autoPlay = true }) => {
-  const videoRef = useRef(null);
-  const hlsRef = useRef(null);
-  const networkRetryRef = useRef(0);
-  const stallTimerRef = useRef(null);
-  const bufferCleanupTimerRef = useRef(null);
-  const lastPlaybackTimeRef = useRef(0);
+// ── Hard-cleanup one slot ─────────────────────────────────────────────────────
+const cleanSlot = (hlsRef, videoRef) => {
+  const hls = hlsRef.current;
+  const video = videoRef.current;
+  if (hls) {
+    try { hls.stopLoad(); hls.detachMedia(); hls.destroy(); } catch { /* ignore */ }
+    hlsRef.current = null;
+  }
+  if (video) {
+    video.muted = true;
+    video.pause();
+    video.removeAttribute("src");
+    try { video.load(); } catch { /* ignore */ }
+  }
+};
+
+// ── 2-Phase Dual Player HLS component ────────────────────────────────────────
+//
+// Two <video> elements sit stacked. Only one is visible at a time (opacity 1).
+//
+// On every src change:
+//   Phase 1 — MANIFEST_PARSED (~300–600ms):
+//     • Crossfade standby slot into view (user sees new channel instantly).
+//     • Standby is still muted — no audio yet. Old slot is also muted.
+//     • Spinner dismissed immediately.
+//
+//   Phase 2 — FRAG_BUFFERED / canplay / playing (~1–3s after Phase 1):
+//     • Unmute standby + start play (audio begins).
+//     • Destroy old slot 350ms later (after crossfade completes).
+//
+// Why 2 phases?
+//   On LG webOS the MSE pipeline is slow. Waiting for FRAG_BUFFERED before any
+//   visual change means 4–8s of black screen. Swapping on MANIFEST_PARSED gives
+//   instant visual feedback while audio latency is hidden in the background.
+//
+const HLSPlayer = ({ src }) => {
+  const videoARef = useRef(null);
+  const videoBRef = useRef(null);
+  const hlsARef   = useRef(null);
+  const hlsBRef   = useRef(null);
+  const activeRef = useRef("A");  // which slot is currently visible
+
+  const [visibleSlot, setVisibleSlot]     = useState("A");
+  const [isLoading, setIsLoading]         = useState(true);
+  const [showLoader, setShowLoader]       = useState(false);
   const [playbackError, setPlaybackError] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
-  const [showLoader, setShowLoader] = useState(false);
 
+  // XHR setup — attaches app identity headers to every HLS request
+  const xhrSetup = (xhr) => {
+    const deviceId = localStorage.getItem("deviceId") ||
+                     localStorage.getItem("deviceID") || "LGTV-001";
+    xhr.setRequestHeader("X-App-Package", PACKAGE_ID);
+    xhr.setRequestHeader("X-App-Name",    APP_NAME);
+    xhr.setRequestHeader("X-Platform",    PLATFORM);
+    xhr.setRequestHeader("X-App-Version", APP_VERSION);
+    xhr.setRequestHeader("X-Device-Id",   deviceId);
+  };
+
+  // ── Channel switch effect ─────────────────────────────────────────────────
   useEffect(() => {
-    const handleMediaKeys = (event) => {
-      const action = getMediaAction(event);
-      if (!action) return;
-      const video = videoRef.current;
-      if (!video) return;
+    const url = typeof src === "string" ? src.trim() : "";
+    if (!url) return;
 
-      event.preventDefault();
-      event.stopPropagation();
+    setIsLoading(true);
+    setPlaybackError("");
 
-      if (action === "play") {
-        video.play().catch(() => {});
-        return;
-      }
+    // Show spinner only after 500ms — very fast switches (Phase 1 < 500ms) won't show it
+    const loaderTimer = setTimeout(() => setShowLoader(true), 500);
 
-      if (action === "pause") {
-        video.pause();
-        return;
-      }
+    const currentActive = activeRef.current;
+    const standby       = currentActive === "A" ? "B" : "A";
+    const standbyVideo  = standby === "A" ? videoARef.current : videoBRef.current;
+    const standbyHls    = standby === "A" ? hlsARef : hlsBRef;
+    const activeHls     = currentActive === "A" ? hlsARef : hlsBRef;
+    const activeVideo   = currentActive === "A" ? videoARef.current : videoBRef.current;
 
-      if (action === "playPause") {
-        if (video.paused) {
-          video.play().catch(() => {});
-        } else {
-          video.pause();
-        }
-        return;
-      }
+    // Wipe whatever was in the standby slot
+    cleanSlot(standbyHls, { current: standbyVideo });
 
-      if (action === "stop") {
-        video.pause();
-        if (Number.isFinite(video.duration)) {
-          video.currentTime = 0;
-        }
-        return;
-      }
+    let phase1Done = false;
+    let phase2Done = false;
+    let stallTimer = null;
+    let networkRetries = 0;
 
-      if (action === "fastForward") {
-        if (Number.isFinite(video.duration)) {
-          video.currentTime = Math.min(video.duration, video.currentTime + 10);
-        }
-        return;
-      }
+    // ── Phase 1: visual swap on MANIFEST_PARSED ───────────────────────────
+    // User sees new channel on screen instantly. Audio not yet started.
+    const doPhase1 = () => {
+      if (phase1Done) return;
+      phase1Done = true;
+      clearTimeout(loaderTimer);
 
-      if (action === "rewind") {
-        if (Number.isFinite(video.duration)) {
-          video.currentTime = Math.max(0, video.currentTime - 10);
-        }
-      }
-    };
+      // Mute both slots during the visual transition
+      if (standbyVideo) standbyVideo.muted = true;
+      if (activeVideo)  activeVideo.muted  = true;
 
-    window.addEventListener("keydown", handleMediaKeys, true);
-    return () => window.removeEventListener("keydown", handleMediaKeys, true);
-  }, []);
-
-  // Monitor for playback stalls and recover
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    const checkStall = () => {
-      if (video.paused) {
-        lastPlaybackTimeRef.current = video.currentTime;
-        return;
-      }
-
-      const currentTime = video.currentTime;
-      const timeDiff = currentTime - lastPlaybackTimeRef.current;
-
-      // If video hasn't progressed in last check and not buffering
-      if (timeDiff < 0.1 && video.readyState < 3) {
-        console.warn("Playback stall detected, attempting recovery...");
-        if (hlsRef.current) {
-          hlsRef.current.startLoad();
-        }
-        // Try to nudge playback forward slightly
-        if (Number.isFinite(video.duration) && currentTime < video.duration - 1) {
-          video.currentTime = currentTime + 0.1;
-        }
-        video.play().catch(() => {});
-      }
-
-      lastPlaybackTimeRef.current = currentTime;
-    };
-
-    stallTimerRef.current = setInterval(checkStall, STALL_TIMEOUT);
-
-    return () => {
-      if (stallTimerRef.current) {
-        clearInterval(stallTimerRef.current);
-        stallTimerRef.current = null;
-      }
-    };
-  }, []);
-
-  // Periodic buffer cleanup for long-running sessions
-  useEffect(() => {
-    const cleanupBuffer = () => {
-      const video = videoRef.current;
-      const hls = hlsRef.current;
-      
-      if (!video || !hls) return;
-
-      try {
-        // Clear old buffered data to prevent memory buildup
-        const currentTime = video.currentTime;
-        if (currentTime > 30) {
-          // Keep only recent buffer
-          const buffered = video.buffered;
-          if (buffered.length > 0) {
-            console.log("Cleaning old buffer data...");
-            hls.trigger(Hls.Events.BUFFER_FLUSHING, {
-              startOffset: 0,
-              endOffset: currentTime - 10,
-              type: 'video'
-            });
-          }
-        }
-      } catch (err) {
-        console.warn("Buffer cleanup error:", err);
-      }
-    };
-
-    bufferCleanupTimerRef.current = setInterval(cleanupBuffer, BUFFER_CLEANUP_INTERVAL);
-
-    return () => {
-      if (bufferCleanupTimerRef.current) {
-        clearInterval(bufferCleanupTimerRef.current);
-        bufferCleanupTimerRef.current = null;
-      }
-    };
-  }, []);
-
-  const normalizedSrc = typeof src === "string" ? src.trim() : "";
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !normalizedSrc) {
+      // Flip to standby slot (crossfade)
+      activeRef.current = standby;
+      setVisibleSlot(standby);
       setIsLoading(false);
       setShowLoader(false);
-      return;
-    }
+      setPlaybackError("");
+    };
 
-    setPlaybackError("");
-    setIsLoading(true);
-    setShowLoader(false);
-    networkRetryRef.current = 0;
+    // ── Phase 2: audio starts on first buffered segment ───────────────────
+    // Called when standby has enough data to actually play audio cleanly.
+    const doPhase2 = () => {
+      if (phase2Done) return;
+      phase2Done = true;
+      clearInterval(stallTimer);
 
-    const loaderTimer = setTimeout(() => {
-      setShowLoader(true);
-    }, 200);
+      if (standbyVideo) {
+        standbyVideo.muted  = false;
+        standbyVideo.volume = 1;
+        standbyVideo.play().catch(() => {});
+      }
 
-    if (hlsRef.current) {
-      hlsRef.current.stopLoad();
-      hlsRef.current.detachMedia();
-      hlsRef.current.destroy();
-      hlsRef.current = null;
-    }
+      // Destroy old active slot after crossfade finishes
+      setTimeout(() => {
+        if (activeVideo) activeVideo.muted = true;
+        cleanSlot(activeHls, { current: activeVideo });
+      }, 350);
+    };
 
-    // Reset video element completely to prevent stale data
-    if (video) {
-      video.pause();
-      video.removeAttribute('src');
-      video.load(); // Reset video element
-      video.currentTime = 0;
-    }
+    // ── Stall recovery (runs every 5s after Phase 1) ──────────────────────
+    // If video is visible but paused/stalled, escalate through 3 recovery tiers.
+    let stallLevel = 0;
+    const startStallWatcher = (hls) => {
+      stallTimer = setInterval(() => {
+        const video = standbyVideo;
+        if (!video || video.paused || video.ended) return;
+        if (video.readyState >= 3) { stallLevel = 0; return; } // playing fine
+
+        stallLevel++;
+        if (stallLevel === 1) {
+          // Tier 1: nudge currentTime
+          try { video.currentTime += 0.1; } catch { /* ignore */ }
+        } else if (stallLevel === 2) {
+          // Tier 2: jump to live edge
+          try {
+            if (hls && hls.liveSyncPosition) video.currentTime = hls.liveSyncPosition;
+            else if (video.seekable.length > 0) video.currentTime = video.seekable.end(0) - 1;
+          } catch { /* ignore */ }
+        } else {
+          // Tier 3: full HLS reset
+          stallLevel = 0;
+          try { hls.stopLoad(); hls.startLoad(-1); } catch { /* ignore */ }
+        }
+      }, 5000);
+    };
 
     if (Hls.isSupported()) {
-      const hls = new Hls({
-        enableWorker: true,
-        lowLatencyMode: true,
+      const hls = makeHls(xhrSetup);
+      standbyHls.current = hls;
 
-        // Attach app identity + device ID to every HLS request
-        // (.m3u8, .ts, .key segments) for backend/CDN validation
-        xhrSetup: (xhr) => {
-          const deviceId =
-            localStorage.getItem("deviceId") ||
-            localStorage.getItem("deviceID") ||
-            "LGTV-001";
-          xhr.setRequestHeader("X-App-Package", PACKAGE_ID);
-          xhr.setRequestHeader("X-App-Name",    APP_NAME);
-          xhr.setRequestHeader("X-Platform",    PLATFORM);
-          xhr.setRequestHeader("X-App-Version", APP_VERSION);
-          xhr.setRequestHeader("X-Device-Id",   deviceId);
-        },
+      if (standbyVideo) standbyVideo.muted = true;
+      hls.loadSource(url);
+      hls.attachMedia(standbyVideo);
 
-        backBufferLength: 5,
-        maxBufferLength: 10,
-        maxMaxBufferLength: 20,
-        maxBufferSize: 30 * 1000 * 1000,
-        maxBufferHole: 0.3,
-        liveSyncDurationCount: 1,
-        liveMaxLatencyDurationCount: 3,
-        abrEwmaDefaultEstimate: 5000000,
-        startLevel: 0,
-        capLevelToPlayerSize: true,
-        autoStartLoad: true,
-        initialLiveManifestSize: 1,
-        manifestLoadingTimeOut: 5000,
-        manifestLoadingMaxRetry: 2,
-        manifestLoadingRetryDelay: 300,
-        levelLoadingTimeOut: 5000,
-        levelLoadingMaxRetry: 2,
-        levelLoadingRetryDelay: 300,
-        fragLoadingTimeOut: 8000,
-        fragLoadingMaxRetry: 3,
-        fragLoadingRetryDelay: 300,
-        debug: false,
-        nudgeOffset: 0.1,
-        nudgeMaxRetry: 2,
-        maxFragLookUpTolerance: 0.2,
-        liveDurationInfinity: true,
-      });
-
-      // Define video event handlers outside so they can be cleaned up
-      const onWaiting = () => {
-        console.log("Video waiting for data...");
-        setShowLoader(true);
-      };
-
-      const onStalled = () => {
-        console.warn("Video stalled, attempting recovery...");
-        setShowLoader(true);
-        if (hlsRef.current) {
-          hlsRef.current.startLoad();
-        }
-      };
-
-      const onPlaying = () => {
-        setShowLoader(false);
-        setIsLoading(false);
-        setPlaybackError("");
-        networkRetryRef.current = 0;
-      };
-
-      const onCanPlay = () => {
-        setShowLoader(false);
-        setIsLoading(false);
-      };
-
-      const onProgress = () => {
-        // Clear loader if video is buffering successfully
-        if (video.buffered.length > 0) {
-          setShowLoader(false);
-        }
-      };
-
-      hls.loadSource(normalizedSrc);
-      hls.attachMedia(video);
-
-      hls.on(Hls.Events.MEDIA_ATTACHED, () => {
-        hls.startLoad(-1);
-      });
-
+      // Phase 1 trigger — manifest downloaded, stream info known
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        setIsLoading(false);
-        setShowLoader(false);
-        setPlaybackError("");
-        networkRetryRef.current = 0;
-        if (autoPlay) {
-          video.muted = false;
-          video.volume = 1;
-          video.play().catch((err) => {
-            console.warn("Autoplay blocked, will retry on buffer:", err);
-            // Don't set error immediately, wait for buffer to retry
-          });
-        }
+        doPhase1();
+        startStallWatcher(hls);
       });
 
-      hls.on(Hls.Events.FRAG_BUFFERED, () => {
-        setIsLoading(false);
-        setShowLoader(false);
-        networkRetryRef.current = 0;
-        if (autoPlay && video.paused) {
-          video.muted = false;
-          video.volume = 1;
-          video.play()
-            .then(() => {
-              setPlaybackError("");
-            })
-            .catch((err) => {
-              console.warn("Playback still blocked after buffer:", err);
-              // Only show click-to-play after multiple failed attempts
-              setTimeout(() => {
-                if (video.paused && !playbackError) {
-                  setPlaybackError("CLICK_TO_PLAY");
-                }
-              }, 1000);
-            });
-        }
-      });
+      // Phase 2 trigger — first segment buffered, audio can start
+      hls.on(Hls.Events.FRAG_BUFFERED, doPhase2);
 
-      // Add buffer stall detection
-      hls.on(Hls.Events.BUFFER_APPENDING, () => {
-        setShowLoader(false);
-      });
-
+      // Phase 2 fallback — buffer appended to MSE
       hls.on(Hls.Events.BUFFER_APPENDED, () => {
-        setShowLoader(false);
-        setIsLoading(false);
+        if (standbyVideo && standbyVideo.buffered.length > 0) doPhase2();
       });
 
-      // Handle level switching
-      hls.on(Hls.Events.LEVEL_SWITCHED, () => {
-        console.log("Quality level switched");
-        networkRetryRef.current = 0;
-      });
-
-      // Attach video event listeners
-      video.addEventListener('waiting', onWaiting);
-      video.addEventListener('stalled', onStalled);
-      video.addEventListener('playing', onPlaying);
-      video.addEventListener('canplay', onCanPlay);
-      video.addEventListener('progress', onProgress);
+      // Phase 2 fallback — native video events
+      if (standbyVideo) {
+        standbyVideo.addEventListener("canplay",  doPhase2, { once: true });
+        standbyVideo.addEventListener("playing",  doPhase2, { once: true });
+      }
 
       hls.on(Hls.Events.ERROR, (_, data) => {
         if (!data) return;
 
-        console.log("HLS Error:", data.type, data.details, data.fatal);
-
-        // For non-fatal errors, try to recover
         if (!data.fatal) {
           if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-            networkRetryRef.current += 1;
-            console.log("Non-fatal network error, retrying...");
+            networkRetries++;
             setTimeout(() => {
-              if (hlsRef.current) {
-                hlsRef.current.startLoad();
-              }
-            }, 300);
+              if (standbyHls.current === hls) hls.startLoad();
+            }, 500);
           } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-            console.log("Non-fatal media error, recovering...");
-            hls.recoverMediaError();
+            try { hls.recoverMediaError(); } catch { /* ignore */ }
           }
           return;
         }
 
-        // Fatal errors - attempt recovery
+        // Fatal error
+        clearTimeout(loaderTimer);
+        clearInterval(stallTimer);
+        phase1Done = true; // prevent further phase1 calls
+        phase2Done = true;
         setIsLoading(false);
         setShowLoader(false);
 
-        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-          if (networkRetryRef.current < MAX_NETWORK_RETRIES) {
-            networkRetryRef.current += 1;
-            setPlaybackError("Network issue - retrying...");
-            setShowLoader(true);
-            console.log(`Network error retry ${networkRetryRef.current}/${MAX_NETWORK_RETRIES}`);
-            setTimeout(() => {
-              if (hlsRef.current) {
-                hlsRef.current.startLoad();
-              }
-            }, 500);
-            return;
-          }
-          setPlaybackError("Network error - Cannot load stream");
-          console.error("Max network retries reached");
-          hls.stopLoad();
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR && networkRetries < 3) {
+          networkRetries++;
+          setPlaybackError("Network issue — retrying...");
+          setTimeout(() => {
+            if (standbyHls.current === hls) {
+              phase1Done = false;
+              phase2Done = false;
+              setPlaybackError("");
+              hls.startLoad();
+            }
+          }, 1000);
         } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-          console.warn("Fatal media error, attempting recovery...");
-          setPlaybackError("Media error - Recovering...");
+          setPlaybackError("Media error — recovering...");
           try {
             hls.recoverMediaError();
-            setTimeout(() => {
-              setPlaybackError("");
-              if (video && autoPlay) {
-                video.play().catch(() => {});
-              }
-            }, 1000);
-          } catch (err) {
-            console.error("Media error recovery failed:", err);
-            setPlaybackError("Cannot decode stream");
-          }
+            setTimeout(() => setPlaybackError(""), 1500);
+          } catch { setPlaybackError("Cannot decode stream"); }
         } else {
-          console.error("Fatal HLS error:", data.details);
           setPlaybackError("Cannot play this stream");
-          try {
-            hls.destroy();
-          } catch (err) {
-            console.error("Error destroying HLS:", err);
-          }
         }
       });
 
-      hlsRef.current = hls;
-
-      // Cleanup for HLS branch
-      return () => {
-        video.removeEventListener('waiting', onWaiting);
-        video.removeEventListener('stalled', onStalled);
-        video.removeEventListener('playing', onPlaying);
-        video.removeEventListener('canplay', onCanPlay);
-        video.removeEventListener('progress', onProgress);
+    } else if (standbyVideo?.canPlayType("application/vnd.apple.mpegurl")) {
+      // Native HLS fallback (Safari / older WebKit)
+      standbyVideo.src = url;
+      standbyVideo.muted = true;
+      standbyVideo.addEventListener("loadedmetadata", doPhase1, { once: true });
+      standbyVideo.addEventListener("canplay",        doPhase2, { once: true });
+      standbyVideo.addEventListener("error", () => {
         clearTimeout(loaderTimer);
-        if (hlsRef.current) {
-          try {
-            hlsRef.current.stopLoad();
-            hlsRef.current.detachMedia();
-            hlsRef.current.destroy();
-          } catch (err) {
-            console.warn("Error cleaning up HLS:", err);
-          }
-          hlsRef.current = null;
-        }
-      };
-    } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      video.src = normalizedSrc;
-
-      const onLoadedMetadata = () => {
+        phase1Done = true;
+        phase2Done = true;
         setIsLoading(false);
         setShowLoader(false);
-        if (autoPlay) {
-          video.muted = false;
-          video.volume = 1;
-          video.play().catch(() => {});
-        }
-      };
-
-      const onError = () => {
-        setIsLoading(false);
-        setShowLoader(false);
-        setPlaybackError("Cannot play this stream");
-      };
-
-      video.addEventListener("loadedmetadata", onLoadedMetadata);
-      video.addEventListener("error", onError);
-
-      return () => {
-        video.removeEventListener("loadedmetadata", onLoadedMetadata);
-        video.removeEventListener("error", onError);
-        clearTimeout(loaderTimer);
-      };
+        setPlaybackError("Cannot load stream");
+      }, { once: true });
     } else {
+      clearTimeout(loaderTimer);
       setIsLoading(false);
       setShowLoader(false);
-      setPlaybackError("HLS playback not supported on this device");
+      setPlaybackError("HLS not supported on this device");
     }
 
-    // Generic cleanup - only runs if no early return above
     return () => {
       clearTimeout(loaderTimer);
-      // Clear all monitoring timers
-      if (stallTimerRef.current) {
-        clearInterval(stallTimerRef.current);
-      }
-      if (bufferCleanupTimerRef.current) {
-        clearInterval(bufferCleanupTimerRef.current);
-      }
+      clearInterval(stallTimer);
+      phase1Done = true;
+      phase2Done = true;
     };
-  }, [normalizedSrc, autoPlay, playbackError]);
+  }, [src]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Cleanup on unmount ────────────────────────────────────────────────────
+  useEffect(() => {
+    return () => {
+      cleanSlot(hlsARef, videoARef);
+      cleanSlot(hlsBRef, videoBRef);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Remote media keys — always target the active slot ────────────────────
+  useEffect(() => {
+    const handleMediaKeys = (event) => {
+      const action = getMediaAction(event);
+      if (!action) return;
+      const video = activeRef.current === "A" ? videoARef.current : videoBRef.current;
+      if (!video) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (action === "play")           { video.play().catch(() => {}); }
+      else if (action === "pause")     { video.pause(); }
+      else if (action === "playPause") { video.paused ? video.play().catch(() => {}) : video.pause(); }
+      else if (action === "stop")      { video.pause(); if (Number.isFinite(video.duration)) video.currentTime = 0; }
+      else if (action === "fastForward") { if (Number.isFinite(video.duration)) video.currentTime = Math.min(video.duration, video.currentTime + 10); }
+      else if (action === "rewind")    { if (Number.isFinite(video.duration)) video.currentTime = Math.max(0, video.currentTime - 10); }
+    };
+    window.addEventListener("keydown", handleMediaKeys, true);
+    return () => window.removeEventListener("keydown", handleMediaKeys, true);
+  }, []);
+
+  // ── Render ────────────────────────────────────────────────────────────────
+  const videoStyle = (slot) => ({
+    width: "100vw", height: "100vh",
+    objectFit: "cover", backgroundColor: "#000",
+    position: "absolute", top: 0, left: 0,
+    margin: 0, padding: 0,
+    transition: "opacity 0.2s ease",
+    opacity: visibleSlot === slot ? 1 : 0,
+    zIndex:  visibleSlot === slot ? 2 : 1,
+  });
 
   return (
-    <div
-      style={{
-        width: "100vw",
-        height: "100vh",
-        background: "#000",
-        position: "fixed",
-        top: 0,
-        left: 0,
-        overflow: "hidden",
-        margin: 0,
-        padding: 0,
-      }}
-    >
-      <video
-        ref={videoRef}
-        style={{
-          width: "100vw",
-          height: "100vh",
-          objectFit: "cover",
-          backgroundColor: "#000",
-          position: "absolute",
-          top: 0,
-          left: 0,
-          margin: 0,
-          padding: 0,
-        }}
-        playsInline
-        muted={false}
-        controls={false}
-      />
+    <div style={{ width:"100vw", height:"100vh", background:"#000", position:"fixed", top:0, left:0, overflow:"hidden" }}>
 
+      {/* ── Player A ── */}
+      <video ref={videoARef} style={videoStyle("A")} playsInline controls={false} />
+
+      {/* ── Player B ── */}
+      <video ref={videoBRef} style={videoStyle("B")} playsInline controls={false} />
+
+      {/* ── Loading spinner (only shown if manifest hasn't arrived in 500ms) ── */}
       {showLoader && isLoading && !playbackError && (
-        <div
-          style={{
-            position: "absolute",
-            top: "50%",
-            left: "50%",
-            transform: "translate(-50%, -50%)",
-            color: "#fff",
-            fontSize: "24px",
-            fontWeight: "600",
-            textAlign: "center",
-            zIndex: 10,
-          }}
-        >
-          <div
-            style={{
-              width: "60px",
-              height: "60px",
-              border: "4px solid rgba(255,255,255,0.3)",
-              borderTop: "4px solid #667eea",
-              borderRadius: "50%",
-              animation: "spin 1s linear infinite",
-              margin: "0 auto 16px",
-            }}
-          />
+        <div style={{ position:"absolute", top:"50%", left:"50%", transform:"translate(-50%,-50%)", color:"#fff", fontSize:"24px", fontWeight:"600", textAlign:"center", zIndex:10 }}>
+          <div style={{ width:"60px", height:"60px", border:"4px solid rgba(255,255,255,0.3)", borderTop:"4px solid #667eea", borderRadius:"50%", animation:"_sp 1s linear infinite", margin:"0 auto 16px" }} />
           Loading Stream...
-          <style>{`
-            @keyframes spin {
-              0% { transform: rotate(0deg); }
-              100% { transform: rotate(360deg); }
-            }
-          `}</style>
-        </div>
-      )}
-
-      {playbackError === "CLICK_TO_PLAY" && (
-        <div
-          onClick={() => {
-            const video = videoRef.current;
-            if (video) {
-              video.muted = false;
-              video.volume = 1;
-              video.play()
-                .then(() => {
-                  setPlaybackError("");
-                })
-                .catch((err) => {
-                  console.error("Manual play failed:", err);
-                  setPlaybackError("Cannot play - check permissions");
-                });
-            }
-          }}
-          style={{
-            position: "absolute",
-            top: "50%",
-            left: "50%",
-            transform: "translate(-50%, -50%)",
-            padding: "32px 48px",
-            background: "rgba(0,0,0,0.85)",
-            color: "#fff",
-            borderRadius: "16px",
-            fontSize: "24px",
-            fontWeight: "600",
-            border: "2px solid rgba(255,255,255,0.3)",
-            textAlign: "center",
-            cursor: "pointer",
-            zIndex: 10,
-            boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
-            transition: "all 0.3s ease",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = "rgba(102, 126, 234, 0.9)";
-            e.currentTarget.style.borderColor = "rgba(255,255,255,0.6)";
-            e.currentTarget.style.transform = "translate(-50%, -50%) scale(1.05)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = "rgba(0,0,0,0.85)";
-            e.currentTarget.style.borderColor = "rgba(255,255,255,0.3)";
-            e.currentTarget.style.transform = "translate(-50%, -50%) scale(1)";
-          }}
-        >
-          <div style={{ fontSize: "64px", marginBottom: "16px" }}>▶</div>
-          <div style={{ marginBottom: "8px" }}>Click to Start Playing</div>
-          <div
-            style={{
-              fontSize: "16px",
-              color: "rgba(255,255,255,0.7)",
-              fontWeight: "400",
-            }}
-          >
-            (Autoplay was blocked by browser)
-          </div>
-        </div>
-      )}
-
-      {playbackError && playbackError !== "CLICK_TO_PLAY" && (
-        <div
-          style={{
-            position: "absolute",
-            top: "50%",
-            left: "50%",
-            transform: "translate(-50%, -50%)",
-            padding: "24px 32px",
-            background: "rgba(0,0,0,0.9)",
-            color: "#ff9a9a",
-            borderRadius: "16px",
-            fontSize: "20px",
-            fontWeight: "600",
-            border: "2px solid rgba(255,0,0,0.6)",
-            textAlign: "center",
-            maxWidth: "80%",
-            zIndex: 10,
-            boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
-          }}
-        >
-          <div style={{ fontSize: "48px", marginBottom: "12px" }}>⚠</div>
-          <div style={{ marginBottom: "12px" }}>{playbackError}</div>
-          <div
-            style={{
-              fontSize: "16px",
-              marginTop: "12px",
-              color: "#ffb347",
-              fontWeight: "400",
-            }}
-          >
-            Stream URL: {src ? `${src.substring(0, 50)}...` : ""}
-          </div>
+          <style>{`@keyframes _sp{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}`}</style>
         </div>
       )}
     </div>
