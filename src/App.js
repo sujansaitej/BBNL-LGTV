@@ -1,4 +1,4 @@
-import { MemoryRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { MemoryRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { initializeWebOSEnvironment, preventWebOSDefaults } from './utils/webos';
 import { initializeMagicRemoteUIStability, cleanupMagicRemoteUIStability } from './utils/magicRemoteUIStability';
@@ -23,58 +23,82 @@ const Favorites = lazyWithPreload(() => import('./Modules/Favorites'));
 const Feedback = lazyWithPreload(() => import('./Modules/Feedback'));
 const Setting = lazyWithPreload(() => import('./Modules/Setting'));
 /**
- * GlobalBackHandler — listens for the LG webOS BACK key (keyCode 461).
+ * GlobalBackHandler — handles the LG webOS BACK key (keyCode 461).
  *
- * Short press  → navigate(-1)  (returns to previous page in MemoryRouter history)
- * Long press   → webOS platformBack() or window.history.back() (exits app / shows
- *               the "exit app?" dialog on webOS TV 6.0+)
+ * webOS shows the "exit app?" dialog when it detects no previous entry in
+ * window.history.  Because we use MemoryRouter, the real browser history
+ * always has only 1 entry → webOS always tries to exit.
  *
- * Pages that need custom BACK behaviour (e.g. LivePlayer) attach their own
- * handler with capture=true and call e.stopPropagation() — that prevents this
- * global handler from also firing.
+ * Fix: we push a dummy history entry whenever we are on a sub-page.
+ * When webOS pops it (via the BACK button), we catch the popstate event
+ * and navigate to /home inside MemoryRouter instead of exiting.
+ *
+ * On /home there is no dummy entry, so BACK triggers the native exit dialog.
+ *
+ * Pages with custom BACK handling (LivePlayer, LoginOtp) manage their own
+ * capture-phase keydown listener and call e.stopPropagation().
  */
 const GlobalBackHandler = () => {
   const navigate = useNavigate();
-  const longPressTimer = useRef(null);
-  const longPressed = useRef(false);
+  const location = useLocation();
+  const locationRef = useRef(location.pathname);
+  const hasGuardRef = useRef(false);
 
+  // Keep locationRef in sync
+  useEffect(() => { locationRef.current = location.pathname; }, [location.pathname]);
+
+  // Push/remove a dummy browser-history entry based on current route
   useEffect(() => {
+    const path = location.pathname;
+    const isHome = path === '/home' || path === '/';
+    const selfHandled = path === '/login';
+
+    if (!isHome && !selfHandled) {
+      // Sub-page: push a guard entry so webOS doesn't show exit dialog
+      if (!hasGuardRef.current) {
+        window.history.pushState({ guard: true }, '');
+        hasGuardRef.current = true;
+      }
+    } else {
+      // Home or self-handled page: remove guard if present
+      hasGuardRef.current = false;
+    }
+  }, [location.pathname]);
+
+  // Listen for popstate — fired when webOS BACK pops our guard entry
+  useEffect(() => {
+    const onPopState = () => {
+      if (hasGuardRef.current) {
+        hasGuardRef.current = false;
+        navigate('/home', { replace: true });
+      }
+    };
+
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [navigate]);
+
+  // Also handle keydown directly for sub-pages as a fallback
+  // (some webOS versions fire keydown before popstate)
+  useEffect(() => {
+    const isBackKey = (e) => e.keyCode === 461 || e.key === 'GoBack' || e.key === 'Back' || e.key === 'Backspace';
+    const selfHandledRoutes = ['/login', '/player'];
+
     const onKeyDown = (e) => {
-      if (e.keyCode !== 461 && e.key !== 'GoBack' && e.key !== 'Back') return;
+      if (!isBackKey(e)) return;
+      const path = locationRef.current;
+      if (selfHandledRoutes.includes(path)) return;
+      if (path === '/home' || path === '/') return;
+      // Sub-page: prevent webOS exit and navigate to home
       e.preventDefault();
-      longPressed.current = false;
-      longPressTimer.current = setTimeout(() => {
-        longPressed.current = true;
-        // Long-press: hand off to webOS (shows exit dialog on webOS 6+) or go to home
-        if (window.webOS?.platformBack) {
-          window.webOS.platformBack();
-        } else {
-          window.history.back();
-        }
-      }, 700);
+      e.stopPropagation();
+      hasGuardRef.current = false;
+      navigate('/home', { replace: true });
     };
 
-    const onKeyUp = (e) => {
-      if (e.keyCode !== 461 && e.key !== 'GoBack' && e.key !== 'Back') return;
-      if (longPressTimer.current) {
-        clearTimeout(longPressTimer.current);
-        longPressTimer.current = null;
-      }
-      if (!longPressed.current) {
-        // Short-press: go back one step in MemoryRouter history
-        navigate(-1);
-      }
-      longPressed.current = false;
-    };
-
-    // Bubble phase — per-page capture-phase handlers fire first and can stopPropagation
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup', onKeyUp);
-    return () => {
-      window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('keyup', onKeyUp);
-      if (longPressTimer.current) clearTimeout(longPressTimer.current);
-    };
+    // Capture phase — intercept before anything else
+    document.addEventListener('keydown', onKeyDown, true);
+    return () => document.removeEventListener('keydown', onKeyDown, true);
   }, [navigate]);
 
   return null;
@@ -131,23 +155,14 @@ function App() {
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    const preloadRoutes = () => {
-      LiveChannels.preload?.();
-      LanguageChannels.preload?.();
-      LivePlayer.preload?.();
-      MoviesOtt.preload?.();
-      Favorites.preload?.();
-      Feedback.preload?.();
-      Setting.preload?.();
-    };
-
-    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-      const idleId = window.requestIdleCallback(preloadRoutes, { timeout: 1500 });
-      return () => window.cancelIdleCallback?.(idleId);
-    }
-
-    const timer = setTimeout(preloadRoutes, 250);
-    return () => clearTimeout(timer);
+    // Preload all routes immediately — prevents slow navigation on LG TV
+    LiveChannels.preload?.();
+    LanguageChannels.preload?.();
+    LivePlayer.preload?.();
+    MoviesOtt.preload?.();
+    Favorites.preload?.();
+    Feedback.preload?.();
+    Setting.preload?.();
   }, [isAuthenticated]);
 
   const handleLoginSuccess = () => {

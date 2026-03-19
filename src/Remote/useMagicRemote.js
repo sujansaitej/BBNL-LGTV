@@ -206,11 +206,11 @@ export const useEnhancedRemoteNavigation = (items, options = {}) => {
       prevItemCount.current = itemCount;
       // Remove focus from old focused element
       const oldEl = itemRefs.current[focusedIndexRef.current];
-      if (oldEl) { oldEl.removeAttribute('data-focused'); oldEl.setAttribute('tabindex', '-1'); }
+      if (oldEl) { oldEl.removeAttribute('data-focused'); }
       focusedIndexRef.current = 0;
       // Apply focus to index 0 if it exists
       const newEl = itemRefs.current[0];
-      if (newEl) { newEl.setAttribute('data-focused', 'true'); newEl.setAttribute('tabindex', '0'); }
+      if (newEl) { newEl.setAttribute('data-focused', 'true'); }
     }
   }, [itemCount]);
 
@@ -224,15 +224,13 @@ export const useEnhancedRemoteNavigation = (items, options = {}) => {
       const oldEl = itemRefs.current[oldIndex];
       if (oldEl) {
         oldEl.removeAttribute('data-focused');
-        oldEl.setAttribute('tabindex', '-1');
       }
     }
 
     const newEl = itemRefs.current[newIndex];
     if (newEl) {
       newEl.setAttribute('data-focused', 'true');
-      newEl.setAttribute('tabindex', '0');
-      newEl.focus({ preventScroll: true });
+      // Never call .focus() or set tabindex=0 — prevents LG native blue focus ring
       newEl.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
     }
 
@@ -390,12 +388,12 @@ export const useEnhancedRemoteNavigation = (items, options = {}) => {
       itemRefs.current[index] = el;
       if (!el) return;
       // Restore focus/hover state when element remounts (e.g. after filter change)
+      // Always tabindex=-1 to prevent LG spatial navigation from stealing focus
+      el.setAttribute('tabindex', '-1');
       if (index === focusedIndexRef.current) {
         el.setAttribute('data-focused', 'true');
-        el.setAttribute('tabindex', '0');
       } else {
         el.removeAttribute('data-focused');
-        el.setAttribute('tabindex', '-1');
       }
       if (index === hoveredIndexRef.current) {
         el.setAttribute('data-hovered', 'true');
@@ -403,11 +401,11 @@ export const useEnhancedRemoteNavigation = (items, options = {}) => {
         el.removeAttribute('data-hovered');
       }
     },
-    tabIndex: index === 0 ? 0 : -1,
-    onFocus: () => {
-      if (focusedIndexRef.current !== index) applyFocus(index);
+    tabIndex: -1,
+    onClick: () => {
+      applyFocus(index);
+      onSelectRef.current?.(index);
     },
-    onClick: () => onSelectRef.current?.(index),
   }), [applyFocus]);
 
   return {

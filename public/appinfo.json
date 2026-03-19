@@ -9,6 +9,7 @@
   "largeIcon": "icons.png",
   "uiRevision": 2,
   "disableBackHistoryAPI": false,
+  "enableKeyboardFocusHighlight": false,
   "requiredPermissions": [
     "deviceid.query",
     "networkconnection.query",

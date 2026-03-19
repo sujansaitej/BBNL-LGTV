@@ -13,16 +13,11 @@ export const lockUIForMagicRemote = () => {
     document.documentElement.classList.add('magic-remote-mode-active');
     document.body.classList.add('magic-remote-mode-active');
     
-    // Lock root container
     const root = document.getElementById('root');
     if (root) {
       root.style.overflow = 'hidden';
-      root.style.position = 'fixed';
-      root.style.width = '100vw';
-      root.style.height = '100vh';
-      root.style.top = '0';
-      root.style.left = '0';
-      root.style.zoom = '1';
+      root.style.width = '100%';
+      root.style.height = '100%';
     }
   }
 };
@@ -126,11 +121,8 @@ export const createStableFocusUpdater = (callback, threshold = 100) => {
 export const fixElementZoom = (element) => {
   if (!element) return;
 
-  element.style.transform = 'none !important';
-  element.style.zoom = '1';
+  element.style.transform = 'none';
   element.style.willChange = 'auto';
-  element.style.perspective = 'none';
-  element.style.perspective = 'initial';
 };
 
 /**
