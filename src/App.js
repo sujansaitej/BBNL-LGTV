@@ -1,27 +1,22 @@
 import { MemoryRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { initializeWebOSEnvironment, preventWebOSDefaults } from './utils/webos';
 import { initializeMagicRemoteUIStability, cleanupMagicRemoteUIStability } from './utils/magicRemoteUIStability';
 import checkAppLock from './server/OAuthentication-Api/Applock';
 import { useDeviceInformation } from './server/Deviceinformaction/LG-Devicesinformaction';
 import ServiceLocked from './error/OAuthentication/ServiceLocked';
 
-const lazyWithPreload = (importer) => {
-  const Component = lazy(importer);
-  Component.preload = importer;
-  return Component;
-};
-
-const BbnlVideo = lazyWithPreload(() => import("./Modules/bbnl"));
-const PhoneNumberOtp = lazyWithPreload(() => import("./Modules/LoginOtp"));
-const Home = lazyWithPreload(() => import('./Modules/Home'));
-const LiveChannels = lazyWithPreload(() => import('./Modules/LiveChannels'));
-const LanguageChannels = lazyWithPreload(() => import('./Modules/LanguageChannels'));
-const LivePlayer = lazyWithPreload(() => import('./Modules/LivePlayer'));
-const MoviesOtt = lazyWithPreload(() => import('./Modules/MoviesOtt'));
-const Favorites = lazyWithPreload(() => import('./Modules/Favorites'));
-const Feedback = lazyWithPreload(() => import('./Modules/Feedback'));
-const Setting = lazyWithPreload(() => import('./Modules/Setting'));
+// Direct imports — zero lazy loading = instant page transitions on LG TV
+import BbnlVideo from "./Modules/bbnl";
+import PhoneNumberOtp from "./Modules/LoginOtp";
+import Home from './Modules/Home';
+import LiveChannels from './Modules/LiveChannels';
+import LanguageChannels from './Modules/LanguageChannels';
+import LivePlayer from './Modules/LivePlayer';
+import MoviesOtt from './Modules/MoviesOtt';
+import Favorites from './Modules/Favorites';
+import Feedback from './Modules/Feedback';
+import Setting from './Modules/Setting';
 /**
  * GlobalBackHandler — handles the LG webOS BACK key (keyCode 461).
  *
@@ -152,19 +147,6 @@ function App() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!isAuthenticated) return;
-
-    // Preload all routes immediately — prevents slow navigation on LG TV
-    LiveChannels.preload?.();
-    LanguageChannels.preload?.();
-    LivePlayer.preload?.();
-    MoviesOtt.preload?.();
-    Favorites.preload?.();
-    Feedback.preload?.();
-    Setting.preload?.();
-  }, [isAuthenticated]);
-
   const handleLoginSuccess = () => {
     setIsAuthenticated(true);
     localStorage.setItem('isAuthenticated', 'true');
@@ -182,13 +164,6 @@ function App() {
     <Router>
       <div data-focusable-container>
         <GlobalBackHandler />
-        <Suspense
-          fallback={
-            <div style={{ color: "#fff", padding: 24, fontSize: 24 }}>
-              Loading...
-            </div>
-          }
-        >
         <Routes>
           <Route 
             path="/bbnl-video" 
@@ -289,7 +264,6 @@ function App() {
             element={<Navigate to={isAuthenticated ? "/home" : "/login"} replace />} 
           />
         </Routes>
-        </Suspense>
       </div>
     </Router>
 
