@@ -116,7 +116,7 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
   /* ── OTP timer ────────────────────────────────────────────────────────── */
   useEffect(() => {
     if (step === 2) {
-      setTimer(60);
+      setTimer(30);
       setIsTimerRunning(true);
       moveFocusRef.current("digits");
     }
@@ -182,7 +182,7 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
       });
       if (result.success) {
         setServerOtp(String(result.otp || ""));
-        setTimer(60); setIsTimerRunning(true); setOtp("");
+        setTimer(30); setIsTimerRunning(true); setOtp("");
       }
     } catch (e) { setNetworkError(true); }
     finally { setLoading(false); }
@@ -627,7 +627,7 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
         />
       )}
       {showOtpError && (
-        <ValidOTP onRetry={() => { setShowOtpError(false); setOtp(""); }} />
+        <ValidOTP onRetry={() => { setShowOtpError(false); setOtp(""); moveFocusRef.current("digits"); }} />
       )}
     </div>
   );

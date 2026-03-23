@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import { API_ENDPOINTS, API_BASE_URL_PROD, getDefaultHeaders } from "../../server/config";
 
@@ -7,6 +7,8 @@ const FALLBACK_NO_LOGIN_IMAGE = `${API_BASE_URL_PROD}/showimg/no_login.png`;
 const ValidOTP = ({ onRetry }) => {
   const [imageUrl, setImageUrl] = useState(FALLBACK_NO_LOGIN_IMAGE);
   const [loadingImage, setLoadingImage] = useState(true);
+  const [focused, setFocused] = useState("btn-try-again");
+  const btnTryAgainRef = useRef(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -28,6 +30,69 @@ const ValidOTP = ({ onRetry }) => {
     return () => { isMounted = false; };
   }, []);
 
+  /* ── Auto-focus button on mount ── */
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      btnTryAgainRef.current?.focus({ preventScroll: true });
+    });
+  }, []);
+
+  /* ── Remote key handler for modal (capture phase to intercept all keys) ── */
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      const kc = e.keyCode;
+
+      /* ── Prevent browser defaults for ALL navigation keys ── */
+      const navKeys = [461, 13, 37, 38, 39, 40, 8, 403];
+      if (navKeys.includes(kc)) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+
+      /* ── Block ALL digit input to prevent keypad from appearing ── */
+      const isDigit = (kc >= 48 && kc <= 57) || (kc >= 96 && kc <= 105);
+      if (isDigit) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+
+      /* ── OK / ENTER (13) — Click Try Again button ── */
+      if (kc === 13) {
+        e.preventDefault();
+        e.stopPropagation();
+        onRetry?.();
+        return;
+      }
+
+      /* ── BACK (461) — Don't exit app, just close modal & go back to OTP screen ── */
+      if (kc === 461 || e.key === "GoBack" || e.key === "Back") {
+        e.preventDefault();
+        e.stopPropagation();
+        onRetry?.();
+        return;
+      }
+
+      /* ── UP/DOWN/LEFT/RIGHT — Prevent default behavior ── */
+      if (kc === 38 || kc === 40 || kc === 37 || kc === 39) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
+  }, [onRetry]);
+
+  const focusStyle = focused === "btn-try-again"
+    ? {
+      outline: "3px solid #667eea",
+      outlineOffset: "2px",
+      boxShadow: "0 0 0 7px rgba(102,126,234,0.28)",
+    }
+    : { outline: "none" };
+
   return (
     <div style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(15,23,42,0.55)", backdropFilter: "blur(18px) saturate(180%)", WebkitBackdropFilter: "blur(18px) saturate(180%)", zIndex: 9999, padding: "24px" }}>
       <div style={{ width: "100%", maxWidth: "900px", borderRadius: "40px", border: "2px solid rgba(255,255,255,0.9)", backgroundColor: "#2F2F35", padding: "40px" }}>
@@ -47,7 +112,25 @@ const ValidOTP = ({ onRetry }) => {
         <p style={{ color: "#fff", fontSize: "52px", fontWeight: 700, textAlign: "center", marginBottom: "40px" }}>Please Enter valid OTP</p>
 
         <div style={{ display: "flex", justifyContent: "center" }}>
-          <button onClick={() => onRetry?.()} style={{ minWidth: "260px", height: "72px", borderRadius: "50px", backgroundColor: "#F2BC1B", color: "#111", fontSize: "36px", fontWeight: 700, border: "none", cursor: "pointer" }}>
+          <button
+            ref={btnTryAgainRef}
+            tabIndex={0}
+            onClick={() => onRetry?.()}
+            onFocus={() => setFocused("btn-try-again")}
+            style={{
+              minWidth: "260px",
+              height: "72px",
+              borderRadius: "50px",
+              backgroundColor: "#F2BC1B",
+              color: "#111",
+              fontSize: "36px",
+              fontWeight: 700,
+              border: "none",
+              cursor: "pointer",
+              transition: "all 0.2s",
+              ...focusStyle,
+            }}
+          >
             Try Again
           </button>
         </div>
