@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import { API_ENDPOINTS, API_BASE_URL_PROD, getDefaultHeaders } from "../../server/config";
 
@@ -7,6 +7,8 @@ const FALLBACK_LOGIN_REQUIRED_IMAGE = "http://124.40.244.211/netmon/Cabletvapis/
 const RegisterNumber = ({ onRetry, message }) => {
   const [imageUrl, setImageUrl] = useState(FALLBACK_LOGIN_REQUIRED_IMAGE);
   const [loadingImage, setLoadingImage] = useState(true);
+  const [focused, setFocused] = useState(true);
+  const btnTryAgainRef = useRef(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -28,6 +30,28 @@ const RegisterNumber = ({ onRetry, message }) => {
     return () => { isMounted = false; };
   }, []);
 
+  /* ── Auto-focus button on mount ── */
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      btnTryAgainRef.current?.focus({ preventScroll: true });
+    });
+  }, []);
+
+  /* ── Remote key handler ── */
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      const kc = e.keyCode;
+      const navKeys = [461, 13, 37, 38, 39, 40, 8, 403];
+      if (navKeys.includes(kc)) { e.preventDefault(); e.stopPropagation(); }
+      const isDigit = (kc >= 48 && kc <= 57) || (kc >= 96 && kc <= 105);
+      if (isDigit) { e.preventDefault(); e.stopPropagation(); return; }
+      if (kc === 13) { e.preventDefault(); e.stopPropagation(); onRetry?.(); return; }
+      if (kc === 461 || e.key === "GoBack" || e.key === "Back") { e.preventDefault(); e.stopPropagation(); onRetry?.(); return; }
+    };
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
+  }, [onRetry]);
+
   return (
     <div style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(15,23,42,0.55)", backdropFilter: "blur(18px) saturate(180%)", WebkitBackdropFilter: "blur(18px) saturate(180%)", zIndex: 9999, padding: "24px" }}>
       <div style={{ width: "100%", maxWidth: "900px", borderRadius: "40px", border: "2px solid rgba(255,255,255,0.9)", backgroundColor: "#2F2F35", padding: "40px" }}>
@@ -48,7 +72,26 @@ const RegisterNumber = ({ onRetry, message }) => {
         </p>
 
         <div style={{ display: "flex", justifyContent: "center" }}>
-          <button onClick={() => onRetry?.()} style={{ minWidth: "260px", height: "64px", borderRadius: "40px", backgroundColor: "#F2BC1B", color: "#000", fontSize: "36px", fontWeight: 700, border: "none", cursor: "pointer" }}>
+          <button
+            ref={btnTryAgainRef}
+            tabIndex={0}
+            onClick={() => onRetry?.()}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            style={{
+              minWidth: "260px",
+              height: "64px",
+              borderRadius: "40px",
+              backgroundColor: focused ? "#fff" : "#F2BC1B",
+              color: "#000",
+              fontSize: "36px",
+              fontWeight: 700,
+              border: focused ? "4px solid #F2BC1B" : "4px solid transparent",
+              cursor: "pointer",
+              transform: focused ? "scale(1.06)" : "scale(1)",
+              transition: "all 0.15s",
+            }}
+          >
             Try Again
           </button>
         </div>

@@ -7,12 +7,36 @@
   "title": "BBNL IPTV",
   "icon": "icons.png",
   "largeIcon": "icons.png",
+  "appDescription": "BBNL IPTV - Premium Entertainment for LG Smart TVs\n\nWatch unlimited live TV, movies, and OTT content on your LG Smart TV!\n\n✨ KEY FEATURES:\n• 100+ Live TV Channels - News, Entertainment, Sports, Movies\n• Premium OTT Content - Movies, web series, exclusive shows\n• Smart Channel Guide - Browse by language and category\n• Favorites Management - Save your favorite channels\n• Personalized Home Screen - Quick access to content\n• Secure OTP Login - Safe account authentication\n• Subscription Management - Manage packages easily\n• Advanced Search - Find what you want instantly\n• HD/FHD/4K Support - Crystal clear streaming\n• Remote Optimized - Perfect Magic Remote support\n\n🎯 WHY BBNL IPTV:\n• Premium Quality Streaming with minimal buffering\n• Extensive Content Library - 1000+ titles\n• User-Friendly Interface - Navigate with ease\n• Daily Updates - Fresh content always available\n• 24/7 Customer Support - Always here to help\n• Secure & Private - Your data is protected\n\n📺 COMPATIBLE:\nAll LG webOS Smart TVs (2013 and newer)\n\n🔒 SECURITY:\nOTP-based authentication ensures your account stays secure.\n\n💡 QUICK START:\n1. Download BBNL IPTV\n2. Login with your phone and OTP\n3. Browse and enjoy thousands of channels and shows\n4. Save favorites for quick access\n5. Use Magic Remote for seamless navigation\n\nStart your entertainment journey today with BBNL IPTV!",
+  "bgImage": "icons.png",
   "uiRevision": 2,
+  "uiVersion": "2",
   "disableBackHistoryAPI": false,
   "enableKeyboardFocusHighlight": false,
+  "supportedResolutions": [
+    "1280x720",
+    "1920x1080",
+    "3840x2160"
+  ],
+  "resolutionGroups": [
+    {
+      "name": "HD",
+      "resolutions": ["1280x720"]
+    },
+    {
+      "name": "FHD",
+      "resolutions": ["1920x1080"]
+    },
+    {
+      "name": "UHD",
+      "resolutions": ["3840x2160"]
+    }
+  ],
   "requiredPermissions": [
     "deviceid.query",
     "networkconnection.query",
     "mrcu.operation"
-  ]
+  ],
+  "handlesExternalURL": false,
+  "acceptsMultipleInstance": false
 }

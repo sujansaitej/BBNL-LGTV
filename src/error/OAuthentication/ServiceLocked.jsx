@@ -8,6 +8,18 @@ const ServiceLocked = () => {
   const [imageUrl, setImageUrl] = useState(FALLBACK_IMAGE);
   const [loadingImage, setLoadingImage] = useState(true);
 
+  /* ── Block remote navigation keys from leaking through ── */
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      const kc = e.keyCode;
+      const navKeys = [461, 13, 37, 38, 39, 40, 8, 403];
+      const isDigit = (kc >= 48 && kc <= 57) || (kc >= 96 && kc <= 105);
+      if (navKeys.includes(kc) || isDigit) { e.preventDefault(); e.stopPropagation(); }
+    };
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
+  }, []);
+
   useEffect(() => {
     let isMounted = true;
     const fetchImage = async () => {

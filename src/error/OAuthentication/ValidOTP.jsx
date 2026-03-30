@@ -87,11 +87,17 @@ const ValidOTP = ({ onRetry }) => {
 
   const focusStyle = focused === "btn-try-again"
     ? {
-      outline: "3px solid #667eea",
-      outlineOffset: "2px",
-      boxShadow: "0 0 0 7px rgba(102,126,234,0.28)",
+      backgroundColor: "#fff",
+      border: "4px solid #F2BC1B",
+      transform: "scale(1.06)",
+      outline: "none",
     }
-    : { outline: "none" };
+    : {
+      backgroundColor: "#F2BC1B",
+      border: "4px solid transparent",
+      transform: "scale(1)",
+      outline: "none",
+    };
 
   return (
     <div style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(15,23,42,0.55)", backdropFilter: "blur(18px) saturate(180%)", WebkitBackdropFilter: "blur(18px) saturate(180%)", zIndex: 9999, padding: "24px" }}>
@@ -121,13 +127,11 @@ const ValidOTP = ({ onRetry }) => {
               minWidth: "260px",
               height: "72px",
               borderRadius: "50px",
-              backgroundColor: "#F2BC1B",
               color: "#111",
               fontSize: "36px",
               fontWeight: 700,
-              border: "none",
               cursor: "pointer",
-              transition: "all 0.2s",
+              transition: "all 0.15s",
               ...focusStyle,
             }}
           >
