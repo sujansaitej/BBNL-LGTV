@@ -25,7 +25,9 @@ import ValidOTP from "../error/OAuthentication/ValidOTP";
 import useAuthStore from "../store/AuthStore";
 import { useDeviceInformation } from "../server/Deviceinformaction/LG-Devicesinformaction";
 import fetchLoginLogo from "../server/OAuthentication-Api/LogoApi";
+import { attemptSso } from "../server/OAuthentication-Api/SsoLoginApi";
 import { sessionSet } from "../utils/session";
+import { getWebOSDeviceID } from "../utils/webos";
 
 /* ─── tiny spinner ───────────────────────────────────────────────────────── */
 const Spinner = ({ size = 22 }) => (
@@ -66,6 +68,7 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
   const [isTimerRunning,    setIsTimerRunning]    = useState(false);
   const [dynamicLogo,       setDynamicLogo]       = useState("");
   const [logoLoadFailed,    setLogoLoadFailed]    = useState(false);
+  const [ssoTrying,         setSsoTrying]         = useState(false);
 
   const deviceInfo = useDeviceInformation();
 
@@ -133,6 +136,75 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
   useEffect(() => {
     requestAnimationFrame(() => digitsRef.current?.focus({ preventScroll: true }));
   }, []);
+
+  /* ── ONE-SHOT SSO ATTEMPT (BBNL spec row 31) ─────────────────────────────
+   * Tries `/ssologin` exactly once per app install (gated by a localStorage
+   * flag). On success: persist session and route to /home. On any failure:
+   * silently fall through to the existing OTP flow — no UI disruption.
+   * The existing OTP flow is untouched and remains the fallback in all
+   * negative paths (no serial, no MAC, network error, err_code !== 0). */
+  useEffect(() => {
+    // Wait until device info has loaded (we need MAC + IP from it).
+    if (deviceInfo?.loading) return;
+    // One-shot gate: never auto-retry. Logout flow can clear this flag if needed.
+    if (localStorage.getItem("__BBNL_SSO_TRIED__") === "1") return;
+
+    // Need at least a MAC; serial is resolved below.
+    const mac = deviceInfo?.wiredMac || deviceInfo?.wifiMac || "";
+    if (!mac || mac === "Not available") return;
+
+    let cancelled = false;
+
+    (async () => {
+      // Mark as tried IMMEDIATELY so concurrent re-mounts don't double-fire.
+      localStorage.setItem("__BBNL_SSO_TRIED__", "1");
+      setSsoTrying(true);
+
+      try {
+        // Resolve serial_no: prefer live webOS Luna call → pinned cache → uuid cache.
+        let serial = "";
+        try { serial = (await getWebOSDeviceID()) || ""; } catch { /* ignore */ }
+        if (!serial) serial = localStorage.getItem("lgtv_device_id_pinned") || "";
+        if (!serial) serial = localStorage.getItem("lgtv_device_uuid") || "";
+        if (!serial) {
+          if (!cancelled) setSsoTrying(false);
+          return;
+        }
+
+        const ip = deviceInfo?.privateIPv4 || deviceInfo?.publicIPv4 || "";
+
+        const result = await attemptSso({
+          serial_no: serial,
+          mac_address: mac,
+          device_name: "LG TV",
+          ip_address: ip,
+          device_type: "LG",
+        });
+
+        if (cancelled) return;
+
+        if (result?.success && result?.customer) {
+          const c = result.customer;
+          sessionSet("userId", c.userid || "");
+          sessionSet("userPhone", c.custdet?.[0]?.mobile || "");
+          // App.js auth gate reads sessionGet('isAuthenticated') === 'true'.
+          sessionSet("isAuthenticated", "true");
+          onLoginSuccess?.();
+          navigate("/home");
+          return;
+        }
+
+        // Negative path: do nothing. User proceeds with OTP login.
+        console.log("[ssologin] not eligible — falling back to OTP:", result?.message);
+      } catch (e) {
+        console.log("[ssologin] unexpected error — falling back to OTP:", e?.message);
+      } finally {
+        if (!cancelled) setSsoTrying(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [deviceInfo, navigate, onLoginSuccess]);
 
   /* ─── actions (use S.current so they're never stale) ─────────────────── */
   const handleGetOtp = useCallback(async () => {
@@ -344,6 +416,30 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
         /* remove browser default focus ring — we draw our own */
         *:focus { outline: none; }
       `}</style>
+
+      {/* ── one-shot SSO status bar (auto-hides once attempt resolves) ── */}
+      {ssoTrying && (
+        <div
+          aria-live="polite"
+          style={{
+            position: "fixed", top: 0, left: 0, right: 0,
+            zIndex: 10000,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            gap: "12px",
+            padding: "10px 16px",
+            backgroundColor: "rgba(15,23,41,0.92)",
+            borderBottom: "1px solid rgba(91,124,250,0.28)",
+            color: "#C7D0E4",
+            fontSize: "15px",
+            fontWeight: 500,
+            letterSpacing: "0.2px",
+            backdropFilter: "blur(6px)",
+          }}
+        >
+          <Spinner size={14} />
+          <span>Trying single sign-on…</span>
+        </div>
+      )}
 
       {/* ── full-screen backdrop ── */}
       <div style={{

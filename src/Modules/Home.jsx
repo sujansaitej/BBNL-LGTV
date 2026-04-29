@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import useLiveChannelsStore from "../store/LiveChannelsStore";
 import useLanguageStore from "../store/LivePlayersStore";
 import useHomeAdsStore from "../store/ChannelsSearchStore";
+import useOttAppsStore from "../store/OttAppsStore";
 import { isSubscribed } from "../utils/subscription";
 import ChannelLocked from "../error/Modules-Erros/ChannelLocked";
 
@@ -37,9 +38,19 @@ const menuItems = [
 const Home = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const autoPlayTimerRef = useRef(null);
-  const hasAutoPlayedRef = useRef(false);
-  const AUTO_PLAY_SESSION_KEY = "home_999_autoplay_handled";
+
+  // Bootstrap-fallback path: when Bootstrap routes to /home (no 999 or fetch
+  // failed), hide the splash after Home's first paint. No-op when splash is
+  // already gone (idempotent guard inside __BBNL_HIDE_SPLASH__ + missing-DOM
+  // check) so this is safe on every Home mount, not just the boot one.
+  useEffect(() => {
+    const fire = () => { try { window.__BBNL_HIDE_SPLASH__?.(); } catch {} };
+    if (typeof requestAnimationFrame === "function") {
+      requestAnimationFrame(() => requestAnimationFrame(fire));
+    } else {
+      setTimeout(fire, 0);
+    }
+  }, []);
 
   const { categories, channelsCache, isLoadingCategories, fetchCategories, fetchChannels } = useLiveChannelsStore();
   const userid = localStorage.getItem("userId") || "";
@@ -71,14 +82,6 @@ const Home = () => {
     if (url) navigate("/player", { state: { streamlink: url, title: ch.chtitle, channelData: ch } });
   }, [navigate]);
 
-  const cancelInfoChannelAutoplay = useCallback((reason = "interaction") => {
-    if (!autoPlayTimerRef.current) return;
-    clearTimeout(autoPlayTimerRef.current);
-    autoPlayTimerRef.current = null;
-    hasAutoPlayedRef.current = true;
-    sessionStorage.setItem(AUTO_PLAY_SESSION_KEY, "1");
-  }, [AUTO_PLAY_SESSION_KEY]);
-
   const handleSidebarNavigate = useCallback((path) => {
     if (!path || location.pathname === path) return;
     navigate(path);
@@ -86,22 +89,25 @@ const Home = () => {
 
   // ── Zone-based remote navigation (sidebar / categories / channels) ──
   // All focus is pure DOM — zero React re-renders on every keypress.
-  // Zones: sidebar | categories | channels | sports | entertainment
+  // Zones: sidebar | categories | channels | sports | apps | entertainment
   const activeZoneRef = useRef("sidebar");
   const sidebarIdxRef = useRef(0);
   const catIdxRef = useRef(0);
   const chIdxRef = useRef(0);
   const sportsIdxRef = useRef(0);
+  const appsIdxRef = useRef(0);
   const entIdxRef = useRef(0);
   const sidebarRefs = useRef([]);
   const catRefs = useRef([]);
   const chRefs = useRef([]);
   const sportsRefs = useRef([]);
+  const appsRefs = useRef([]);
   const entRefs = useRef([]);
   const scrollContainerRef = useRef(null);
   const enhancedCategoriesRef = useRef([]);
   const languagesRef = useRef([]);
   const sportsRef = useRef([]);
+  const appsRef = useRef([]);
   const entRef = useRef([]);
   const lastKeyTime = useRef(0);
   const mountedRef = useRef(false);
@@ -113,6 +119,7 @@ const Home = () => {
       case "categories": return [catRefs, catIdxRef];
       case "channels": return [chRefs, chIdxRef];
       case "sports": return [sportsRefs, sportsIdxRef];
+      case "apps": return [appsRefs, appsIdxRef];
       case "entertainment": return [entRefs, entIdxRef];
       default: return [sidebarRefs, sidebarIdxRef];
     }
@@ -235,9 +242,27 @@ const Home = () => {
         } else if (kc === 38) { // UP
           switchZone("channels");
         } else if (kc === 40) { // DOWN
-          if (entRef.current.length > 0) switchZone("entertainment");
+          if (appsRef.current.length > 0) switchZone("apps");
+          else if (entRef.current.length > 0) switchZone("entertainment");
         } else if (isEnter) {
           const el = sportsRefs.current[cur];
+          if (el) el.click();
+        }
+      } else if (zone === "apps") {
+        const count = appsRef.current.length;
+        const cur = appsIdxRef.current;
+        if (kc === 37) { // LEFT
+          if (cur === 0) switchZone("sidebar");
+          else setFocus("apps", cur - 1);
+        } else if (kc === 39) { // RIGHT
+          if (cur + 1 < count) setFocus("apps", cur + 1);
+        } else if (kc === 38) { // UP
+          if (sportsRef.current.length > 0) switchZone("sports");
+          else switchZone("channels");
+        } else if (kc === 40) { // DOWN
+          if (entRef.current.length > 0) switchZone("entertainment");
+        } else if (isEnter) {
+          const el = appsRefs.current[cur];
           if (el) el.click();
         }
       } else if (zone === "entertainment") {
@@ -249,7 +274,9 @@ const Home = () => {
         } else if (kc === 39) { // RIGHT
           if (cur + 1 < count) setFocus("entertainment", cur + 1);
         } else if (kc === 38) { // UP
-          switchZone("sports");
+          if (appsRef.current.length > 0) switchZone("apps");
+          else if (sportsRef.current.length > 0) switchZone("sports");
+          else switchZone("channels");
         } else if (isEnter) {
           const el = entRefs.current[cur];
           if (el) el.click();
@@ -336,47 +363,42 @@ const Home = () => {
     navigate("/live-channels", { state: { filter: cat.title } });
   }, [navigate]);
 
+  // ── OTT Apps row (wired to /allowedapps via OttAppsStore, 30-min cache) ──
+  const { appsCache: ottAppsCache, fetchApps: fetchOttAppsAction } = useOttAppsStore();
+  const ottAppsKey = `${userid}|${mobile}`;
+  const ottApps = useMemo(() => ottAppsCache[ottAppsKey]?.data || [], [ottAppsCache, ottAppsKey]);
+
+  useEffect(() => {
+    if (!mobile) return;
+    fetchOttAppsAction({ userid, mobile, ip_address: "" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mobile]);
+
+  // Launch a webOS app via Luna applicationManager. No-op on missing pkgid.
+  const handleAppLaunch = useCallback((app) => {
+    const pkgid = app?.pkgid;
+    if (!pkgid) {
+      console.warn("[ott-apps] missing pkgid, skipping launch:", app?.appname);
+      return;
+    }
+    try {
+      window.webOS?.service?.request("luna://com.webos.applicationManager", {
+        method: "launch",
+        parameters: { id: pkgid },
+        onSuccess: () => console.log("[ott-apps] launched:", pkgid),
+        onFailure: (err) => console.warn("[ott-apps] launch failed:", pkgid, err),
+      });
+    } catch (err) {
+      console.warn("[ott-apps] launch exception:", err?.message);
+    }
+  }, []);
+
   // Sync data refs for the keyboard handler
   useEffect(() => { enhancedCategoriesRef.current = enhancedCategories; }, [enhancedCategories]);
   useEffect(() => { languagesRef.current = languages; }, [languages]);
   useEffect(() => { sportsRef.current = sportsChannels; }, [sportsChannels]);
+  useEffect(() => { appsRef.current = ottApps; }, [ottApps]);
   useEffect(() => { entRef.current = entertainmentChannels; }, [entertainmentChannels]);
-
-  useEffect(() => {
-    const alreadyHandled = sessionStorage.getItem(AUTO_PLAY_SESSION_KEY) === "1";
-    if (channels.length === 0 || hasAutoPlayedRef.current || !mobile || alreadyHandled) return;
-    sessionStorage.setItem(AUTO_PLAY_SESSION_KEY, "1");
-    autoPlayTimerRef.current = setTimeout(() => {
-      const infoChannel = channels.find((ch) => String(ch.channelno || ch.channelid || ch.channel_no || "").trim() === "999");
-      hasAutoPlayedRef.current = true;
-      // Skip autoplay if the info channel isn't part of the user's plan —
-      // a locked autoplay would just bounce the user into a modal.
-      if (infoChannel && isSubscribed(infoChannel)) {
-        const streamUrl = infoChannel.streamlink || infoChannel.stream_link || infoChannel.streamurl || infoChannel.stream_url || infoChannel.url || infoChannel.link;
-        if (streamUrl) navigate("/player", { state: { streamlink: streamUrl, title: infoChannel.chtitle, channelData: infoChannel } });
-      }
-    }, 1000);
-    return () => { if (autoPlayTimerRef.current) { clearTimeout(autoPlayTimerRef.current); autoPlayTimerRef.current = null; } };
-  }, [channels, mobile, navigate, AUTO_PLAY_SESSION_KEY]);
-
-  useEffect(() => {
-    const handleUserInteraction = () => cancelInfoChannelAutoplay("user-interaction");
-    const handleAppHidden = () => { if (document.hidden) cancelInfoChannelAutoplay("app-hidden"); };
-    const handlePageHide = () => cancelInfoChannelAutoplay("page-hide");
-    const handleWindowBlur = () => cancelInfoChannelAutoplay("window-blur");
-    window.addEventListener("keydown", handleUserInteraction, true);
-    window.addEventListener("click", handleUserInteraction, true);
-    document.addEventListener("visibilitychange", handleAppHidden, true);
-    window.addEventListener("pagehide", handlePageHide, true);
-    window.addEventListener("blur", handleWindowBlur, true);
-    return () => {
-      window.removeEventListener("keydown", handleUserInteraction, true);
-      window.removeEventListener("click", handleUserInteraction, true);
-      document.removeEventListener("visibilitychange", handleAppHidden, true);
-      window.removeEventListener("pagehide", handlePageHide, true);
-      window.removeEventListener("blur", handleWindowBlur, true);
-    };
-  }, [cancelInfoChannelAutoplay]);
 
   const topItems = menuItems.filter((item) => !item.isBottom);
   const bottomItems = menuItems.filter((item) => item.isBottom);
@@ -564,6 +586,51 @@ const Home = () => {
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* APPS — OTT apps from /allowedapps (launched via webOS applicationManager) */}
+          {ottApps.length > 0 && (
+            <div style={{ marginBottom: "2rem" }}>
+              <p style={{ fontSize: "1.75rem", fontWeight: 700, color: "#fff", margin: "0 0 1.25rem" }}>APPS</p>
+              <div style={{ display: "grid", gridTemplateColumns: `repeat(${ROW_COLS}, 1fr)`, gap: "1rem" }}>
+                {ottApps.map((app, index) => {
+                  const hasPkg = !!app?.pkgid;
+                  return (
+                    <div
+                      key={app.pkgid || app.appname || index}
+                      ref={(el) => { appsRefs.current[index] = el; }}
+                      className="focusable-ott-app"
+                      role="button"
+                      tabIndex={-1}
+                      onClick={() => handleAppLaunch(app)}
+                      style={{
+                        borderRadius: "0.75rem",
+                        cursor: hasPkg ? "pointer" : "default",
+                        overflow: "hidden",
+                        outline: "none",
+                        border: "3px solid transparent",
+                        background: "transparent",
+                        opacity: hasPkg ? 1 : 0.6,
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                      }}
+                    >
+                      <div style={{ width: "100%", aspectRatio: "16/9", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", background: "#121212", borderRadius: "0.75rem" }}>
+                        {app.icon ? (
+                          <img src={app.icon} alt={app.appname} style={{ width: "100%", height: "100%", objectFit: "contain" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                        ) : null}
+                      </div>
+                      {app.appname ? (
+                        <span style={{ marginTop: "0.5rem", fontSize: "1rem", fontWeight: 600, color: "#fff", textAlign: "center", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "100%" }}>
+                          {app.appname}
+                        </span>
+                      ) : null}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

@@ -11,6 +11,7 @@ import {
   logSessionState,
 } from './utils/session';
 import checkAppLock from './server/OAuthentication-Api/Applock';
+import { userLogout } from './server/OAuthentication-Api/LogoutApi';
 import { useDeviceInformation } from './server/Deviceinformaction/LG-Devicesinformaction';
 import ServiceLocked from './error/OAuthentication/ServiceLocked';
 
@@ -25,6 +26,7 @@ import MoviesOtt from './Modules/MoviesOtt';
 import Favorites from './Modules/Favorites';
 import Feedback from './Modules/Feedback';
 import Setting from './Modules/Setting';
+import Bootstrap from './Modules/Bootstrap';
 /**
  * GlobalBackHandler — handles the LG webOS BACK key (keyCode 461).
  *
@@ -155,19 +157,25 @@ function App() {
     console.log('✓ WebOS environment initialized');
     console.log('✓ Magic Remote UI stability enabled');
 
-    // Hold the splash long enough for the entrance + brief settle before dismissing.
-    // 1500ms ≈ 0.85s logo fade-in + ~0.65s settle. Combined with the 0.40s exit
-    // animation, total visible bumper is ~1.9s — premium feel, not too slow.
-    const splashTimer = setTimeout(() => {
-      try { window.__BBNL_HIDE_SPLASH__?.(); } catch {}
-    }, 1500);
-
     return () => {
-      clearTimeout(splashTimer);
       cleanup?.();
       cleanupMagicRemoteUIStability();
     };
   }, []);
+
+  // Splash hand-off:
+  //   • Unauthenticated → reveal the Login screen on the 1.5s timer.
+  //   • Authenticated   → splash stays put. The 999 player route hides it on
+  //     the first <video> playable frame (LivePlayer → HLSPlayer onReady);
+  //     the Home fallback route hides it on first paint. The 6s ceiling in
+  //     index.html is the bundle-hang / catastrophic-failure safety net.
+  useEffect(() => {
+    if (isAuthenticated) return;
+    const splashTimer = setTimeout(() => {
+      try { window.__BBNL_HIDE_SPLASH__?.(); } catch {}
+    }, 1500);
+    return () => clearTimeout(splashTimer);
+  }, [isAuthenticated]);
 
   const handleLoginSuccess = () => {
     setIsAuthenticated(true);
@@ -176,6 +184,13 @@ function App() {
   };
 
   const handleLogout = () => {
+    try {
+      const userid = sessionGet("userId") || "";
+      const mobile = sessionGet("userPhone") || "";
+      const ip_address = deviceInfo?.publicIPv4 || deviceInfo?.privateIPv4 || "";
+      const mac_address = deviceInfo?.wiredMac || deviceInfo?.wifiMac || "";
+      userLogout({ userid, mobile, ip_address, mac_address, useraction: "manual" }).catch(() => {});
+    } catch {}
     setIsAuthenticated(false);
     sessionClear();
     logSessionState('session.logout');
@@ -195,13 +210,13 @@ function App() {
               <BbnlVideo />
             } 
           />
-          <Route 
-            path="/login" 
+          <Route
+            path="/login"
             element={
-              isAuthenticated ? 
-              <Navigate to="/home" replace /> : 
+              isAuthenticated ?
+              <Navigate to="/" replace /> :
               <PhoneNumberOtp onLoginSuccess={handleLoginSuccess} />
-            } 
+            }
           />
           <Route 
             path="/home" 
@@ -281,9 +296,9 @@ function App() {
               )
             }
           />
-          <Route 
-            path="/" 
-            element={<Navigate to={isAuthenticated ? "/home" : "/login"} replace />} 
+          <Route
+            path="/"
+            element={isAuthenticated ? <Bootstrap /> : <Navigate to="/login" replace />}
           />
         </Routes>
       </div>

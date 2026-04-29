@@ -1,12 +1,16 @@
 import React, { useEffect, useRef, useState } from "react";
 import Hls from "hls.js";
+import StreamAdOverlay from "./StreamAdOverlay";
 
 // App identity — sourced from build/appinfo.json
-// Used in HLS xhrSetup so every .m3u8 / .ts / .key request carries these headers
+// Sent on every HLS request (.m3u8 / .ts / .key) for backend/CDN validation.
+// IMPORTANT: livestream.bbnl.in's CORS preflight only whitelists
+// `X-App-Package` and `Content-Type` (Access-Control-Allow-Headers). Sending
+// X-App-Name / X-Platform / X-App-Version / X-Device-Id makes the browser
+// abort with a CORS error before the request leaves the TV → 999 + every
+// other channel will fail to play. Keep this list aligned with the CDN's
+// allow-list; if BBNL widens it, update both sides together.
 const PACKAGE_ID  = "com.lgiptv.bbnl";   // appinfo.json → id
-const APP_NAME    = "LG BBNL iptv";    // appinfo.json → title
-const PLATFORM    = "LG-TV";         // appinfo.json → vendor (LG-BBNL)
-const APP_VERSION = "2.0.0";         // appinfo.json → version
 
 
 
@@ -47,16 +51,39 @@ const MAX_NETWORK_RETRIES = 3;
 const STALL_TIMEOUT = 10000; // 10 seconds
 const BUFFER_CLEANUP_INTERVAL = 120000; // 2 minutes
 
-const HLSPlayer = ({ src, autoPlay = true }) => {
+const HLSPlayer = ({ src, autoPlay = true, onStreamFailed = null, streamAd = null, onReady = null }) => {
   const videoRef = useRef(null);
   const hlsRef = useRef(null);
   const networkRetryRef = useRef(0);
   const stallTimerRef = useRef(null);
   const bufferCleanupTimerRef = useRef(null);
   const lastPlaybackTimeRef = useRef(0);
+  // Latest onReady callback in a ref so the long-lived video event listeners
+  // see the most recent prop without re-subscribing.
+  const onReadyRef = useRef(onReady);
+  useEffect(() => { onReadyRef.current = onReady; }, [onReady]);
+  // Fires onReady at most once per stream — first playable frame.
+  const readyFiredRef = useRef(false);
+  useEffect(() => { readyFiredRef.current = false; }, [src]);
+  // Local hide flag for the ad overlay — reset whenever the parent supplies a
+  // new ad reference so the next ad shows even after the prior one was hidden.
+  const [adHidden, setAdHidden] = useState(false);
+  useEffect(() => { setAdHidden(false); }, [streamAd]);
+  // Tracks whether we've already used our one /stream-refresh fallback for the
+  // current `src`. Reset every time `src` changes (see effect below). Prevents
+  // an infinite refresh loop if the fresh URL also fails.
+  const freshAttemptedRef = useRef(false);
+  // Latest `onStreamFailed` callback, kept in a ref so the long-lived HLS
+  // ERROR handler can call the most recent version without re-subscribing.
+  const onStreamFailedRef = useRef(onStreamFailed);
+  useEffect(() => { onStreamFailedRef.current = onStreamFailed; }, [onStreamFailed]);
   const [playbackError, setPlaybackError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [showLoader, setShowLoader] = useState(false);
+  // Mutable override that lets the ERROR handler swap in a fresh stream URL
+  // (returned from /stream) without going up to the parent. When set, the
+  // main effect re-runs with this URL instead of the prop `src`.
+  const [overrideSrc, setOverrideSrc] = useState("");
 
   useEffect(() => {
     const handleMediaKeys = (event) => {
@@ -191,7 +218,18 @@ const HLSPlayer = ({ src, autoPlay = true }) => {
     };
   }, []);
 
-  const normalizedSrc = typeof src === "string" ? src.trim() : "";
+  // When a fresh URL has been swapped in via /stream, prefer it over the
+  // prop. Otherwise fall through to whatever the parent passed.
+  const effectiveSrc = overrideSrc || src;
+  const normalizedSrc = typeof effectiveSrc === "string" ? effectiveSrc.trim() : "";
+
+  // Whenever the parent supplies a brand-new `src` (e.g. user picked another
+  // channel), clear the override + reset the one-shot fallback guard so the
+  // new channel gets its own retry budget.
+  useEffect(() => {
+    setOverrideSrc("");
+    freshAttemptedRef.current = false;
+  }, [src]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -230,18 +268,12 @@ const HLSPlayer = ({ src, autoPlay = true }) => {
         enableWorker: true,
         lowLatencyMode: true,
 
-        // Attach app identity + device ID to every HLS request
-        // (.m3u8, .ts, .key segments) for backend/CDN validation
+        // Send only `X-App-Package` — the single custom header
+        // livestream.bbnl.in allows in its CORS preflight. Adding others
+        // (X-App-Name / X-Platform / X-App-Version / X-Device-Id) trips the
+        // browser preflight and breaks playback for every channel.
         xhrSetup: (xhr) => {
-          const deviceId =
-            localStorage.getItem("deviceId") ||
-            localStorage.getItem("deviceID") ||
-            "LGTV-001";
           xhr.setRequestHeader("X-App-Package", PACKAGE_ID);
-          xhr.setRequestHeader("X-App-Name",    APP_NAME);
-          xhr.setRequestHeader("X-Platform",    PLATFORM);
-          xhr.setRequestHeader("X-App-Version", APP_VERSION);
-          xhr.setRequestHeader("X-Device-Id",   deviceId);
         },
 
         backBufferLength: 5,
@@ -286,16 +318,24 @@ const HLSPlayer = ({ src, autoPlay = true }) => {
         }
       };
 
+      const fireReady = () => {
+        if (readyFiredRef.current) return;
+        readyFiredRef.current = true;
+        try { onReadyRef.current?.(); } catch {}
+      };
+
       const onPlaying = () => {
         setShowLoader(false);
         setIsLoading(false);
         setPlaybackError("");
         networkRetryRef.current = 0;
+        fireReady();
       };
 
       const onCanPlay = () => {
         setShowLoader(false);
         setIsLoading(false);
+        fireReady();
       };
 
       const onProgress = () => {
@@ -410,6 +450,38 @@ const HLSPlayer = ({ src, autoPlay = true }) => {
                 hlsRef.current.startLoad();
               }
             }, 500);
+            return;
+          }
+          // Last-chance fallback: ask the parent for a fresh stream URL via
+          // /stream (BBNL spec row 15). One attempt only — the
+          // `freshAttemptedRef` guard prevents loops if the new URL also
+          // fails.
+          if (
+            !freshAttemptedRef.current &&
+            typeof onStreamFailedRef.current === "function"
+          ) {
+            freshAttemptedRef.current = true;
+            setPlaybackError("Refreshing stream...");
+            setShowLoader(true);
+            console.log("Network retries exhausted — requesting fresh stream URL");
+            try {
+              hls.stopLoad();
+            } catch (_) { /* ignore */ }
+            Promise.resolve()
+              .then(() => onStreamFailedRef.current())
+              .then((freshUrl) => {
+                if (freshUrl && typeof freshUrl === "string" && freshUrl.trim()) {
+                  // Swap source — the main effect re-runs and creates a new
+                  // HLS instance with the refreshed URL.
+                  setOverrideSrc(freshUrl.trim());
+                } else {
+                  setPlaybackError("Network error - Cannot load stream");
+                }
+              })
+              .catch((err) => {
+                console.error("Fresh stream fetch failed:", err);
+                setPlaybackError("Network error - Cannot load stream");
+              });
             return;
           }
           setPlaybackError("Network error - Cannot load stream");
@@ -668,6 +740,16 @@ const HLSPlayer = ({ src, autoPlay = true }) => {
             Stream URL: {src ? `${src.substring(0, 50)}...` : ""}
           </div>
         </div>
+      )}
+
+      {/* /streamAds overlay (BBNL spec row 21). Positioned absolutely inside
+          the player wrapper so coordinates anchor to the video frame.
+          pointerEvents:none on the overlay keeps remote-key input flowing. */}
+      {streamAd && !adHidden && (
+        <StreamAdOverlay
+          ad={streamAd}
+          onDismiss={() => setAdHidden(true)}
+        />
       )}
     </div>
   );

@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import useLiveChannelsStore from "../store/LiveChannelsStore";
 import useLanguageStore from "../store/LivePlayersStore";
 import { isSubscribed } from "../utils/subscription";
+import ChannelLocked from "../error/Modules-Erros/ChannelLocked";
 
 const ArrowBackIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" /></svg>;
 const SearchIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" /></svg>;
@@ -33,6 +34,7 @@ const LiveChannels = () => {
   const [selectedLanguageTitle, setSelectedLanguageTitle] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [channelJumpBuffer, setChannelJumpBuffer] = useState("");
+  const [lockedChannel, setLockedChannel] = useState(null);
   const { categories, channelsCache, error, fetchCategories, fetchChannels, clearError } = useLiveChannelsStore();
   const { languagesCache, fetchLanguages } = useLanguageStore();
   const lastAutoPlayKey = useRef("");
@@ -213,6 +215,13 @@ const LiveChannels = () => {
   }, [filteredChannels]);
 
   const handleChannelSelect = useCallback((ch) => {
+    // Subscription gate — locked tiles open the modal in place. The user
+    // dismisses and stays on /live-channels (no /player round trip, no
+    // "No stream link provided" placeholder to back out of).
+    if (!isSubscribed(ch)) {
+      setLockedChannel(ch);
+      return;
+    }
     const url = ch.streamlink || ch.stream_link || ch.streamurl || ch.stream_url || ch.url || ch.link || ch.videourl || ch.video_url || ch.hlsurl || ch.hls_url || ch.manifest || ch.manifesturl;
     if (url) navigate("/player", { state: { streamlink: url, title: ch.chtitle, channelData: ch } });
     else setLocalError(`No stream URL found for channel: ${ch.chtitle}`);
@@ -386,6 +395,14 @@ const LiveChannels = () => {
           </div>
         )}
       </div>
+
+      {/* Channel-locked modal for unsubscribed grid clicks */}
+      {lockedChannel && (
+        <ChannelLocked
+          channel={lockedChannel}
+          onClose={() => setLockedChannel(null)}
+        />
+      )}
     </div>
   );
 };

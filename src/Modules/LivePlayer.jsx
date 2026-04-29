@@ -13,6 +13,8 @@ import useLiveChannelsStore from "../store/LiveChannelsStore";
 import { isSubscribed } from "../utils/subscription";
 import { useDeviceInformation } from "../server/Deviceinformaction/LG-Devicesinformaction";
 import { postTrpData } from "../server/modules-api/trpdata";
+import { fetchFreshStream } from "../server/modules-api/StreamApi";
+import { fetchStreamAd } from "../server/modules-api/StreamAdsApi";
 
 const getStreamUrl = (channel) => {
   if (!channel) return "";
@@ -43,6 +45,7 @@ const LivePlayer = () => {
   const [typedChannelNumber, setTypedChannelNumber] = useState("");
   const [channelNotFound, setChannelNotFound] = useState("");
   const [lockedChannel, setLockedChannel] = useState(null); // ChannelLocked modal payload
+  const [streamAd, setStreamAd] = useState(null); // /streamAds overlay payload (BBNL row 21)
 
   const { fetchChannels, getChannelByNumber } = useLiveChannelsStore();
 
@@ -222,6 +225,41 @@ const LivePlayer = () => {
     lastTrpStream.current = s;
     postTrpData({ mobile, ip_address: ip, stream: s }).catch(() => {});
   }, [currentStream, mobile, ip]);
+
+  // ── /streamAds (BBNL spec row 21) ──────────────────────────────────────────
+  // Fire ~1.5s after a channel switch so the player has time to start playing.
+  // Keyed on chid + grid so any channel change re-requests an ad. The
+  // `cancelled` flag suppresses late responses if the user flips channels
+  // quickly or unmounts the player.
+  const chid = currentChannel?.chid || currentChannel?.channelid || "";
+  const grid = currentChannel?.grid || "1";
+  useEffect(() => {
+    setStreamAd(null);
+    if (!chid || !userid || !mobile || !ip) return undefined;
+
+    const macAddr =
+      (deviceInfo.wiredMac && deviceInfo.wiredMac !== "Not available" && deviceInfo.wiredMac) ||
+      (deviceInfo.wifiMac && deviceInfo.wifiMac !== "Not available" && deviceInfo.wifiMac) ||
+      "";
+    if (!macAddr) return undefined;
+
+    let cancelled = false;
+    const t = setTimeout(() => {
+      fetchStreamAd({
+        userid,
+        mobile,
+        ip_address: ip,
+        mac_address: macAddr,
+        grid,
+        chid,
+      }).then((res) => {
+        if (cancelled) return;
+        if (res && res.success && res.ad) setStreamAd(res.ad);
+      }).catch(() => { /* fetchStreamAd never throws */ });
+    }, 1500);
+
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [chid, grid, userid, mobile, ip, deviceInfo.wiredMac, deviceInfo.wifiMac]);
 
   // ── Fetch channels ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -412,6 +450,31 @@ const LivePlayer = () => {
     stop(detailsTimer); stop(sidebarTimer); stop(numpadTimer); stop(numberTimer);
   }, []);
 
+  // ── /stream fallback ────────────────────────────────────────────────────
+  // Invoked by HLSPlayer ONLY after its fatal-NETWORK_ERROR retry budget
+  // (MAX_NETWORK_RETRIES) is exhausted. Resolves with a fresh stream URL on
+  // success, `null` otherwise. The player guards this to one attempt per src.
+  const onStreamFailed = useCallback(async () => {
+    const ch = curChRef.current;
+    if (!ch) return null;
+    const macAddr =
+      (deviceInfo.wiredMac && deviceInfo.wiredMac !== "Not available" && deviceInfo.wiredMac) ||
+      (deviceInfo.wifiMac && deviceInfo.wifiMac !== "Not available" && deviceInfo.wifiMac) ||
+      "";
+    try {
+      const res = await fetchFreshStream({
+        userid,
+        mobile,
+        chid: ch.chid || ch.channelid || "",
+        chno: ch.chno || ch.channelno || "",
+        ip_address: ip,
+        mac_address: macAddr,
+      });
+      if (res && res.success && res.streamlink) return res.streamlink;
+    } catch (_) { /* fetchFreshStream never throws, but be defensive */ }
+    return null;
+  }, [userid, mobile, ip, deviceInfo.wiredMac, deviceInfo.wifiMac]);
+
   return (
     <div style={{
       background: "#000", width: "100vw", height: "100vh",
@@ -439,11 +502,19 @@ const LivePlayer = () => {
         />
       )}
 
-      {/* Channel-locked popup (subscription gate) */}
+      {/* Channel-locked popup (subscription gate).
+          On dismiss: if we never had a valid stream playing (i.e. the user
+          arrived here via a locked deep-link or grid click), bounce back to
+          /home so they don't land on the empty "No stream link provided"
+          placeholder. If we WERE playing something subscribed and just blocked
+          a channel switch, stay put — the existing stream keeps playing. */}
       {lockedChannel && (
         <ChannelLocked
           channel={lockedChannel}
-          onClose={() => setLockedChannel(null)}
+          onClose={() => {
+            setLockedChannel(null);
+            if (!currentStream) navigate('/home', { replace: true });
+          }}
         />
       )}
 
@@ -454,7 +525,12 @@ const LivePlayer = () => {
         </div>
       ) : (
         <>
-          <HLSPlayer src={currentStream} />
+          <HLSPlayer
+            src={currentStream}
+            onStreamFailed={onStreamFailed}
+            streamAd={streamAd}
+            onReady={() => { try { window.__BBNL_HIDE_SPLASH__?.(); } catch {} }}
+          />
 
           <ChannelsDetails
             channel={currentChannel}

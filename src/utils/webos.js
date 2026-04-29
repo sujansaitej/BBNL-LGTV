@@ -83,10 +83,85 @@ export const ensureWebOSService = () => {
 };
 
 /**
+ * Install window.__BBNL_UPLOAD_LOGS__ — a console-friendly diagnostic upload hook.
+ *
+ * Reads userid/mobile from localStorage; reads MAC + IP lazily from
+ * window.__BBNL_DEVICE_INFO__ if the React device-info hook has populated it,
+ * else falls back to localStorage's pinned device id (used as MAC) and empty IP.
+ *
+ * Lazy-imports the helpers so this util file stays free of axios/JSX deps at
+ * module-eval time (initializeWebOSEnvironment is called once at boot from App.js).
+ */
+const installLogUploadHook = () => {
+  if (typeof window === "undefined") return;
+  if (typeof window.__BBNL_UPLOAD_LOGS__ === "function") return;
+
+  window.__BBNL_UPLOAD_LOGS__ = async () => {
+    try {
+      const [{ collectDiagnosticBundleAsZip }, { uploadOttLogs }] = await Promise.all([
+        import("./diagnosticBundle.js"),
+        import("../server/modules-api/OttLogsApi.jsx"),
+      ]);
+
+      let userid = "";
+      let mobile = "";
+      try { userid = localStorage.getItem("userid") || ""; } catch { /* ignore */ }
+      try { mobile = localStorage.getItem("mobile") || localStorage.getItem("mobileno") || ""; } catch { /* ignore */ }
+
+      const devInfo = window.__BBNL_DEVICE_INFO__ || {};
+      let mac_address =
+        devInfo.macAddress ||
+        devInfo.mac ||
+        devInfo.wifiMac ||
+        devInfo.wiredMac ||
+        "";
+      if (!mac_address) {
+        try {
+          mac_address = localStorage.getItem("lgtv_device_id_pinned") || "";
+        } catch { /* ignore */ }
+      }
+      const ip_address = devInfo.publicIp || devInfo.privateIp || devInfo.ip || "";
+
+      const logBlob = await collectDiagnosticBundleAsZip();
+      const result = await uploadOttLogs({
+        userid,
+        mobile,
+        mac_address,
+        ip_address,
+        logBlob,
+        filename: "ott_log.zip",
+      });
+
+      console.log("[__BBNL_UPLOAD_LOGS__] result:", result);
+      return result;
+    } catch (err) {
+      const result = {
+        success: false,
+        message: err?.message || "Diagnostic upload failed",
+        data: null,
+      };
+      console.warn("[__BBNL_UPLOAD_LOGS__] error:", err);
+      return result;
+    }
+  };
+};
+
+/**
  * Initialize webOS TV environment
  * Sets up body classes and event listeners
  */
 export const initializeWebOSEnvironment = () => {
+  // Install the diagnostic-log upload hook regardless of TV detection so it's
+  // also reachable from the dev-mode browser console.
+  installLogUploadHook();
+
+  // Install the manual device-auth DevTools hook (window.__BBNL_DEVICE_AUTH__).
+  // Lazy-imported so the crypto/axios code only loads if the file is actually
+  // pulled in — and never throws synchronously even if the import fails.
+  try {
+    import("./deviceAuthGlobals.js").catch(() => { /* ignore — manual-trigger only */ });
+  } catch { /* ignore */ }
+
   if (isWebOSTV()) {
     document.body.classList.add("webos-app");
     document.body.classList.add("tv-navigation-active");

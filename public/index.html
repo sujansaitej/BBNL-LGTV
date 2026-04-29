@@ -98,6 +98,16 @@
         border: 3px solid rgba(255,255,255,0.3) !important;
       }
 
+      /* OTT app cards (Home APPS row) — border + brightness, no transform */
+      .focusable-ott-app[data-focused="true"] {
+        border: 3px solid #fff !important;
+        filter: brightness(1.15) !important;
+        box-shadow: none !important;
+      }
+      .focusable-ott-app[data-hovered="true"]:not([data-focused="true"]) {
+        border: 3px solid rgba(255,255,255,0.3) !important;
+      }
+
       /* Input / textarea */
       .focusable-input[data-focused="true"] {
         border: 3px solid #667eea !important;
@@ -127,6 +137,36 @@
       .focusable-check-btn[data-focused="true"] {
         border: 3px solid #fff !important;
         background: rgba(255,255,255,0.12) !important;
+      }
+
+      /* Settings — Update Mobile Number "Request Update" button */
+      .focusable-mobile-update-btn[data-focused="true"] {
+        border: 3px solid #fff !important;
+        background: rgba(255,255,255,0.12) !important;
+      }
+
+      /* Settings — Help & Support textarea + submit (TV-safe: border + brightness, no transforms) */
+      .focusable-support-textarea[data-focused="true"] {
+        border: 3px solid #fff !important;
+        background: rgba(255,255,255,0.08) !important;
+        filter: brightness(1.05) !important;
+      }
+      .focusable-support-submit[data-focused="true"] {
+        border: 3px solid #fff !important;
+        background: rgba(255,255,255,0.12) !important;
+        filter: brightness(1.1) !important;
+      }
+
+      /* Settings — Manage Users input + submit (TV-safe: border + brightness, no transforms) */
+      .focusable-users-input[data-focused="true"] {
+        border: 3px solid #fff !important;
+        background: rgba(255,255,255,0.08) !important;
+        filter: brightness(1.05) !important;
+      }
+      .focusable-users-submit[data-focused="true"] {
+        border: 3px solid #fff !important;
+        background: rgba(255,255,255,0.12) !important;
+        filter: brightness(1.1) !important;
       }
 
       /* Settings — Logout dialog buttons */
@@ -296,7 +336,7 @@
           setTimeout(function () { if (s && s.parentNode) s.parentNode.removeChild(s); }, 450);
         }
         window.__BBNL_HIDE_SPLASH__ = hide;
-        setTimeout(hide, 3500); // safety ceiling — bundle hang
+        setTimeout(hide, 6000); // safety ceiling — bundle hang OR slow chnl_data + HLS init on cold boot
       })();
     </script>
   </body>

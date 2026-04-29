@@ -180,29 +180,15 @@ export const onSessionExpired = (fn) => { listeners.add(fn); return () => listen
 export const emitSessionExpired = (reason) => { listeners.forEach((fn) => { try { fn(reason); } catch {} }); };
 ```
 
-**Step 3: Add response interceptor in `src/server/apiClient.js`**
+**Step 3: Add response interceptor in `src/server/apiClient.js` (conservative)**
 
-Append after the request interceptor:
+Append after the request interceptor. **Important:** only trigger on hard HTTP 401/403 — do NOT trigger on `err_code:1` body messages, because those messages also fire during normal flows (e.g. "Invalid User ID" during first-time login probe, "User ID already registered with another device" during the OTP login). Triggering on those would log the user out of a working session.
+
 ```js
 import { emitSessionExpired } from "./sessionExpiryBus";
 
-const SESSION_EXPIRED_MESSAGES = new Set([
-  "Failed to authenticate",
-  "Invalid User ID",
-  "User ID Deactivated!",
-  "User Deactivated",
-  "User registered with another device",
-]);
-
 apiClient.interceptors.response.use(
-  (response) => {
-    const errMsg = response?.data?.status?.err_msg;
-    const errCode = response?.data?.status?.err_code;
-    if (errCode === 1 && SESSION_EXPIRED_MESSAGES.has(errMsg)) {
-      emitSessionExpired(errMsg);
-    }
-    return response;
-  },
+  (response) => response,
   (error) => {
     const status = error?.response?.status;
     if (status === 401 || status === 403) {
@@ -281,11 +267,11 @@ git commit -m "store: HomeStore helpers now use shared apiClient (drops manual h
 
 ---
 
-# Phase 1 — Server-authoritative OTP & device registration
+# Phase 1 — Server-authoritative OTP & device registration  *(DEFERRED 2026-04-29)*
 
-Goal: stop trusting the OTP returned by `/login`. Delegate verification to the server via `/addmacnew`. **This is the single most important security fix in this plan.**
+> 🛑 **Skipped in current execution.** Owner decision (2026-04-29): leave the existing client-side OTP compare path untouched to preserve production-ready login. Live test against the backend confirmed the server enforces one-user-per-device server-side (`"User ID already registered with another device"`), so the device-binding contract is at least partially intact even without this phase. Revisit when (a) backend team confirms which endpoint actually verifies OTP, and (b) we have a way to roll out without locking out existing logged-in users.
 
-> ⚠ **Coordination required:** Confirm with the BBNL backend team which endpoint actually verifies the OTP. Spec row 19 (`/addmac`) and row 37 (`/addmacnew`) both describe device registration "after OTP verification" but neither shows OTP in the request body. If the backend team says OTP must be supplied to a third endpoint (e.g. an unlisted `/verifyOtp`), use that instead and adjust Task 1.1 accordingly. Do not ship Phase 1 without backend confirmation.
+The original task breakdown below is preserved for future reference but **MUST NOT be executed** as part of the current rollout.
 
 ### Task 1.1 — Add `/addmacnew` integration
 
