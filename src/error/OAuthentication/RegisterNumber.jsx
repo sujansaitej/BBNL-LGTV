@@ -42,11 +42,11 @@ const RegisterNumber = ({ onRetry, message }) => {
     const handleKeyDown = (e) => {
       const kc = e.keyCode;
       const navKeys = [461, 13, 37, 38, 39, 40, 8, 403];
-      if (navKeys.includes(kc)) { e.preventDefault(); e.stopPropagation(); }
+      if (navKeys.includes(kc)) { e.preventDefault(); e.stopImmediatePropagation(); }
       const isDigit = (kc >= 48 && kc <= 57) || (kc >= 96 && kc <= 105);
-      if (isDigit) { e.preventDefault(); e.stopPropagation(); return; }
-      if (kc === 13) { e.preventDefault(); e.stopPropagation(); onRetry?.(); return; }
-      if (kc === 461 || e.key === "GoBack" || e.key === "Back") { e.preventDefault(); e.stopPropagation(); onRetry?.(); return; }
+      if (isDigit) { e.preventDefault(); e.stopImmediatePropagation(); return; }
+      if (kc === 13) { e.preventDefault(); e.stopImmediatePropagation(); onRetry?.(); return; }
+      if (kc === 461 || e.key === "GoBack" || e.key === "Back") { e.preventDefault(); e.stopImmediatePropagation(); onRetry?.(); return; }
     };
     window.addEventListener("keydown", handleKeyDown, true);
     return () => window.removeEventListener("keydown", handleKeyDown, true);

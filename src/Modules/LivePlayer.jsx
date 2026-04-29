@@ -5,8 +5,12 @@ import HLSPlayer from "../Pages/StreamPlayer";
 import ChannelsSidebar from "./ChannelsSidebar";
 import ChannelsDetails from "./ChannelsDetails";
 import ChannelNumberDisplay, { findChannelByNumber } from "./Lcn";
+import ChannelNumberPad from "./ChannelNumberPad";
+import ChannelNotFound from "../error/Modules-Erros/ChannelNotFound";
+import ChannelLocked from "../error/Modules-Erros/ChannelLocked";
 
 import useLiveChannelsStore from "../store/LiveChannelsStore";
+import { isSubscribed } from "../utils/subscription";
 import { useDeviceInformation } from "../server/Deviceinformaction/LG-Devicesinformaction";
 import { postTrpData } from "../server/modules-api/trpdata";
 
@@ -34,10 +38,11 @@ const LivePlayer = () => {
   const [isSidebarOpen,  setIsSidebarOpen]  = useState(false);
   const [isDetailsVisible, setIsDetailsVisible] = useState(false);
   const [isNumberPadVisible, setIsNumberPadVisible] = useState(false);
-  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
   const [channelsList,   setChannelsList]   = useState([]);
   const [localError,     setLocalError]     = useState("");
   const [typedChannelNumber, setTypedChannelNumber] = useState("");
+  const [channelNotFound, setChannelNotFound] = useState("");
+  const [lockedChannel, setLockedChannel] = useState(null); // ChannelLocked modal payload
 
   const { fetchChannels, getChannelByNumber } = useLiveChannelsStore();
 
@@ -49,17 +54,19 @@ const LivePlayer = () => {
   const lastTrpStream  = useRef("");
 
   // Stable refs — keyboard handler reads these, never stale
-  const sidebarRef  = useRef(false);
-  const detailsRef  = useRef(false);
-  const numpadRef   = useRef(false);
-  const chListRef    = useRef([]);
-  const curChRef     = useRef(null);
-  const keyboardRef  = useRef(false);
+  const sidebarRef           = useRef(false);
+  const detailsRef           = useRef(false);
+  const numpadRef            = useRef(false);
+  const channelNotFoundRef   = useRef(false);
+  const lockedRef            = useRef(false);
+  const chListRef            = useRef([]);
+  const curChRef             = useRef(null);
 
   useEffect(() => { sidebarRef.current  = isSidebarOpen; }, [isSidebarOpen]);
   useEffect(() => { detailsRef.current  = isDetailsVisible; }, [isDetailsVisible]);
   useEffect(() => { numpadRef.current   = isNumberPadVisible; }, [isNumberPadVisible]);
-  useEffect(() => { keyboardRef.current = isKeyboardOpen; }, [isKeyboardOpen]);
+  useEffect(() => { channelNotFoundRef.current = !!channelNotFound; }, [channelNotFound]);
+  useEffect(() => { lockedRef.current   = !!lockedChannel; }, [lockedChannel]);
   useEffect(() => { chListRef.current  = channelsList; }, [channelsList]);
   useEffect(() => { curChRef.current   = currentChannel; }, [currentChannel]);
 
@@ -111,11 +118,11 @@ const LivePlayer = () => {
   }, [stop, showInfo]);
 
   // ── NUMBER PAD ──────────────────────────────────────────────────────────
-  const showNumpad = useCallback(() => {
-    setIsNumberPadVisible(true);
+  const showNumpadDigitMode = useCallback(() => {
+    // Used while user is typing digits via the remote (not the on-screen pad).
+    // Only the floating ChannelNumberDisplay badge is shown in this mode.
     stop(numpadTimer);
     numpadTimer.current = setTimeout(() => {
-      setIsNumberPadVisible(false);
       setTypedChannelNumber("");
       numberBuffer.current = "";
       numpadTimer.current = null;
@@ -130,13 +137,27 @@ const LivePlayer = () => {
   }, [stop]);
 
   // ── CHANNEL SELECT ──────────────────────────────────────────────────────
+  // Subscription gate: locked channels never reach the HLS player. Instead the
+  // ChannelLocked modal opens. Caller logic (sidebar close timer, etc.) still
+  // runs — only the stream load is suppressed.
   const selectChannel = useCallback((channel) => {
+    if (channel && !isSubscribed(channel)) {
+      setLockedChannel(channel);
+      return;
+    }
     const url = getStreamUrl(channel);
     if (!url) { setLocalError("No stream URL found."); return; }
+    // PERF: avoid pushing the same URL again — prevents StreamPlayer from
+    // tearing down + recreating its HLS instance on a no-op switch.
+    if (url === currentStream) {
+      setCurrentChannel(channel);
+      setLocalError("");
+      return;
+    }
     setLocalError("");
     setCurrentStream(url);
     setCurrentChannel(channel);
-  }, []);
+  }, [currentStream]);
 
   // From sidebar: play channel, close sidebar after 1s, show info bar with timer
   const onSidebarSelect = useCallback((channel) => {
@@ -166,12 +187,23 @@ const LivePlayer = () => {
     });
   };
 
+  // DTH-standard: ↑/↓ stepping skips locked channels silently — avoids modal
+  // spam when the user holds the channel button. Walk in `dir` direction until
+  // we land on a subscribed channel or wrap back to the start.
   const stepChannel = useCallback((dir) => {
     const list = chListRef.current;
     if (!list.length) return;
     const cur = findChIndex(curChRef.current);
-    const next = cur === -1 ? 0 : (cur + dir + list.length) % list.length;
-    if (list[next]) selectChannel(list[next]);
+    let i = cur === -1 ? 0 : (cur + dir + list.length) % list.length;
+    for (let guard = 0; guard < list.length; guard++) {
+      const candidate = list[i];
+      if (candidate && isSubscribed(candidate)) {
+        selectChannel(candidate);
+        return;
+      }
+      i = (i + dir + list.length) % list.length;
+    }
+    // No subscribed channel exists at all — silent no-op.
   }, [selectChannel]);
 
   // ── TRP ─────────────────────────────────────────────────────────────────
@@ -198,37 +230,37 @@ const LivePlayer = () => {
     });
   }, [fetchChannels, userid, mobile]);
 
-  // ── LG KEYBOARD handlers ─────────────────────────────────────────────────
-  const onKeyboardChange = useCallback((val) => {
-    // Show digits in existing ChannelNumberDisplay as user types on LG keyboard
-    setTypedChannelNumber(val);
-    setIsNumberPadVisible(!!val);
-  }, []);
+  // ── Lookup helper used by both remote-typing commit and pad onSubmit ─
+  const lookupChannelByNumber = useCallback((value) => {
+    return (
+      getChannelByNumber({ userid, mobile, grid: "1" }, value) ||
+      findChannelByNumber(chListRef.current, value)
+    );
+  }, [getChannelByNumber, userid, mobile]);
 
-  const onKeyboardSubmit = useCallback((value) => {
-    setIsKeyboardOpen(false);
+  // ── On-screen numpad submit ─────────────────────────────────────────────
+  const onNumpadSubmit = useCallback((val) => {
     setIsNumberPadVisible(false);
     setTypedChannelNumber("");
-    if (!value) return;
-    const target =
-      getChannelByNumber({ userid, mobile, grid: "1" }, value) ||
-      findChannelByNumber(chListRef.current, value);
+    numberBuffer.current = "";
+    stop(numpadTimer);
+    if (!val) return;
+    const target = lookupChannelByNumber(val);
     if (target) {
       setLocalError("");
-      setCurrentStream(getStreamUrl(target));
-      setCurrentChannel(target);
+      selectChannel(target);
       showInfo();
     } else {
-      setLocalError(`Channel ${value} not found`);
-      setTimeout(() => setLocalError(""), 3000);
+      setChannelNotFound(String(val));
     }
-  }, [getChannelByNumber, userid, mobile, showInfo]);
+  }, [lookupChannelByNumber, selectChannel, showInfo, stop]);
 
-  const onKeyboardClose = useCallback(() => {
-    setIsKeyboardOpen(false);
+  const onNumpadClose = useCallback(() => {
     setIsNumberPadVisible(false);
     setTypedChannelNumber("");
-  }, []);
+    numberBuffer.current = "";
+    stop(numpadTimer);
+  }, [stop]);
 
   // ── KEYBOARD HANDLER ────────────────────────────────────────────────────
   useEffect(() => {
@@ -247,20 +279,15 @@ const LivePlayer = () => {
       numberBuffer.current = "";
       setTypedChannelNumber("");
       stop(numberTimer);
-      setIsNumberPadVisible(false);
       stop(numpadTimer);
 
-      const target =
-        getChannelByNumber({ userid, mobile, grid: "1" }, val) ||
-        findChannelByNumber(chListRef.current, val);
-
+      const target = lookupChannelByNumber(val);
       if (target) {
         setLocalError("");
         selectChannel(target);
         showInfo();
       } else {
-        setLocalError(`Channel ${val} not found`);
-        setTimeout(() => setLocalError(""), 3000);
+        setChannelNotFound(String(val));
       }
     };
 
@@ -268,32 +295,40 @@ const LivePlayer = () => {
       const k = e.key;
       const kc = e.keyCode;
 
+      // The on-screen numpad, ChannelNotFound modal, and ChannelLocked modal
+      // own all input while open — bail out so we don't double-handle anything.
+      if (numpadRef.current) return;
+      if (channelNotFoundRef.current) return;
+      if (lockedRef.current) return;
+
       // Sidebar open + arrow keys → reset idle timer (user is browsing)
       if (sidebarRef.current && (kc === 37 || kc === 38 || kc === 39 || kc === 40 ||
           k === "ArrowUp" || k === "ArrowDown" || k === "ArrowLeft" || k === "ArrowRight")) {
         startMenuTimer();
       }
 
-      // DIGITS
+      // DIGITS — type via remote, show floating badge, commit after 2s
       const d = digit(e);
       if (d) {
         e.preventDefault(); e.stopPropagation();
-        showNumpad();
         numberBuffer.current = `${numberBuffer.current}${d}`.slice(0, 4);
         setTypedChannelNumber(numberBuffer.current);
+        showNumpadDigitMode();
         stop(numberTimer);
         numberTimer.current = setTimeout(commitNumber, 2000);
         return;
       }
 
-      // BACK (LG remote 461, Backspace 8, Escape)
+      // BACK (LG remote 461, Backspace 8 while sidebar, Escape) — bulletproof
       if (k === "GoBack" || k === "Back" || kc === 461 || k === "Escape" ||
           (kc === 8 && sidebarRef.current)) {
         e.preventDefault(); e.stopPropagation();
-        if (sidebarRef.current) closeMenu();
-        else if (numpadRef.current) hideNumpad();
-        else if (detailsRef.current) hideInfo();
-        else navigate('/home', { replace: true });
+        if (lockedRef.current)          { setLockedChannel(null); return; }
+        if (sidebarRef.current)         { closeMenu(); return; }
+        if (numpadRef.current)          { hideNumpad(); return; }
+        if (channelNotFoundRef.current) { setChannelNotFound(""); return; }
+        if (detailsRef.current)         { hideInfo(); return; }
+        navigate('/home', { replace: true });
         return;
       }
 
@@ -307,7 +342,7 @@ const LivePlayer = () => {
         return;
       }
 
-      // UP / DOWN
+      // UP / DOWN → step channel (only when no sidebar is open)
       if (k === "ArrowUp" || kc === 38 || k === "ArrowDown" || kc === 40) {
         if (sidebarRef.current) return;
         e.preventDefault(); e.stopPropagation();
@@ -320,34 +355,57 @@ const LivePlayer = () => {
         return;
       }
 
-      // LEFT / RIGHT → open LG system keyboard for channel number
-      if (k === "ArrowLeft" || kc === 37 || k === "ArrowRight" || kc === 39) {
+      // LEFT → custom on-screen number pad
+      if (k === "ArrowLeft" || kc === 37) {
         if (sidebarRef.current) return;
-        if (keyboardRef.current) return; // already open
+        if (numpadRef.current) return;
         e.preventDefault(); e.stopPropagation();
-        setIsKeyboardOpen(true);
+        setIsNumberPadVisible(true);
         return;
       }
 
-      // BACKSPACE / RED
+      // RIGHT → toggle info bar
+      if (k === "ArrowRight" || kc === 39) {
+        if (sidebarRef.current) return;
+        e.preventDefault(); e.stopPropagation();
+        if (detailsRef.current) hideInfo();
+        else showInfo();
+        return;
+      }
+
+      // BACKSPACE / RED → delete a typed digit while building a channel number
       if (kc === 8 || kc === 403) {
         if (numberBuffer.current.length > 0) {
           e.preventDefault(); e.stopPropagation();
           numberBuffer.current = numberBuffer.current.slice(0, -1);
           setTypedChannelNumber(numberBuffer.current);
-          numberBuffer.current.length === 0 ? hideNumpad() : showNumpad();
+          if (numberBuffer.current.length === 0) {
+            stop(numpadTimer);
+          } else {
+            showNumpadDigitMode();
+          }
         }
       }
     };
 
     window.addEventListener("keydown", onKey, true);
     return () => { window.removeEventListener("keydown", onKey, true); stop(numberTimer); };
-  }, [getChannelByNumber, userid, mobile, selectChannel, stepChannel,
-      openMenu, closeMenu, showInfo, hideInfo, showNumpad, hideNumpad,
-      startMenuTimer, navigate]);
+  }, [lookupChannelByNumber, selectChannel, stepChannel,
+      openMenu, closeMenu, showInfo, hideInfo, hideNumpad, showNumpadDigitMode,
+      startMenuTimer, navigate, stop]);
 
   // Pause info timer while sidebar is open (don't hide info behind menu)
   useEffect(() => { if (isSidebarOpen) stop(detailsTimer); }, [isSidebarOpen, stop]);
+
+  // Mount-time gate: if Home navigated here with a locked channel, surface
+  // the locked modal immediately and DON'T initialise the HLS stream.
+  useEffect(() => {
+    if (channelData && !isSubscribed(channelData)) {
+      setLockedChannel(channelData);
+      setCurrentStream("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Cleanup
   useEffect(() => () => {
@@ -359,14 +417,33 @@ const LivePlayer = () => {
       background: "#000", width: "100vw", height: "100vh",
       overflow: "hidden", position: "fixed", top: 0, left: 0,
     }}>
-      {/* Single component: shows digits + triggers LG keyboard when Left/Right pressed */}
-      {(isNumberPadVisible || isKeyboardOpen) && (
-        <ChannelNumberDisplay
-          channelNumber={typedChannelNumber}
-          keyboardOpen={isKeyboardOpen}
-          onChange={onKeyboardChange}
-          onSubmit={onKeyboardSubmit}
-          onClose={onKeyboardClose}
+      {/* Floating digits badge — only when typing via remote and the on-screen pad is closed */}
+      {!isNumberPadVisible && typedChannelNumber && (
+        <ChannelNumberDisplay channelNumber={typedChannelNumber} />
+      )}
+
+      {/* Custom on-screen number pad (replaces LG system keyboard) */}
+      {isNumberPadVisible && (
+        <ChannelNumberPad
+          onSubmit={onNumpadSubmit}
+          onClose={onNumpadClose}
+          initialValue={typedChannelNumber}
+        />
+      )}
+
+      {/* Channel-not-found popup (auto-clears) */}
+      {channelNotFound && (
+        <ChannelNotFound
+          channelNumber={channelNotFound}
+          onClose={() => setChannelNotFound("")}
+        />
+      )}
+
+      {/* Channel-locked popup (subscription gate) */}
+      {lockedChannel && (
+        <ChannelLocked
+          channel={lockedChannel}
+          onClose={() => setLockedChannel(null)}
         />
       )}
 

@@ -2,6 +2,14 @@ import { MemoryRouter as Router, Routes, Route, Navigate, useNavigate, useLocati
 import { useState, useEffect, useRef } from 'react';
 import { initializeWebOSEnvironment, preventWebOSDefaults } from './utils/webos';
 import { initializeMagicRemoteUIStability, cleanupMagicRemoteUIStability } from './utils/magicRemoteUIStability';
+import {
+  isSessionValid,
+  restoreSessionToLocalStorage,
+  sessionSet,
+  sessionGet,
+  sessionClear,
+  logSessionState,
+} from './utils/session';
 import checkAppLock from './server/OAuthentication-Api/Applock';
 import { useDeviceInformation } from './server/Deviceinformaction/LG-Devicesinformaction';
 import ServiceLocked from './error/OAuthentication/ServiceLocked';
@@ -100,9 +108,15 @@ const GlobalBackHandler = () => {
 };
 
 function App() {
+  // Recover localStorage from cookies BEFORE the auth check, so a wiped
+  // localStorage (firmware update / dev reinstall edge cases) is repaired
+  // from the parallel cookie store. Then check session via the unified API.
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     try {
-      return localStorage.getItem('isAuthenticated') === 'true';
+      restoreSessionToLocalStorage();
+      const valid = isSessionValid();
+      logSessionState('session.boot');
+      return valid;
     } catch {
       return false;
     }
@@ -116,7 +130,7 @@ function App() {
     if (deviceInfo.loading) return;
 
     const runLockCheck = async () => {
-      const mobile = localStorage.getItem("userPhone") || "";
+      const mobile = sessionGet("userPhone") || "";
       const result = await checkAppLock({
         device_name: "LG TV",
         device_type: "LG TV",
@@ -134,14 +148,22 @@ function App() {
     // Initialize webOS TV environment
     const cleanup = initializeWebOSEnvironment();
     preventWebOSDefaults();
-    
+
     // Initialize Magic Remote UI stability
     initializeMagicRemoteUIStability();
-    
+
     console.log('✓ WebOS environment initialized');
     console.log('✓ Magic Remote UI stability enabled');
-    
+
+    // Hold the splash long enough for the entrance + brief settle before dismissing.
+    // 1500ms ≈ 0.85s logo fade-in + ~0.65s settle. Combined with the 0.40s exit
+    // animation, total visible bumper is ~1.9s — premium feel, not too slow.
+    const splashTimer = setTimeout(() => {
+      try { window.__BBNL_HIDE_SPLASH__?.(); } catch {}
+    }, 1500);
+
     return () => {
+      clearTimeout(splashTimer);
       cleanup?.();
       cleanupMagicRemoteUIStability();
     };
@@ -149,14 +171,14 @@ function App() {
 
   const handleLoginSuccess = () => {
     setIsAuthenticated(true);
-    localStorage.setItem('isAuthenticated', 'true');
+    sessionSet('isAuthenticated', 'true');
+    logSessionState('session.login-success');
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
-    localStorage.clear();
-    sessionStorage.clear();
-    localStorage.removeItem('isAuthenticated');
+    sessionClear();
+    logSessionState('session.logout');
   };
 
   return (

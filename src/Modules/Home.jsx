@@ -3,6 +3,8 @@ import { useNavigate, useLocation } from "react-router-dom";
 import useLiveChannelsStore from "../store/LiveChannelsStore";
 import useLanguageStore from "../store/LivePlayersStore";
 import useHomeAdsStore from "../store/ChannelsSearchStore";
+import { isSubscribed } from "../utils/subscription";
+import ChannelLocked from "../error/Modules-Erros/ChannelLocked";
 
 const CATEGORY_COLORS = [
   "rgba(236,25,71,0.98)", "rgba(123,47,247,0.98)", "rgba(42,170,138,0.98)", "rgba(155,89,182,0.98)", "rgba(230,126,34,0.98)",
@@ -56,7 +58,15 @@ const Home = () => {
     return names.map((n) => channels.find((ch) => (ch.chtitle || "").toLowerCase().trim() === n)).filter(Boolean).slice(0, ROW_COLS);
   }, [channels]);
 
+  const [lockedChannel, setLockedChannel] = useState(null);
+
   const handleChannelPlay = useCallback((ch) => {
+    // Subscription gate — locked channels surface the modal here, never reach
+    // the player. The user can dismiss and stay on Home to keep browsing.
+    if (!isSubscribed(ch)) {
+      setLockedChannel(ch);
+      return;
+    }
     const url = ch.streamlink || ch.stream_link || ch.streamurl || ch.stream_url || ch.url || ch.link;
     if (url) navigate("/player", { state: { streamlink: url, title: ch.chtitle, channelData: ch } });
   }, [navigate]);
@@ -338,14 +348,14 @@ const Home = () => {
     sessionStorage.setItem(AUTO_PLAY_SESSION_KEY, "1");
     autoPlayTimerRef.current = setTimeout(() => {
       const infoChannel = channels.find((ch) => String(ch.channelno || ch.channelid || ch.channel_no || "").trim() === "999");
-      if (infoChannel) {
-        hasAutoPlayedRef.current = true;
+      hasAutoPlayedRef.current = true;
+      // Skip autoplay if the info channel isn't part of the user's plan —
+      // a locked autoplay would just bounce the user into a modal.
+      if (infoChannel && isSubscribed(infoChannel)) {
         const streamUrl = infoChannel.streamlink || infoChannel.stream_link || infoChannel.streamurl || infoChannel.stream_url || infoChannel.url || infoChannel.link;
         if (streamUrl) navigate("/player", { state: { streamlink: streamUrl, title: infoChannel.chtitle, channelData: infoChannel } });
-      } else {
-        hasAutoPlayedRef.current = true;
       }
-    }, 5000);
+    }, 1000);
     return () => { if (autoPlayTimerRef.current) { clearTimeout(autoPlayTimerRef.current); autoPlayTimerRef.current = null; } };
   }, [channels, mobile, navigate, AUTO_PLAY_SESSION_KEY]);
 
@@ -586,6 +596,14 @@ const Home = () => {
 
         </div>
       </div>
+
+      {/* Channel-locked modal for unsubscribed channel taps from Home tiles */}
+      {lockedChannel && (
+        <ChannelLocked
+          channel={lockedChannel}
+          onClose={() => setLockedChannel(null)}
+        />
+      )}
     </div>
   );
 };

@@ -1,6 +1,7 @@
 
 import axios from "axios";
 import { API_ENDPOINTS } from "../config";
+import { isSubscribed } from "../../utils/subscription";
 
 // Fetch channel categories
 export const fetchCategories = async (payload, headers) => {
@@ -29,6 +30,8 @@ export const fetchChannels = async (payload, headers, setError) => {
 		return [];
 	}
 	
-	const channels = res?.data?.body || [];
-	return channels;
+	// Mirror the LiveChannelsStore filter so any future caller of this helper
+	// gets the same subscribed-only contract.
+	const all = Array.isArray(res?.data?.body) ? res.data.body : [];
+	return all.filter(isSubscribed);
 };

@@ -46,21 +46,21 @@ const ValidOTP = ({ onRetry }) => {
       const navKeys = [461, 13, 37, 38, 39, 40, 8, 403];
       if (navKeys.includes(kc)) {
         e.preventDefault();
-        e.stopPropagation();
+        e.stopImmediatePropagation();
       }
 
       /* ── Block ALL digit input to prevent keypad from appearing ── */
       const isDigit = (kc >= 48 && kc <= 57) || (kc >= 96 && kc <= 105);
       if (isDigit) {
         e.preventDefault();
-        e.stopPropagation();
+        e.stopImmediatePropagation();
         return;
       }
 
       /* ── OK / ENTER (13) — Click Try Again button ── */
       if (kc === 13) {
         e.preventDefault();
-        e.stopPropagation();
+        e.stopImmediatePropagation();
         onRetry?.();
         return;
       }
@@ -68,7 +68,7 @@ const ValidOTP = ({ onRetry }) => {
       /* ── BACK (461) — Don't exit app, just close modal & go back to OTP screen ── */
       if (kc === 461 || e.key === "GoBack" || e.key === "Back") {
         e.preventDefault();
-        e.stopPropagation();
+        e.stopImmediatePropagation();
         onRetry?.();
         return;
       }
@@ -76,7 +76,7 @@ const ValidOTP = ({ onRetry }) => {
       /* ── UP/DOWN/LEFT/RIGHT — Prevent default behavior ── */
       if (kc === 38 || kc === 40 || kc === 37 || kc === 39) {
         e.preventDefault();
-        e.stopPropagation();
+        e.stopImmediatePropagation();
         return;
       }
     };
@@ -100,8 +100,8 @@ const ValidOTP = ({ onRetry }) => {
     };
 
   return (
-    <div style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(15,23,42,0.55)", backdropFilter: "blur(18px) saturate(180%)", WebkitBackdropFilter: "blur(18px) saturate(180%)", zIndex: 9999, padding: "24px" }}>
-      <div style={{ width: "100%", maxWidth: "900px", borderRadius: "40px", border: "2px solid rgba(255,255,255,0.9)", backgroundColor: "#2F2F35", padding: "40px" }}>
+    <div onClick={(e) => e.stopPropagation()} style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(15,23,42,0.55)", backdropFilter: "blur(18px) saturate(180%)", WebkitBackdropFilter: "blur(18px) saturate(180%)", zIndex: 9999, padding: "24px", pointerEvents: "auto" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: "900px", borderRadius: "40px", border: "2px solid rgba(255,255,255,0.9)", backgroundColor: "#2F2F35", padding: "40px", pointerEvents: "auto" }}>
 
         {/* Image area */}
         <div style={{ width: "100%", minHeight: "360px", borderRadius: "30px", backgroundColor: "#F6F6F2", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "40px", overflow: "hidden" }}>

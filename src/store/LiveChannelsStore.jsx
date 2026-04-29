@@ -2,6 +2,7 @@ import { create } from "zustand";
 
 import { API_ENDPOINTS } from "../server/config";
 import { nowMs, postJson } from "./HomeStore";
+import { isSubscribed } from "../utils/subscription";
 
 const CHANNELS_TTL_MS = 30 * 60 * 1000;
 const CATEGORIES_TTL_MS = 2 * 60 * 60 * 1000;
@@ -139,7 +140,15 @@ const useLiveChannelsStore = create((set, get) => ({
 				return [];
 			}
 
-			const channels = data?.body || [];
+			// DTH-style: store ALL channels (subscribed + locked) so the user
+			// can discover what's available. Per-view rendering shows a padlock
+			// for locked channels; play attempts on locked channels open the
+			// "Channel Locked — contact operator" modal. See `isSubscribed` in
+			// utils/subscription.js for the per-channel check used downstream.
+			const channels = Array.isArray(data?.body) ? data.body : [];
+			const subscribedCount = channels.filter(isSubscribed).length;
+			console.log(`[channels] fetched ${channels.length} total (${subscribedCount} subscribed, ${channels.length - subscribedCount} locked)`);
+
 			const maps = buildChannelMaps(channels);
 			set((prev) => ({
 				channelsCache: {

@@ -17,7 +17,15 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "tv:package": "ares-package build/ -o .",
+    "tv:install": "ares-install --device tv com.lg.bbnl_2.0.0_all.ipk",
+    "tv:launch": "ares-launch --device tv com.lg.bbnl",
+    "tv:close": "ares-launch --device tv --close com.lg.bbnl",
+    "tv:inspect": "ares-inspect --device tv com.lg.bbnl",
+    "tv:logs": "ares-log --device tv",
+    "tv:uninstall": "ares-install --device tv --remove com.lg.bbnl",
+    "deploy": "npm run build && npm run tv:package && npm run tv:install && npm run tv:launch"
   },
   "eslintConfig": {
     "extends": [

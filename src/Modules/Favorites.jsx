@@ -1,11 +1,17 @@
 import { useNavigate } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { fetchComingSoonImage } from "../server/OAuthentication-Api/LogoApi";
+import { TV_KEYS } from "../Remote/useMagicRemote";
 
 const Favorites = () => {
   const navigate = useNavigate();
   const [comingSoonImage, setComingSoonImage] = useState("");
   const [imageLoading, setImageLoading] = useState(true);
+  const goHomeBtnRef = useRef(null);
+
+  const goHome = useCallback(() => {
+    navigate("/home", { replace: true });
+  }, [navigate]);
 
   useEffect(() => {
     let isMounted = true;
@@ -22,6 +28,27 @@ const Favorites = () => {
     loadImage();
     return () => { isMounted = false; };
   }, []);
+
+  /* ── Initial focus on mount: the "Go to home" button ── */
+  useEffect(() => {
+    goHomeBtnRef.current?.setAttribute("data-focused", "true");
+  }, []);
+
+  /* ── Capture-phase keydown — overrides GlobalBackHandler in App.js ── */
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      const kc = e.keyCode;
+      const isOK = kc === TV_KEYS.OK || e.key === "Enter";
+      const isBack = kc === TV_KEYS.BACK || e.key === "GoBack" || e.key === "Back";
+      if (isOK || isBack) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        goHome();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
+  }, [goHome]);
 
   return (
     <div style={{ minHeight: "100vh", width: "100%", backgroundColor: "#808080", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}>
@@ -42,7 +69,10 @@ const Favorites = () => {
         <p style={{ color: "#fff", fontSize: "3rem", fontWeight: 700, lineHeight: 1.2, marginBottom: "12px" }}>Coming Soon Liked Favorite Channels</p>
 
         <button
-          onClick={() => navigate("/home")}
+          ref={goHomeBtnRef}
+          tabIndex={-1}
+          className="focusable-fav-btn"
+          onClick={goHome}
           style={{ minWidth: "220px", height: "56px", borderRadius: "9999px", backgroundColor: "#f4bf1f", color: "#000", fontSize: "1.4rem", fontWeight: 700, border: "none", cursor: "pointer" }}
         >
           Go to home

@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDeviceInformation } from "../server/Deviceinformaction/LG-Devicesinformaction";
 import useAppVersionStore from "../store/LogineOttp";
-import { useEnhancedRemoteNavigation } from "../Remote/useMagicRemote";
+import { sessionClear } from "../utils/session";
 
 const ArrowBackIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" /></svg>;
 const InfoIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" /></svg>;
@@ -17,6 +17,17 @@ const Spinner = ({ size = 24 }) => (
   </>
 );
 
+// Toast — slides down from top, auto-dismiss after 2.5s.
+const Toast = ({ message, onDone }) => {
+  useEffect(() => {
+    if (!message) return;
+    const t = setTimeout(() => onDone?.(), 2500);
+    return () => clearTimeout(t);
+  }, [message, onDone]);
+  if (!message) return null;
+  return <div className="bbnl-toast">{message}</div>;
+};
+
 const menuItems = [
   { id: "about", label: "About App", icon: <InfoIcon /> },
   { id: "device", label: "Device Info", icon: <InfoIcon /> },
@@ -28,12 +39,13 @@ const Setting = ({ onLogout }) => {
   const [currentPage, setCurrentPage] = useState("about");
   const [appVersionData, setAppVersionData] = useState(null);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+  const [toast, setToast] = useState("");
   const { versionCache, fetchAppVersion } = useAppVersionStore();
   const deviceInfo = useDeviceInformation();
 
   const handleLogout = () => {
     if (onLogout) onLogout();
-    else { localStorage.clear(); sessionStorage.clear(); }
+    else sessionClear(); // clears localStorage + sessionStorage + session cookies
     navigate("/login", { replace: true });
   };
 
@@ -54,18 +66,225 @@ const Setting = ({ onLogout }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const { getItemProps } = useEnhancedRemoteNavigation(menuItems, {
-    orientation: "vertical", useMagicRemotePointer: true, focusThreshold: 150,
-    onSelect: (index) => {
-      if (menuItems[index].id === "logout") setShowLogoutDialog(true);
-      else setCurrentPage(menuItems[index].id);
-    },
-  });
+  const handleCheckUpdate = async () => {
+    try {
+      setToast("Checking for updates…");
+      const userid = localStorage.getItem("userId") || "";
+      const mobile = localStorage.getItem("userPhone") || "";
+      const payload = { userid, mobile, ip_address: "", device_type: "", mac_address: "", device_name: "", app_package: "com.fofi.fofiboxtv" };
+      const fresh = await fetchAppVersion(payload, { force: true });
+      if (fresh) {
+        setAppVersionData(fresh);
+        const current = "v2.0.0";
+        const latest = fresh.appversion || current;
+        if (latest === current || !fresh.updateavailable) {
+          setToast("You're on the latest version");
+        } else {
+          setToast(`Update available: ${latest}`);
+        }
+      } else {
+        setToast("Couldn't reach update server");
+      }
+    } catch {
+      setToast("Couldn't reach update server");
+    }
+  };
+
+  // ── Zoned focus engine ──────────────────────────────────────────────
+  // Zones: "menu" (left sidebar 3 items, vertical) | "check" (App Info Check button)
+  const activeZoneRef = useRef("menu");
+  const focusedMenuRef = useRef(0);
+  const menuRefs = useRef([]);
+  const checkBtnRef = useRef(null);
+  const currentPageRef = useRef(currentPage);
+  const showLogoutDialogRef = useRef(showLogoutDialog);
+  useEffect(() => { currentPageRef.current = currentPage; }, [currentPage]);
+  useEffect(() => { showLogoutDialogRef.current = showLogoutDialog; }, [showLogoutDialog]);
+
+  const applyMenuFocus = useCallback((newIdx) => {
+    const oldIdx = focusedMenuRef.current;
+    if (oldIdx !== newIdx) {
+      const oldEl = menuRefs.current[oldIdx];
+      if (oldEl) oldEl.removeAttribute("data-focused");
+    }
+    const newEl = menuRefs.current[newIdx];
+    if (newEl) newEl.setAttribute("data-focused", "true");
+    focusedMenuRef.current = newIdx;
+  }, []);
+
+  const applyCheckFocus = useCallback((focused) => {
+    const el = checkBtnRef.current;
+    if (!el) return;
+    if (focused) el.setAttribute("data-focused", "true");
+    else el.removeAttribute("data-focused");
+  }, []);
+
+  const switchZone = useCallback((newZone) => {
+    const oldZone = activeZoneRef.current;
+    if (oldZone === newZone) return;
+    if (oldZone === "menu") {
+      const el = menuRefs.current[focusedMenuRef.current];
+      if (el) el.removeAttribute("data-focused");
+    } else if (oldZone === "check") {
+      applyCheckFocus(false);
+    }
+    activeZoneRef.current = newZone;
+    if (newZone === "menu") {
+      applyMenuFocus(focusedMenuRef.current);
+    } else if (newZone === "check") {
+      applyCheckFocus(true);
+    }
+  }, [applyMenuFocus, applyCheckFocus]);
+
+  // Apply initial focus to menu on mount
+  useEffect(() => {
+    applyMenuFocus(0);
+  }, [applyMenuFocus]);
+
+  // If user navigates away from "about", clear check-zone focus and force back to menu
+  useEffect(() => {
+    if (currentPage !== "about" && activeZoneRef.current === "check") {
+      switchZone("menu");
+    }
+  }, [currentPage, switchZone]);
+
+  // Main capture-phase keydown handler — arrows + OK + BACK
+  useEffect(() => {
+    const handleKey = (e) => {
+      // Pause when logout dialog is open — its own listener handles input
+      if (showLogoutDialogRef.current) return;
+
+      const kc = e.keyCode;
+      const key = e.key;
+      const isBack = kc === 461 || key === "GoBack" || key === "Back";
+      const isEnter = kc === 13 || key === "Enter" || key === " ";
+      const isArrow = kc >= 37 && kc <= 40;
+
+      if (isBack) {
+        // Custom BACK: settings → home (preventDefault so GlobalBackHandler doesn't double-fire)
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        navigate("/home");
+        return;
+      }
+
+      if (!isArrow && !isEnter) return;
+
+      const zone = activeZoneRef.current;
+
+      if (zone === "menu") {
+        if (kc === 38) { // UP
+          e.preventDefault();
+          const next = Math.max(0, focusedMenuRef.current - 1);
+          if (next !== focusedMenuRef.current) applyMenuFocus(next);
+        } else if (kc === 40) { // DOWN
+          e.preventDefault();
+          const next = Math.min(menuItems.length - 1, focusedMenuRef.current + 1);
+          if (next !== focusedMenuRef.current) applyMenuFocus(next);
+        } else if (kc === 39) { // RIGHT → Check (only if About is shown)
+          if (currentPageRef.current === "about" && checkBtnRef.current) {
+            e.preventDefault();
+            switchZone("check");
+          }
+        } else if (kc === 37) { // LEFT — no-op in menu zone
+          e.preventDefault();
+        } else if (isEnter) {
+          e.preventDefault();
+          const item = menuItems[focusedMenuRef.current];
+          if (!item) return;
+          if (item.id === "logout") setShowLogoutDialog(true);
+          else setCurrentPage(item.id);
+        }
+      } else if (zone === "check") {
+        if (kc === 37) { // LEFT → menu
+          e.preventDefault();
+          switchZone("menu");
+        } else if (kc === 39 || kc === 38 || kc === 40) {
+          // No further targets — eat the key
+          e.preventDefault();
+        } else if (isEnter) {
+          e.preventDefault();
+          handleCheckUpdate();
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKey, true);
+    return () => window.removeEventListener("keydown", handleKey, true);
+    // handleCheckUpdate is referenced via closure each call — but listener is registered once.
+    // We deliberately keep deps minimal; the handler reads refs for mutable state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [applyMenuFocus, switchZone, navigate]);
+
+  // ── Logout dialog focus trap ────────────────────────────────────────
+  const dialogBtnRefs = useRef([]); // [0] = Cancel, [1] = Logout
+  const dialogFocusedRef = useRef(0);
+
+  const applyDialogFocus = useCallback((newIdx) => {
+    const oldIdx = dialogFocusedRef.current;
+    if (oldIdx !== newIdx) {
+      const oldEl = dialogBtnRefs.current[oldIdx];
+      if (oldEl) oldEl.removeAttribute("data-focused");
+    }
+    const newEl = dialogBtnRefs.current[newIdx];
+    if (newEl) newEl.setAttribute("data-focused", "true");
+    dialogFocusedRef.current = newIdx;
+  }, []);
+
+  useEffect(() => {
+    if (!showLogoutDialog) return;
+
+    // Default focus on Cancel
+    dialogFocusedRef.current = 0;
+    // Apply on next tick so refs are populated
+    const t = setTimeout(() => applyDialogFocus(0), 0);
+
+    const handleDialogKey = (e) => {
+      const kc = e.keyCode;
+      const key = e.key;
+      const isBack = kc === 461 || key === "GoBack" || key === "Back";
+      const isEnter = kc === 13 || key === "Enter" || key === " ";
+
+      if (isBack) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        setShowLogoutDialog(false);
+        return;
+      }
+      if (kc === 37) { // LEFT → Cancel
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        if (dialogFocusedRef.current !== 0) applyDialogFocus(0);
+      } else if (kc === 39) { // RIGHT → Logout
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        if (dialogFocusedRef.current !== 1) applyDialogFocus(1);
+      } else if (isEnter) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        if (dialogFocusedRef.current === 0) setShowLogoutDialog(false);
+        else handleLogout();
+      } else if (kc >= 37 && kc <= 40) {
+        // Eat any other arrow keys so they don't bleed through
+        e.preventDefault();
+        e.stopImmediatePropagation();
+      }
+    };
+
+    window.addEventListener("keydown", handleDialogKey, true);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("keydown", handleDialogKey, true);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showLogoutDialog]);
 
   const versionLoading = versionCache?.[`${localStorage.getItem("userId") || ""}|${localStorage.getItem("userPhone") || ""}|com.fofi.fofiboxtv`]?.isLoading;
 
   return (
     <div style={{ display: "flex", height: "100vh", width: "100%", backgroundColor: "#000", color: "#fff", padding: "40px", gap: "32px", fontFamily: '"Roboto","Helvetica","Arial",sans-serif', letterSpacing: "0.3px", position: "relative" }}>
+
+      {toast && <Toast message={toast} onDone={() => setToast("")} />}
 
       {/* BACK BUTTON */}
       <button onClick={() => navigate("/home")} style={{ position: "absolute", top: "24px", left: "36px", display: "flex", alignItems: "center", gap: "12px", cursor: "pointer", color: "#fff", fontSize: "20px", fontWeight: 600, background: "none", border: "none" }}>
@@ -73,18 +292,23 @@ const Setting = ({ onLogout }) => {
       </button>
 
       {/* LEFT SIDEBAR MENU */}
-      <div style={{ width: "320px", display: "flex", flexDirection: "column", border: "2px solid rgba(255,255,255,0.25)", borderRadius: "18px", padding: "24px", marginTop: "80px" }}>
+      <div style={{ width: "320px", display: "flex", flexDirection: "column", border: "2px solid rgba(255,255,255,0.25)", borderRadius: "18px", padding: "24px", marginTop: "80px", pointerEvents: showLogoutDialog ? "none" : "auto" }}>
         <ul style={{ listStyle: "none", padding: 0, margin: 0, width: "100%" }}>
           {menuItems.map((item, index) => {
             const isActive = currentPage === item.id;
             return (
               <li key={item.id}>
                 <button
-                  {...getItemProps(index)}
+                  ref={(el) => { menuRefs.current[index] = el; }}
+                  tabIndex={-1}
                   className="focusable-settings-item"
                   data-logout={item.id === "logout" ? "true" : undefined}
-                  onClick={() => { if (item.id === "logout") setShowLogoutDialog(true); else setCurrentPage(item.id); }}
-                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (item.id === "logout") setShowLogoutDialog(true); else setCurrentPage(item.id); } }}
+                  onClick={() => {
+                    activeZoneRef.current = "menu";
+                    applyMenuFocus(index);
+                    if (item.id === "logout") setShowLogoutDialog(true);
+                    else setCurrentPage(item.id);
+                  }}
                   style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px", borderRadius: "14px", backgroundColor: item.id === "logout" ? (isActive ? "rgba(244,67,54,0.15)" : "transparent") : (isActive ? "rgba(255,255,255,0.12)" : "transparent"), border: item.id === "logout" ? "2px solid rgba(244,67,54,0.5)" : "2px solid transparent", padding: "20px", color: item.id === "logout" ? "#f44336" : "#fff", cursor: "pointer", textAlign: "left" }}>
                   <span style={{ color: item.id === "logout" ? "#f44336" : "#fff" }}>{item.icon}</span>
                   <span style={{ fontSize: "20px", fontWeight: 600 }}>{item.label}</span>
@@ -96,7 +320,7 @@ const Setting = ({ onLogout }) => {
       </div>
 
       {/* MAIN CONTENT */}
-      <div style={{ flex: 1, border: "2px solid rgba(255,255,255,0.25)", borderRadius: "18px", padding: "48px", marginTop: "80px", overflowY: "auto" }}>
+      <div style={{ flex: 1, border: "2px solid rgba(255,255,255,0.25)", borderRadius: "18px", padding: "48px", marginTop: "80px", overflowY: "auto", pointerEvents: showLogoutDialog ? "none" : "auto" }}>
 
         {/* ABOUT APP */}
         {currentPage === "about" && (
@@ -109,19 +333,24 @@ const Setting = ({ onLogout }) => {
               {versionLoading ? <Spinner size={24} /> : <p style={{ fontSize: "22px", fontWeight: 600, margin: 0 }}>{appVersionData?.appversion || "v2.1.0 - Release"}</p>}
             </div>
 
-            {appVersionData?.verchngmsg && (
-              <div style={{ backgroundColor: "rgba(255,255,255,0.06)", border: "2px solid rgba(255,255,255,0.15)", borderRadius: "14px", padding: "32px", marginBottom: "24px" }}>
-                <p style={{ fontSize: "18px", color: "rgba(255,255,255,0.65)", marginBottom: "8px" }}>Version Message</p>
-                <p style={{ fontSize: "20px", fontWeight: 500, color: "#4fc3f7", fontStyle: "italic", margin: 0 }}>{appVersionData.verchngmsg}</p>
-              </div>
-            )}
-
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", backgroundColor: "rgba(255,255,255,0.06)", border: "2px solid rgba(255,255,255,0.15)", borderRadius: "14px", padding: "32px" }}>
               <div style={{ flex: 1 }}>
                 <p style={{ fontSize: "22px", fontWeight: 600, margin: 0 }}>Software Updates</p>
                 <p style={{ fontSize: "18px", color: "rgba(255,255,255,0.65)", marginTop: "6px", margin: "6px 0 0" }}>Your App software is up to date</p>
               </div>
-              <button style={{ border: "2px solid rgba(255,255,255,0.4)", color: "#fff", backgroundColor: "transparent", fontSize: "18px", fontWeight: 600, padding: "12px 32px", marginLeft: "24px", borderRadius: "8px", cursor: "pointer" }}>Check</button>
+              <button
+                ref={checkBtnRef}
+                tabIndex={-1}
+                className="focusable-check-btn"
+                onClick={() => {
+                  activeZoneRef.current = "check";
+                  applyCheckFocus(true);
+                  // Clear menu focus when clicking
+                  const menuEl = menuRefs.current[focusedMenuRef.current];
+                  if (menuEl) menuEl.removeAttribute("data-focused");
+                  handleCheckUpdate();
+                }}
+                style={{ border: "2px solid rgba(255,255,255,0.4)", color: "#fff", backgroundColor: "transparent", fontSize: "18px", fontWeight: 600, padding: "12px 32px", marginLeft: "24px", borderRadius: "8px", cursor: "pointer" }}>Check</button>
             </div>
           </div>
         )}
@@ -185,8 +414,18 @@ const Setting = ({ onLogout }) => {
               You will be signed out of your BBNL IPTV account. All local session data will be cleared.
             </p>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "16px" }}>
-              <button onClick={() => setShowLogoutDialog(false)} style={{ border: "2px solid rgba(255,255,255,0.35)", color: "#fff", backgroundColor: "transparent", fontSize: "16px", fontWeight: 600, padding: "10px 32px", borderRadius: "8px", cursor: "pointer" }}>Cancel</button>
-              <button onClick={handleLogout} style={{ backgroundColor: "#f44336", color: "#fff", border: "none", fontSize: "16px", fontWeight: 600, padding: "10px 32px", borderRadius: "8px", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}>
+              <button
+                ref={(el) => { dialogBtnRefs.current[0] = el; }}
+                tabIndex={-1}
+                className="focusable-dialog-cancel"
+                onClick={() => setShowLogoutDialog(false)}
+                style={{ border: "2px solid rgba(255,255,255,0.35)", color: "#fff", backgroundColor: "transparent", fontSize: "16px", fontWeight: 600, padding: "10px 32px", borderRadius: "8px", cursor: "pointer" }}>Cancel</button>
+              <button
+                ref={(el) => { dialogBtnRefs.current[1] = el; }}
+                tabIndex={-1}
+                className="focusable-dialog-logout"
+                onClick={handleLogout}
+                style={{ backgroundColor: "#f44336", color: "#fff", border: "none", fontSize: "16px", fontWeight: 600, padding: "10px 32px", borderRadius: "8px", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}>
                 <LogoutIcon /> Yes, Logout
               </button>
             </div>

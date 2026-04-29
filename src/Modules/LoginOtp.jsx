@@ -25,6 +25,7 @@ import ValidOTP from "../error/OAuthentication/ValidOTP";
 import useAuthStore from "../store/AuthStore";
 import { useDeviceInformation } from "../server/Deviceinformaction/LG-Devicesinformaction";
 import fetchLoginLogo from "../server/OAuthentication-Api/LogoApi";
+import { sessionSet } from "../utils/session";
 
 /* ─── tiny spinner ───────────────────────────────────────────────────────── */
 const Spinner = ({ size = 22 }) => (
@@ -61,7 +62,7 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
   const [showRegisterError, setShowRegisterError] = useState(false);
   const [registerErrorMsg,  setRegisterErrorMsg]  = useState("");
   const [showOtpError,      setShowOtpError]      = useState(false);
-  const [timer,             setTimer]             = useState(60);
+  const [timer,             setTimer]             = useState(30);
   const [isTimerRunning,    setIsTimerRunning]    = useState(false);
   const [dynamicLogo,       setDynamicLogo]       = useState("");
   const [logoLoadFailed,    setLogoLoadFailed]    = useState(false);
@@ -70,7 +71,7 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
 
   /* ── always-current state snapshot for zero-dep handlers ─────────────── */
   const S = useRef({});
-  S.current = { step, phone, otp, focused, loading, serverOtp, isTimerRunning };
+  S.current = { step, phone, otp, focused, loading, serverOtp, isTimerRunning, showOtpError, showRegisterError, networkError };
 
   /* ── DOM refs (one per focusable item) ───────────────────────────────── */
   const digitsRef          = useRef(null);
@@ -145,8 +146,10 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
         devdets: { brand: "LG", model: deviceInfo.modelName || "", mac: "" },
       });
       if (result.success) {
-        localStorage.setItem("userId", result.data?.body?.[0]?.userid || "");
-        localStorage.setItem("userPhone", phone);
+        // Persist to both localStorage AND cookies so the session survives
+        // any single-store wipe (firmware update / dev reinstall / edge case).
+        sessionSet("userId", result.data?.body?.[0]?.userid || "");
+        sessionSet("userPhone", phone);
         setServerOtp(String(result.otp || ""));
         setTimeout(() => setStep(2), 400);
       } else if (result.networkError) {
@@ -212,7 +215,14 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
   useEffect(() => {
     const handle = (e) => {
       const kc = e.keyCode;
-      const { step, phone, otp, focused, loading, isTimerRunning } = S.current;
+      const { step, phone, otp, focused, loading, isTimerRunning, showOtpError, showRegisterError, networkError } = S.current;
+
+      /* ── If a modal/error popup is open, bail out completely so the popup's
+         own capture-phase listener can handle the key without interference.
+         Without this guard, this handler would still move focus to the hidden
+         <input type="tel"> underneath the popup, triggering the LG soft
+         keyboard on UP/DOWN, and would also race the popup's BACK handler. */
+      if (showOtpError || showRegisterError || networkError) return;
 
       /* ── prevent browser default for ALL navigation keys immediately ──── */
       const navKeys = [461, 13, 37, 38, 39, 40, 8, 403];
@@ -344,14 +354,16 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
 
         {/* ── centre card ── */}
         <div style={{
-          width: "52%", minWidth: "520px", maxWidth: "920px",
-          backgroundColor: "#152E54", borderRadius: "20px",
-          padding: "48px 56px", position: "relative",
+          width: "56%", minWidth: "560px", maxWidth: "960px",
+          backgroundColor: "#0F1729", borderRadius: "28px",
+          border: "1px solid rgba(255,255,255,0.06)",
+          padding: "56px 64px", position: "relative",
+          boxShadow: "0 24px 60px rgba(0,0,0,0.45)",
         }}>
 
-          {/* logo */}
-          <div style={{ display: "flex", justifyContent: "center", marginBottom: "88px" }}>
-            {!logoLoadFailed ? (
+          {/* ── Header: BBNL logo + Welcome + subtitle + step indicator ── */}
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: "32px" }}>
+            {!logoLoadFailed && (
               <img
                 src={dynamicLogo || "/icons.png"}
                 alt="BBNL"
@@ -359,11 +371,50 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
                   ev.currentTarget.onerror = null;
                   if (dynamicLogo) { setDynamicLogo(""); } else { setLogoLoadFailed(true); }
                 }}
-                style={{ height: "110px", width: "210px", objectFit: "contain" }}
+                style={{ height: "44px", width: "auto", maxWidth: "180px", objectFit: "contain", marginBottom: "20px", opacity: 0.95 }}
               />
-            ) : (
-              <span style={{ color: "#fff", fontSize: "36px", fontWeight: 800 }}>BBNL</span>
             )}
+            <p style={{
+              color: "#fff", fontSize: "64px", fontWeight: 800,
+              margin: 0, lineHeight: 1, letterSpacing: "-0.5px",
+            }}>
+              Welcome
+            </p>
+            <p style={{
+              color: "#8B9AB5", fontSize: "22px", fontWeight: 500,
+              margin: "14px 0 0",
+            }}>
+              Sign in to continue to your profile
+            </p>
+          </div>
+
+          {/* ── Step indicator: Phone •····· ○ Verify ── */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "18px", marginBottom: "48px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <span style={{
+                width: "12px", height: "12px", borderRadius: "50%",
+                backgroundColor: step === 1 ? "#5B7CFA" : "transparent",
+                border: step === 1 ? "none" : "2px solid #5A6580",
+                boxSizing: "border-box",
+                boxShadow: step === 1 ? "0 0 0 4px rgba(91,124,250,0.18)" : "none",
+              }} />
+              <span style={{ fontSize: "20px", fontWeight: 600, color: step === 1 ? "#5B7CFA" : "#5A6580" }}>
+                Phone
+              </span>
+            </div>
+            <span aria-hidden="true" style={{ color: "#3a4358", letterSpacing: "4px", fontSize: "18px" }}>·····</span>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <span style={{
+                width: "12px", height: "12px", borderRadius: "50%",
+                backgroundColor: step === 2 ? "#5B7CFA" : "transparent",
+                border: step === 2 ? "none" : "2px solid #5A6580",
+                boxSizing: "border-box",
+                boxShadow: step === 2 ? "0 0 0 4px rgba(91,124,250,0.18)" : "none",
+              }} />
+              <span style={{ fontSize: "20px", fontWeight: 600, color: step === 2 ? "#5B7CFA" : "#5A6580" }}>
+                Verify
+              </span>
+            </div>
           </div>
 
           {/* ── Hidden inputs — DOM focus triggers LG TV system keyboard ── */}
@@ -403,57 +454,76 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
           {/* ══════ STEP 1 — PHONE ══════ */}
           {step === 1 && (
             <div>
-              <p style={{ color: "rgba(255,255,255,0.85)", fontSize: "26px", fontWeight: 600, marginBottom: "15px" }}>
-                Mobile Number
+              <p style={{
+                color: "#fff", fontSize: "20px", fontWeight: 700,
+                margin: "0 0 14px",
+              }}>
+                Phone Number
               </p>
 
-              {/* ── digit display (focusable div, NOT an <input>) ── */}
+              {/* ── Phone input row: [+91] [digits] ── */}
               <div
                 ref={digitsRef}
                 tabIndex={tb("digits")}
                 onClick={() => moveFocusRef.current("digits")}
                 onFocus={() => setFocused("digits")}
                 style={{
-                  width: "100%", minHeight: "80px",
-                  padding: "16px 24px",
-                  backgroundColor: focused === "digits" ? "#0D2140" : "#0B1A2E",
-                  borderRadius: "16px", boxSizing: "border-box",
-                  marginBottom: "55px",
-                  display: "flex", alignItems: "center",
-                  justifyContent: phone ? "flex-start" : "center",
-                  transition: "all 0.18s",
+                  display: "flex", gap: "14px",
+                  marginBottom: "32px",
                   cursor: "text",
-                  ...ring("digits"),
+                  pointerEvents: showOtpError || showRegisterError ? "none" : "auto",
+                  outline: "none",
                 }}
               >
-                {phone ? (
-                  <>
-                    <span style={{
-                      fontSize: "44px", fontWeight: 700,
-                      letterSpacing: "6px", fontFamily: "monospace",
-                      color: "#fff",
-                    }}>
-                      {phoneDisplay()}
-                    </span>
-                    {focused === "digits" && phone.length < 10 && (
+                {/* +91 prefix */}
+                <div style={{
+                  width: "112px", height: "84px",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  backgroundColor: "#0B1525", borderRadius: "14px",
+                  border: focused === "digits" ? "2px solid rgba(91,124,250,0.45)" : "2px solid rgba(255,255,255,0.18)",
+                  transition: "border-color 0.18s",
+                  flexShrink: 0,
+                }}>
+                  <span style={{ color: "#fff", fontSize: "30px", fontWeight: 700, letterSpacing: "0.5px" }}>+91</span>
+                </div>
+                {/* Digit display (focusable area) */}
+                <div style={{
+                  flex: 1, minWidth: 0, height: "84px",
+                  padding: "0 24px",
+                  backgroundColor: "#0B1525", borderRadius: "14px",
+                  border: focused === "digits" ? "2px solid #5B7CFA" : "2px solid rgba(255,255,255,0.18)",
+                  boxShadow: focused === "digits" ? "0 0 0 4px rgba(91,124,250,0.18)" : "none",
+                  transition: "all 0.18s",
+                  display: "flex", alignItems: "center",
+                  boxSizing: "border-box",
+                }}>
+                  {phone ? (
+                    <>
                       <span style={{
-                        display: "inline-block", width: "3px", height: "52px",
-                        backgroundColor: "#667eea", marginLeft: "8px",
-                        animation: "_blink 1s step-end infinite", borderRadius: "2px",
-                      }} />
-                    )}
-                  </>
-                ) : (
-                  <span style={{
-                    fontSize: "24px", fontWeight: 400,
-                    color: "rgba(255,255,255,0.35)",
-                    letterSpacing: "0px",
-                  }}>
-                    Enter 10 Digit Number
-                  </span>
-                )}
+                        fontSize: "32px", fontWeight: 700,
+                        letterSpacing: "4px", fontFamily: "'JetBrains Mono', 'Roboto Mono', Consolas, monospace",
+                        color: "#fff",
+                      }}>
+                        {phoneDisplay()}
+                      </span>
+                      {focused === "digits" && phone.length < 10 && (
+                        <span style={{
+                          display: "inline-block", width: "3px", height: "40px",
+                          backgroundColor: "#5B7CFA", marginLeft: "6px",
+                          animation: "_blink 1s step-end infinite", borderRadius: "2px",
+                        }} />
+                      )}
+                    </>
+                  ) : (
+                    <span style={{
+                      fontSize: "22px", fontWeight: 400,
+                      color: "rgba(255,255,255,0.32)",
+                    }}>
+                      Enter 10 Digit Number
+                    </span>
+                  )}
+                </div>
               </div>
-
 
               {/* ── Get OTP button — NEVER disabled, visually dimmed instead ── */}
               <button
@@ -462,39 +532,71 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
                 onClick={handleGetOtp}
                 onFocus={() => setFocused("btn-getotp")}
                 style={{
-                  width: "100%", height: "64px", borderRadius: "19px",
-                  backgroundColor: phone.length === 10 && !loading ? "#1313EC" : "#0a0a7a",
-                  color: "#fff", fontSize: "28px", fontWeight: 700, border: "2px solid transparent",
-                  cursor: "pointer", marginBottom: "157px",
-                  opacity: phone.length === 10 && !loading ? 1 : 0.45,
+                  width: "100%", height: "76px", borderRadius: "16px",
+                  backgroundColor: phone.length === 10 && !loading ? "#3B4FE8" : "#1A2236",
+                  color: phone.length === 10 && !loading ? "#fff" : "#8B9AB5",
+                  fontSize: "22px", fontWeight: 700,
+                  border: "1px solid rgba(255,255,255,0.06)",
+                  cursor: "pointer", marginBottom: "44px",
                   transition: "all 0.18s",
                   display: "flex", alignItems: "center", justifyContent: "center", gap: "12px",
+                  pointerEvents: showOtpError || showRegisterError ? "none" : "auto",
                   ...ring("btn-getotp"),
                 }}
               >
                 {loading ? <><Spinner /> Sending…</> : "Get OTP"}
               </button>
 
-              
-
-              {/* device info */}
+              {/* ── Device info — 3-row grid ──────────────────────────────
+                  Long values (DEVICE ID full LGUDID, IPV6) span full width
+                  so they never truncate. MAC + GATEWAY share a compact middle row.
+                  Long values wrap on character boundary — UUIDs/IPv6 have no
+                  natural word breaks. (Per ui-ux-pro-max truncation-strategy:
+                  prefer wrapping over ellipsis.) ── */}
               <div style={{
-                backgroundColor: "#0B0B18", borderRadius: "35px",
-                padding: "24px 32px", display: "flex", alignItems: "center", gap: "24px",
+                display: "grid", gridTemplateColumns: "1fr 1fr",
+                rowGap: "24px", columnGap: "32px",
               }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: "18px", color: "#8B9AB5", fontWeight: 600, marginBottom: "4px", letterSpacing: "1px", textTransform: "uppercase" }}>Gateway IP</p>
-                  <p style={{ fontSize: "28px", color: "#fff", fontWeight: 700, margin: 0 }}>
-                    {deviceInfo.loading ? <Spinner size={18} /> : (deviceInfo.privateIPv4 || deviceInfo.publicIPv4 || "–")}
-                  </p>
-                </div>
-                <div style={{ width: "1px", alignSelf: "stretch", backgroundColor: "rgba(255,255,255,0.12)" }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: "18px", color: "#8B9AB5", fontWeight: 600, marginBottom: "4px", letterSpacing: "1px", textTransform: "uppercase" }}>TV Model</p>
-                  <p style={{ fontSize: "28px", color: "#fff", fontWeight: 700, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {deviceInfo.loading ? <Spinner size={18} /> : (deviceInfo.modelName || "–")}
-                  </p>
-                </div>
+                {[
+                  { label: "DEVICE ID",
+                    value: deviceInfo.deviceId,
+                    wide: true,
+                  },
+                  { label: "MAC ADDRESS",
+                    value: (deviceInfo.wiredMac && deviceInfo.wiredMac !== "Not available") ? deviceInfo.wiredMac
+                      : (deviceInfo.wifiMac && deviceInfo.wifiMac !== "Not available") ? deviceInfo.wifiMac
+                      : "—",
+                  },
+                  { label: "GATEWAY IP",
+                    value: (deviceInfo.privateIPv4 && deviceInfo.privateIPv4 !== "Not available") ? deviceInfo.privateIPv4
+                      : (deviceInfo.publicIPv4 && deviceInfo.publicIPv4 !== "Not available") ? deviceInfo.publicIPv4
+                      : "—",
+                  },
+                  { label: "IPV6 ADDRESS",
+                    value: (deviceInfo.publicIPv6 && deviceInfo.publicIPv6 !== "Not available") ? deviceInfo.publicIPv6
+                      : (deviceInfo.privateIPv6 && deviceInfo.privateIPv6 !== "Not available") ? deviceInfo.privateIPv6
+                      : "—",
+                    wide: true,
+                  },
+                ].map(({ label, value, wide }) => (
+                  <div key={label} style={{ minWidth: 0, gridColumn: wide ? "1 / -1" : "auto" }}>
+                    <p style={{ fontSize: "12px", fontWeight: 700, color: "#5A6580", margin: "0 0 8px", letterSpacing: "1.8px", textTransform: "uppercase" }}>{label}</p>
+                    <p
+                      title={typeof value === "string" ? value : undefined}
+                      style={{
+                        fontSize: wide ? "19px" : "20px",
+                        fontWeight: 600, color: "#fff", margin: 0,
+                        lineHeight: 1.3,
+                        fontFamily: "'JetBrains Mono', 'Roboto Mono', Consolas, monospace",
+                        ...(wide
+                          ? { whiteSpace: "normal", wordBreak: "break-all", overflowWrap: "anywhere" }
+                          : { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }),
+                      }}
+                    >
+                      {deviceInfo.loading ? <Spinner size={14} /> : (value || "—")}
+                    </p>
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -502,50 +604,64 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
           {/* ══════ STEP 2 — OTP ══════ */}
           {step === 2 && (
             <div>
-              <p style={{ color: "#fff", fontSize: "22px", fontWeight: 600, textAlign: "center", marginBottom: "24px" }}>
-                Enter the vaild OTP Code
+              <p style={{
+                color: "#fff", fontSize: "20px", fontWeight: 700,
+                margin: "0 0 8px", textAlign: "center",
+              }}>
+                Enter Verification Code
+              </p>
+              <p style={{
+                color: "#8B9AB5", fontSize: "17px", fontWeight: 500,
+                margin: "0 0 32px", textAlign: "center",
+              }}>
+                Sent to <span style={{ color: "#fff", fontWeight: 600, fontFamily: "'JetBrains Mono', 'Roboto Mono', Consolas, monospace" }}>+91 {phoneDisplay()}</span>
               </p>
 
-              {/* ── OTP digit boxes (focusable container) ── */}
+              {/* ── OTP digit boxes ── */}
               <div
                 ref={digitsRef}
                 tabIndex={tb("digits")}
                 onClick={() => moveFocusRef.current("digits")}
                 onFocus={() => setFocused("digits")}
                 style={{
-                  display: "flex", justifyContent: "center", gap: "32px",
-                  marginBottom: "32px", padding: "20px 28px", borderRadius: "16px",
-                  cursor: "text", transition: "all 0.18s",
-                  ...ring("digits"),
+                  display: "flex", justifyContent: "center", gap: "20px",
+                  marginBottom: "36px",
+                  cursor: "text", outline: "none",
                 }}
               >
-                {[0, 1, 2, 3].map((i) => (
-                  <div key={i} style={{ width: "64px", height: "80px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", position: "relative" }}>
-                    <span style={{
-                      fontSize: "52px", fontWeight: 700, fontFamily: "monospace",
-                      color: otp[i] ? "#fff" : "rgba(255,255,255,0.15)",
-                      marginBottom: "8px",
+                {[0, 1, 2, 3].map((i) => {
+                  const isActiveSlot = focused === "digits" && otp.length === i;
+                  return (
+                    <div key={i} style={{
+                      width: "82px", height: "96px",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      backgroundColor: "#0B1525", borderRadius: "14px",
+                      border: isActiveSlot
+                        ? "2px solid #5B7CFA"
+                        : (otp[i] ? "2px solid rgba(255,255,255,0.4)" : "2px solid rgba(255,255,255,0.18)"),
+                      boxShadow: isActiveSlot ? "0 0 0 4px rgba(91,124,250,0.18)" : "none",
+                      transition: "all 0.18s",
+                      position: "relative",
                     }}>
-                      {otp[i] || (focused === "digits" && otp.length === i ? "" : "·")}
-                    </span>
-                    {/* blinking caret on active slot */}
-                    {focused === "digits" && otp.length === i && (
                       <span style={{
-                        position: "absolute", top: "50%", left: "50%",
-                        transform: "translate(-50%, -50%)",
-                        width: "3px", height: "46px",
-                        backgroundColor: "#667eea",
-                        animation: "_blink 1s step-end infinite", borderRadius: "2px",
-                      }} />
-                    )}
-                    {/* underline */}
-                    <div style={{
-                      width: "100%", height: "3px", borderRadius: "2px",
-                      backgroundColor: otp[i] ? "#fff" : "rgba(255,255,255,0.3)",
-                      transition: "all 0.2s",
-                    }} />
-                  </div>
-                ))}
+                        fontSize: "44px", fontWeight: 700,
+                        fontFamily: "'JetBrains Mono', 'Roboto Mono', Consolas, monospace",
+                        color: otp[i] ? "#fff" : "rgba(255,255,255,0.25)",
+                      }}>
+                        {otp[i] || ""}
+                      </span>
+                      {isActiveSlot && (
+                        <span style={{
+                          position: "absolute", top: "50%", left: "50%",
+                          transform: "translate(-50%, -50%)",
+                          width: "3px", height: "44px",
+                          backgroundColor: "#5B7CFA",
+                          animation: "_blink 1s step-end infinite", borderRadius: "2px",
+                        }} />
+                      )}
+                    </div>
+                  );
+                })}
               </div>
 
               {/* ── Verify button ── */}
@@ -555,27 +671,27 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
                 onClick={handleVerifyOtp}
                 onFocus={() => setFocused("btn-verify")}
                 style={{
-                  width: "60%", height: "56px", borderRadius: "40px",
-                  backgroundColor: "#1313EC",
-                  color: "#fff", fontSize: "24px", fontWeight: 700, border: "2px solid transparent",
-                  cursor: "pointer", marginBottom: "28px", marginLeft: "20%",
-                  opacity: otp.length === 4 ? 1 : 0.5,
+                  width: "100%", height: "76px", borderRadius: "16px",
+                  backgroundColor: otp.length === 4 && !loading ? "#3B4FE8" : "#1A2236",
+                  color: otp.length === 4 && !loading ? "#fff" : "#8B9AB5",
+                  fontSize: "22px", fontWeight: 700,
+                  border: "1px solid rgba(255,255,255,0.06)",
+                  cursor: "pointer", marginBottom: "20px",
                   transition: "all 0.18s",
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: "10px",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: "12px",
+                  pointerEvents: showOtpError ? "none" : "auto",
                   ...ring("btn-verify"),
                 }}
               >
-                {loading ? "Verifying OTP" : "Verify OTP"}
+                {loading ? <><Spinner /> Verifying…</> : "Verify OTP"}
               </button>
 
               {/* ── Resend / Timer ── */}
-              <div style={{ marginBottom: "20px", textAlign: "center" }}>
+              <div style={{ marginBottom: "16px", textAlign: "center" }}>
                 {isTimerRunning ? (
-                  <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "18px" }}>
-                    Did&apos;nt receive the code?{" "}
-                    <strong style={{ color: "#fff" }}>Resend Code</strong>
-                    {" "}in{" "}
-                    <strong style={{ color: "#fff" }}>
+                  <p style={{ color: "#8B9AB5", fontSize: "17px", fontWeight: 500, margin: 0 }}>
+                    Didn&apos;t receive the code? Resend in{" "}
+                    <strong style={{ color: "#fff", fontVariantNumeric: "tabular-nums", fontFamily: "'JetBrains Mono', 'Roboto Mono', Consolas, monospace" }}>
                       00:{timer < 10 ? `0${timer}` : timer}
                     </strong>
                   </p>
@@ -586,10 +702,12 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
                     onClick={handleResendOtp}
                     onFocus={() => setFocused("btn-resend")}
                     style={{
-                      width: "60%", height: "52px", borderRadius: "40px",
-                      border: "2px solid rgba(255,255,255,0.4)", color: "#fff",
-                      fontSize: "20px", fontWeight: 600, backgroundColor: "transparent",
-                      cursor: "pointer", transition: "all 0.18s", marginLeft: "20%",
+                      width: "100%", height: "60px", borderRadius: "14px",
+                      border: "1px solid rgba(255,255,255,0.18)",
+                      color: "#fff", fontSize: "18px", fontWeight: 600,
+                      backgroundColor: "transparent",
+                      cursor: "pointer", transition: "all 0.18s",
+                      pointerEvents: showOtpError ? "none" : "auto",
                       ...ring("btn-resend"),
                     }}
                   >
@@ -598,22 +716,24 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
                 )}
               </div>
 
-              {/* ── Back button ── */}
+              {/* ── Change number link ── */}
               <button
                 ref={btnBackRef}
                 tabIndex={tb("btn-back")}
                 onClick={() => { setStep(1); setOtp(""); moveFocusRef.current("digits"); }}
                 onFocus={() => setFocused("btn-back")}
                 style={{
-                  width: "60%", height: "52px", borderRadius: "40px",
-                  backgroundColor: "#1313EC",
+                  width: "100%", height: "52px",
+                  backgroundColor: "transparent",
                   border: "none",
-                  color: "#fff", fontSize: "20px", fontWeight: 600,
-                  cursor: "pointer", transition: "all 0.18s", marginLeft: "20%",
+                  color: focused === "btn-back" ? "#fff" : "#8B9AB5",
+                  fontSize: "17px", fontWeight: 500,
+                  cursor: "pointer", transition: "color 0.18s",
+                  pointerEvents: showOtpError ? "none" : "auto",
                   ...ring("btn-back"),
                 }}
               >
-                Exit the Back
+                ← Change phone number
               </button>
             </div>
           )}
