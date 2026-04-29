@@ -6,6 +6,7 @@ import useHomeAdsStore from "../store/ChannelsSearchStore";
 import useOttAppsStore from "../store/OttAppsStore";
 import { isSubscribed } from "../utils/subscription";
 import ChannelLocked from "../error/Modules-Erros/ChannelLocked";
+import { useTapAction } from "../Remote/useTapAction";
 
 const CATEGORY_COLORS = [
   "rgba(236,25,71,0.98)", "rgba(123,47,247,0.98)", "rgba(42,170,138,0.98)", "rgba(155,89,182,0.98)", "rgba(230,126,34,0.98)",
@@ -24,6 +25,8 @@ const MovieIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 
 const FeedbackIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="34" height="34" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z" /></svg>;
 const FavoriteIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="34" height="34" fill="currentColor"><path d="M16.5 3c-1.74 0-3.41.81-4.5 2.09C10.91 3.81 9.24 3 7.5 3 4.42 3 2 5.42 2 8.5c0 3.78 3.4 6.86 8.55 11.54L12 21.35l1.45-1.32C18.6 15.36 22 12.28 22 8.5 22 5.42 19.58 3 16.5 3zm-4.4 15.55l-.1.1-.1-.1C7.14 14.24 4 11.39 4 8.5 4 6.5 5.5 5 7.5 5c1.54 0 3.04.99 3.57 2.36h1.87C13.46 5.99 14.96 5 16.5 5c2 0 3.5 1.5 3.5 3.5 0 2.89-3.14 5.74-7.9 10.05z" /></svg>;
 const SettingsIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="34" height="34" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" /></svg>;
+const SearchIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" /></svg>;
+const ClearIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" /></svg>;
 
 const menuItems = [
   { icon: <HomeIcon />, path: "/home", label: "Home" },
@@ -38,19 +41,9 @@ const menuItems = [
 const Home = () => {
   const navigate = useNavigate();
   const location = useLocation();
-
-  // Bootstrap-fallback path: when Bootstrap routes to /home (no 999 or fetch
-  // failed), hide the splash after Home's first paint. No-op when splash is
-  // already gone (idempotent guard inside __BBNL_HIDE_SPLASH__ + missing-DOM
-  // check) so this is safe on every Home mount, not just the boot one.
-  useEffect(() => {
-    const fire = () => { try { window.__BBNL_HIDE_SPLASH__?.(); } catch {} };
-    if (typeof requestAnimationFrame === "function") {
-      requestAnimationFrame(() => requestAnimationFrame(fire));
-    } else {
-      setTimeout(fire, 0);
-    }
-  }, []);
+  const autoPlayTimerRef = useRef(null);
+  const hasAutoPlayedRef = useRef(false);
+  const AUTO_PLAY_SESSION_KEY = "home_999_autoplay_handled";
 
   const { categories, channelsCache, isLoadingCategories, fetchCategories, fetchChannels } = useLiveChannelsStore();
   const userid = localStorage.getItem("userId") || "";
@@ -71,7 +64,33 @@ const Home = () => {
 
   const [lockedChannel, setLockedChannel] = useState(null);
 
-  const handleChannelPlay = useCallback((ch) => {
+  // ── Search ──────────────────────────────────────────────────────────────
+  // Header search bar, mirrors the LiveChannels UX. When the debounced term
+  // is non-empty, the normal home sections (categories/channels/sports/apps/
+  // entertainment) are replaced by an inline results grid filtered from the
+  // user's channel list. Tile selection plays the channel through the same
+  // subscription gate as the rest of the page.
+  const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearchTerm(searchTerm), 300);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+
+  const searchResults = useMemo(() => {
+    const term = debouncedSearchTerm.toLowerCase().trim();
+    if (!term) return [];
+    const isNum = /^\d+$/.test(term);
+    return channels.filter((ch) => {
+      const no = (ch.channelno || ch.channel_no || "").toString().toLowerCase();
+      const title = (ch.chtitle || "").toLowerCase();
+      return isNum ? no === term || no.includes(term) : title.includes(term) || no.includes(term);
+    }).slice(0, 50);
+  }, [channels, debouncedSearchTerm]);
+
+  const handleChannelPlayRaw = useCallback((ch) => {
     // Subscription gate — locked channels surface the modal here, never reach
     // the player. The user can dismiss and stay on Home to keep browsing.
     if (!isSubscribed(ch)) {
@@ -81,15 +100,26 @@ const Home = () => {
     const url = ch.streamlink || ch.stream_link || ch.streamurl || ch.stream_url || ch.url || ch.link;
     if (url) navigate("/player", { state: { streamlink: url, title: ch.chtitle, channelData: ch } });
   }, [navigate]);
+  const handleChannelPlay = useTapAction(handleChannelPlayRaw);
 
-  const handleSidebarNavigate = useCallback((path) => {
+  const cancelInfoChannelAutoplay = useCallback((reason = "interaction") => {
+    if (!autoPlayTimerRef.current) return;
+    clearTimeout(autoPlayTimerRef.current);
+    autoPlayTimerRef.current = null;
+    hasAutoPlayedRef.current = true;
+    sessionStorage.setItem(AUTO_PLAY_SESSION_KEY, "1");
+  }, [AUTO_PLAY_SESSION_KEY]);
+
+  const handleSidebarNavigateRaw = useCallback((path) => {
     if (!path || location.pathname === path) return;
     navigate(path);
   }, [navigate, location.pathname]);
+  const handleSidebarNavigate = useTapAction(handleSidebarNavigateRaw);
 
   // ── Zone-based remote navigation (sidebar / categories / channels) ──
   // All focus is pure DOM — zero React re-renders on every keypress.
-  // Zones: sidebar | categories | channels | sports | apps | entertainment
+  // Zones: sidebar | search | categories | channels | sports | apps |
+  //        entertainment | searchResults
   const activeZoneRef = useRef("sidebar");
   const sidebarIdxRef = useRef(0);
   const catIdxRef = useRef(0);
@@ -97,30 +127,40 @@ const Home = () => {
   const sportsIdxRef = useRef(0);
   const appsIdxRef = useRef(0);
   const entIdxRef = useRef(0);
+  const searchIdxRef = useRef(0); // single element, kept for getZoneRefs symmetry
+  const searchResIdxRef = useRef(0);
   const sidebarRefs = useRef([]);
   const catRefs = useRef([]);
   const chRefs = useRef([]);
   const sportsRefs = useRef([]);
   const appsRefs = useRef([]);
   const entRefs = useRef([]);
+  const searchRefs = useRef([]); // [searchPillEl] — wrapper kept array-shaped for setFocus reuse
+  const searchResRefs = useRef([]);
   const scrollContainerRef = useRef(null);
   const enhancedCategoriesRef = useRef([]);
   const languagesRef = useRef([]);
   const sportsRef = useRef([]);
   const appsRef = useRef([]);
   const entRef = useRef([]);
+  const searchResultsRef = useRef([]);
+  const searchFocusedRef = useRef(false);
+  const debouncedSearchRef = useRef("");
   const lastKeyTime = useRef(0);
   const mountedRef = useRef(false);
+  const SEARCH_COLS = 5;
   const KEY_THROTTLE = 80;
 
   const getZoneRefs = (zone) => {
     switch (zone) {
       case "sidebar": return [sidebarRefs, sidebarIdxRef];
+      case "search": return [searchRefs, searchIdxRef];
       case "categories": return [catRefs, catIdxRef];
       case "channels": return [chRefs, chIdxRef];
       case "sports": return [sportsRefs, sportsIdxRef];
       case "apps": return [appsRefs, appsIdxRef];
       case "entertainment": return [entRefs, entIdxRef];
+      case "searchResults": return [searchResRefs, searchResIdxRef];
       default: return [sidebarRefs, sidebarIdxRef];
     }
   };
@@ -166,6 +206,11 @@ const Home = () => {
       const isEnter = kc === 13;
       if (!isArrow && !isEnter) return;
 
+      // While the search <input> has DOM focus the user is typing on the
+      // on-screen keyboard — let it consume keys natively. Once they tap
+      // "Done", the input blurs and our zone navigation resumes.
+      if (searchFocusedRef.current) return;
+
       // Throttle rapid key repeats (held button on remote)
       const now = Date.now();
       if (isArrow && now - lastKeyTime.current < KEY_THROTTLE) { e.preventDefault(); e.stopPropagation(); return; }
@@ -175,20 +220,40 @@ const Home = () => {
       e.stopPropagation();
 
       const zone = activeZoneRef.current;
+      const hasSearch = !!debouncedSearchRef.current;
 
       if (zone === "sidebar") {
         if (kc === 38) { // UP
-          const next = Math.max(0, sidebarIdxRef.current - 1);
-          if (next !== sidebarIdxRef.current) setFocus("sidebar", next);
+          if (sidebarIdxRef.current === 0) {
+            // Top of sidebar → jump to header search bar
+            switchZone("search");
+          } else {
+            setFocus("sidebar", sidebarIdxRef.current - 1);
+          }
         } else if (kc === 40) { // DOWN
           const next = Math.min(menuItems.length - 1, sidebarIdxRef.current + 1);
           if (next !== sidebarIdxRef.current) setFocus("sidebar", next);
         } else if (kc === 39) { // RIGHT → content
-          if (enhancedCategoriesRef.current.length > 0) switchZone("categories");
+          if (hasSearch && searchResultsRef.current.length > 0) switchZone("searchResults");
+          else if (enhancedCategoriesRef.current.length > 0) switchZone("categories");
           else if (languagesRef.current.length > 0) switchZone("channels");
+          else switchZone("search");
         } else if (isEnter) {
           const item = menuItems[sidebarIdxRef.current];
           if (item?.path) handleSidebarNavigate(item.path);
+        }
+      } else if (zone === "search") {
+        if (kc === 37) { // LEFT → sidebar
+          switchZone("sidebar");
+        } else if (kc === 40) { // DOWN → results-or-content
+          if (hasSearch && searchResultsRef.current.length > 0) switchZone("searchResults");
+          else if (enhancedCategoriesRef.current.length > 0) switchZone("categories");
+          else if (languagesRef.current.length > 0) switchZone("channels");
+        } else if (isEnter) {
+          // Hand DOM focus to the actual <input>; the on-screen keyboard
+          // takes over from here until the user blurs.
+          const inputEl = searchRefs.current[0]?.querySelector("input");
+          if (inputEl) inputEl.focus();
         }
       } else if (zone === "categories") {
         const count = enhancedCategoriesRef.current.length;
@@ -202,6 +267,7 @@ const Home = () => {
         } else if (kc === 38) { // UP
           const next = cur - CAT_COLS;
           if (next >= 0) setFocus("categories", next);
+          else switchZone("search"); // top row → header search
         } else if (kc === 40) { // DOWN
           const next = cur + CAT_COLS;
           if (next < count) setFocus("categories", next);
@@ -279,6 +345,26 @@ const Home = () => {
           else switchZone("channels");
         } else if (isEnter) {
           const el = entRefs.current[cur];
+          if (el) el.click();
+        }
+      } else if (zone === "searchResults") {
+        const count = searchResultsRef.current.length;
+        const cur = searchResIdxRef.current;
+        const col = cur % SEARCH_COLS;
+        if (kc === 37) { // LEFT
+          if (col === 0) switchZone("sidebar");
+          else setFocus("searchResults", cur - 1);
+        } else if (kc === 39) { // RIGHT
+          if (cur + 1 < count) setFocus("searchResults", cur + 1);
+        } else if (kc === 38) { // UP
+          const next = cur - SEARCH_COLS;
+          if (next >= 0) setFocus("searchResults", next);
+          else switchZone("search"); // top row → header
+        } else if (kc === 40) { // DOWN
+          const next = cur + SEARCH_COLS;
+          if (next < count) setFocus("searchResults", next);
+        } else if (isEnter) {
+          const el = searchResRefs.current[cur];
           if (el) el.click();
         }
       }
@@ -359,9 +445,10 @@ const Home = () => {
     });
   }, [categories]);
 
-  const handleCategoryClick = useCallback((cat) => {
+  const handleCategoryClickRaw = useCallback((cat) => {
     navigate("/live-channels", { state: { filter: cat.title } });
   }, [navigate]);
+  const handleCategoryClick = useTapAction(handleCategoryClickRaw);
 
   // ── OTT Apps row (wired to /allowedapps via OttAppsStore, 30-min cache) ──
   const { appsCache: ottAppsCache, fetchApps: fetchOttAppsAction } = useOttAppsStore();
@@ -399,6 +486,83 @@ const Home = () => {
   useEffect(() => { sportsRef.current = sportsChannels; }, [sportsChannels]);
   useEffect(() => { appsRef.current = ottApps; }, [ottApps]);
   useEffect(() => { entRef.current = entertainmentChannels; }, [entertainmentChannels]);
+  useEffect(() => { searchResultsRef.current = searchResults; }, [searchResults]);
+  useEffect(() => { debouncedSearchRef.current = debouncedSearchTerm.trim(); }, [debouncedSearchTerm]);
+  useEffect(() => { searchFocusedRef.current = isSearchFocused; }, [isSearchFocused]);
+
+  // If the user clears the search while parked in searchResults (or the
+  // current zone disappears because home sections are now hidden), drop
+  // them somewhere sensible so focus is never orphaned on an unmounted ref.
+  useEffect(() => {
+    const term = debouncedSearchTerm.trim();
+    const zone = activeZoneRef.current;
+    if (term) {
+      // Term active → home sections are unmounted. Pull focus out of any
+      // section zone that no longer exists in the DOM.
+      const stale = ["categories", "channels", "sports", "apps", "entertainment"];
+      if (stale.includes(zone)) {
+        if (searchResults.length > 0) { searchResIdxRef.current = 0; switchZone("searchResults"); }
+        else switchZone("search");
+      } else if (zone === "searchResults") {
+        // Result list shrank from a longer one → clamp the focus index.
+        if (searchResults.length === 0) {
+          switchZone("search");
+        } else if (searchResIdxRef.current >= searchResults.length) {
+          setFocus("searchResults", Math.max(0, searchResults.length - 1));
+        }
+      }
+    } else {
+      // Term cleared → searchResults zone is gone. Land back on first
+      // available content zone.
+      if (zone === "searchResults") {
+        searchResIdxRef.current = 0;
+        if (enhancedCategories.length > 0) switchZone("categories");
+        else if (languages.length > 0) switchZone("channels");
+        else switchZone("sidebar");
+      }
+    }
+  }, [debouncedSearchTerm, searchResults.length, enhancedCategories.length, languages.length, switchZone, setFocus]);
+
+  // ── Info-channel (999) autoplay ────────────────────────────────────────────
+  // Once-per-session: as soon as channels are loaded, schedule a 1s tap-to-play
+  // on the BBNL info channel so cold-launch lands the user on live video. The
+  // session-storage flag prevents re-trigger on later /home visits within the
+  // same session. Locked 999 (rare — usually free) skips the navigate.
+  useEffect(() => {
+    const alreadyHandled = sessionStorage.getItem(AUTO_PLAY_SESSION_KEY) === "1";
+    if (channels.length === 0 || hasAutoPlayedRef.current || !mobile || alreadyHandled) return;
+    sessionStorage.setItem(AUTO_PLAY_SESSION_KEY, "1");
+    autoPlayTimerRef.current = setTimeout(() => {
+      const infoChannel = channels.find((ch) => String(ch.channelno || ch.channelid || ch.channel_no || "").trim() === "999");
+      hasAutoPlayedRef.current = true;
+      if (infoChannel && isSubscribed(infoChannel)) {
+        const streamUrl = infoChannel.streamlink || infoChannel.stream_link || infoChannel.streamurl || infoChannel.stream_url || infoChannel.url || infoChannel.link;
+        if (streamUrl) navigate("/player", { state: { streamlink: streamUrl, title: infoChannel.chtitle, channelData: infoChannel } });
+      }
+    }, 1000);
+    return () => { if (autoPlayTimerRef.current) { clearTimeout(autoPlayTimerRef.current); autoPlayTimerRef.current = null; } };
+  }, [channels, mobile, navigate, AUTO_PLAY_SESSION_KEY]);
+
+  // Cancel pending autoplay if the user touches the remote, switches apps,
+  // or backgrounds the TV before the timer fires.
+  useEffect(() => {
+    const handleUserInteraction = () => cancelInfoChannelAutoplay("user-interaction");
+    const handleAppHidden = () => { if (document.hidden) cancelInfoChannelAutoplay("app-hidden"); };
+    const handlePageHide = () => cancelInfoChannelAutoplay("page-hide");
+    const handleWindowBlur = () => cancelInfoChannelAutoplay("window-blur");
+    window.addEventListener("keydown", handleUserInteraction, true);
+    window.addEventListener("click", handleUserInteraction, true);
+    document.addEventListener("visibilitychange", handleAppHidden, true);
+    window.addEventListener("pagehide", handlePageHide, true);
+    window.addEventListener("blur", handleWindowBlur, true);
+    return () => {
+      window.removeEventListener("keydown", handleUserInteraction, true);
+      window.removeEventListener("click", handleUserInteraction, true);
+      document.removeEventListener("visibilitychange", handleAppHidden, true);
+      window.removeEventListener("pagehide", handlePageHide, true);
+      window.removeEventListener("blur", handleWindowBlur, true);
+    };
+  }, [cancelInfoChannelAutoplay]);
 
   const topItems = menuItems.filter((item) => !item.isBottom);
   const bottomItems = menuItems.filter((item) => item.isBottom);
@@ -470,6 +634,92 @@ const Home = () => {
         {/* MAIN CONTENT */}
         <div data-focusable-section="home-content" style={{ width: "100%", paddingLeft: "1rem", paddingRight: "1.5rem", paddingTop: "1.5rem", paddingBottom: "3rem" }}>
 
+          {/* TOP HEADER — search bar (focusable pill, ENTER to type) */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", marginBottom: "1.5rem", gap: "1rem" }}>
+            <div
+              ref={(el) => { searchRefs.current[0] = el; }}
+              className="focusable-button"
+              role="button"
+              tabIndex={-1}
+              onClick={() => {
+                const inputEl = searchRefs.current[0]?.querySelector("input");
+                if (inputEl) inputEl.focus();
+              }}
+              style={{
+                width: "28rem",
+                display: "flex",
+                alignItems: "center",
+                backgroundColor: "rgba(255,255,255,0.06)",
+                border: isSearchFocused ? "2px solid #667eea" : "2px solid rgba(255,255,255,0.2)",
+                borderRadius: "28px",
+                height: "3.5rem",
+                padding: "0 1.25rem",
+                gap: "10px",
+                outline: "none",
+                flexShrink: 0,
+              }}
+            >
+              <span style={{ color: "rgba(255,255,255,0.5)", display: "flex", flexShrink: 0 }}><SearchIcon /></span>
+              <input
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onFocus={() => setIsSearchFocused(true)}
+                onBlur={() => setIsSearchFocused(false)}
+                placeholder="Search channels by name or number..."
+                maxLength={50}
+                style={{ flex: 1, background: "none", border: "none", outline: "none", color: "#fff", fontSize: "1.1rem", fontWeight: 500 }}
+              />
+              {searchTerm && (
+                <div
+                  onClick={(e) => { e.stopPropagation(); setSearchTerm(""); }}
+                  style={{ color: "#fff", cursor: "pointer", display: "flex", padding: "4px", flexShrink: 0 }}
+                >
+                  <ClearIcon />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {debouncedSearchTerm.trim() ? (
+            /* SEARCH RESULTS — replaces home sections while a query is active */
+            <div style={{ marginBottom: "2rem" }}>
+              <p style={{ fontSize: "1.75rem", fontWeight: 700, color: "#fff", margin: "0 0 1.25rem" }}>
+                Search Results{searchResults.length > 0 ? ` (${searchResults.length})` : ""}
+              </p>
+              {searchResults.length === 0 ? (
+                <div style={{ padding: "4rem 0", textAlign: "center" }}>
+                  <p style={{ fontSize: "1.5rem", color: "rgba(255,255,255,0.5)" }}>No channels found for "{debouncedSearchTerm}"</p>
+                </div>
+              ) : (
+                <div style={{ display: "grid", gridTemplateColumns: `repeat(${SEARCH_COLS}, 1fr)`, gap: "1rem" }}>
+                  {searchResults.map((ch, index) => (
+                    <div
+                      key={`${ch.channelno || ""}-${index}`}
+                      ref={(el) => { searchResRefs.current[index] = el; }}
+                      className="focusable-button"
+                      role="button"
+                      tabIndex={-1}
+                      onClick={() => handleChannelPlay(ch)}
+                      style={{ borderRadius: "0.75rem", cursor: "pointer", overflow: "hidden", outline: "none", border: "3px solid transparent", background: "transparent", padding: "0.5rem", display: "flex", flexDirection: "column", alignItems: "center" }}
+                    >
+                      <div style={{ width: "100%", aspectRatio: "16/9", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", background: "#121212", borderRadius: "0.5rem" }}>
+                        {ch.chlogo ? (
+                          <img src={ch.chlogo} alt={ch.chtitle} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "contain" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                        ) : (
+                          <span style={{ fontSize: "1rem", color: "rgba(255,255,255,0.5)", padding: "0.5rem", textAlign: "center" }}>{ch.chtitle}</span>
+                        )}
+                      </div>
+                      <p style={{ marginTop: "0.5rem", fontSize: "0.95rem", fontWeight: 600, color: "#fff", textAlign: "center", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "100%" }}>
+                        {ch.channelno ? `${ch.channelno} • ` : ""}{ch.chtitle}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+
           {/* HOME ADS */}
           <div style={{ marginBottom: "3rem" }}>
             {adsLoading ? (
@@ -480,7 +730,7 @@ const Home = () => {
               <div style={{ width: "100%", height: "33rem", borderRadius: "1.75rem", overflow: "hidden", background: "#121212", position: "relative", boxShadow: "0 8px 32px rgba(0,0,0,0.4)" }}>
                 {ads.map((url, index) => (
                   <div key={index} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: index === activeIndex ? 1 : 0, transition: "opacity 0.8s ease-in-out", zIndex: index === activeIndex ? 1 : 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <img src={url} alt={`ad-${index}`} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center", display: "block" }} />
+                    <img src={url} alt={`ad-${index}`} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center", display: "block" }} />
                   </div>
                 ))}
               </div>
@@ -554,7 +804,7 @@ const Home = () => {
                     >
                       {lang.langlogo && (
                         <div style={{ width: "100%", height: "10rem", overflow: "hidden", borderRadius: "0.75rem", background: "#121212" }}>
-                          <img src={lang.langlogo} alt={lang.langtitle} loading="lazy" style={{ width: "100%", height: "100%", display: "block", objectFit: "cover", objectPosition: "center" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                          <img src={lang.langlogo} alt={lang.langtitle} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", display: "block", objectFit: "cover", objectPosition: "center" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />
                         </div>
                       )}
                     </div>
@@ -581,7 +831,7 @@ const Home = () => {
                   >
                     <div style={{ width: "100%", aspectRatio: "16/9", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
                       {ch.chlogo ? (
-                        <img src={ch.chlogo} alt={ch.chtitle} style={{ width: "100%", height: "100%", objectFit: "contain" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                        <img src={ch.chlogo} alt={ch.chtitle} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "contain" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />
                       ) : null}
                     </div>
                   </div>
@@ -620,7 +870,7 @@ const Home = () => {
                     >
                       <div style={{ width: "100%", aspectRatio: "16/9", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", background: "#121212", borderRadius: "0.75rem" }}>
                         {app.icon ? (
-                          <img src={app.icon} alt={app.appname} style={{ width: "100%", height: "100%", objectFit: "contain" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                          <img src={app.icon} alt={app.appname} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "contain" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />
                         ) : null}
                       </div>
                       {app.appname ? (
@@ -652,13 +902,16 @@ const Home = () => {
                   >
                     <div style={{ width: "100%", aspectRatio: "16/9", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
                       {ch.chlogo ? (
-                        <img src={ch.chlogo} alt={ch.chtitle} style={{ width: "100%", height: "100%", objectFit: "contain" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                        <img src={ch.chlogo} alt={ch.chtitle} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "contain" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />
                       ) : null}
                     </div>
                   </div>
                 ))}
               </div>
             </div>
+          )}
+
+            </>
           )}
 
         </div>

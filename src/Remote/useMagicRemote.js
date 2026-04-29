@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { tapActionFire } from './useTapAction';
 
 export const TV_KEYS = {
   LEFT: 37, UP: 38, RIGHT: 39, DOWN: 40,
@@ -59,7 +60,10 @@ export const useMagicRemote = (options = {}) => {
       if ((kc === TV_KEYS.BACK || e.key === 'GoBack' || e.key === 'Back') && onBackKeyRef.current) {
         e.preventDefault(); e.stopPropagation(); onBackKeyRef.current(e); return;
       }
-      if (kc === TV_KEYS.OK && onOKKeyRef.current) { onOKKeyRef.current(e); return; }
+      if (kc === TV_KEYS.OK && onOKKeyRef.current) {
+        tapActionFire(() => onOKKeyRef.current(e), document.activeElement || null);
+        return;
+      }
       if (onArrowKeyRef.current) {
         if (kc === TV_KEYS.LEFT)  { e.preventDefault(); onArrowKeyRef.current('left', e);  return; }
         if (kc === TV_KEYS.UP)    { e.preventDefault(); onArrowKeyRef.current('up', e);    return; }
@@ -315,7 +319,11 @@ export const useEnhancedRemoteNavigation = (items, options = {}) => {
         const idx = parseInt(value, 10) - 1;
         if (idx >= 0 && idx < itemCountRef.current) targetIndex = idx;
       }
-      if (targetIndex !== -1) { applyFocus(targetIndex); onSelectRef.current?.(targetIndex); }
+      if (targetIndex !== -1) {
+        applyFocus(targetIndex);
+        const el = itemRefs.current[targetIndex] || null;
+        tapActionFire(() => onSelectRef.current?.(targetIndex), el);
+      }
     };
 
     const handleNumberKey = (event) => {
@@ -369,7 +377,8 @@ export const useEnhancedRemoteNavigation = (items, options = {}) => {
 
       if (kc === TV_KEYS.OK || key === 'Enter' || key === ' ') {
         event.preventDefault();
-        onSelectRef.current?.(cur);
+        const el = itemRefs.current[cur] || null;
+        tapActionFire(() => onSelectRef.current?.(cur), el);
       }
 
       if (next !== cur) applyFocus(next);
@@ -402,9 +411,10 @@ export const useEnhancedRemoteNavigation = (items, options = {}) => {
       }
     },
     tabIndex: -1,
-    onClick: () => {
+    onClick: (e) => {
       applyFocus(index);
-      onSelectRef.current?.(index);
+      const el = itemRefs.current[index] || (e && e.currentTarget) || null;
+      tapActionFire(() => onSelectRef.current?.(index), el);
     },
   }), [applyFocus]);
 

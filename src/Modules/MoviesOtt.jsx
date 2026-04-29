@@ -1,13 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { API_ENDPOINTS, getDefaultHeaders } from "../server/config";
 import { useEnhancedRemoteNavigation } from "../Remote/useMagicRemote";
+import { useTapAction } from "../Remote/useTapAction";
 
 const FALLBACK_OTT_IMAGE = "http://124.40.244.211/netmon/Cabletvapis/showimg/coming_soon_ott.png";
 
 const MoviesOtt = () => {
   const navigate = useNavigate();
+  const handleGoHomeRaw = useCallback(() => { navigate("/home"); }, [navigate]);
+  const handleGoHome = useTapAction(handleGoHomeRaw);
   const [ottImage, setOttImage] = useState(FALLBACK_OTT_IMAGE);
   const [loadingImage, setLoadingImage] = useState(true);
 
@@ -40,7 +43,7 @@ const MoviesOtt = () => {
             <div style={{ width: "48px", height: "48px", border: "4px solid rgba(244,191,31,0.3)", borderTopColor: "#f4bf1f", borderRadius: "50%", animation: "_spin 1s linear infinite" }} />
           </div>
         ) : (
-          <img src={ottImage} alt="Coming Soon Movie OTT" onError={(e) => { e.currentTarget.src = FALLBACK_OTT_IMAGE; }} style={{ width: "100%", maxHeight: "300px", objectFit: "contain", borderRadius: "20px", marginBottom: "24px", backgroundColor: "#f0e9d6" }} />
+          <img src={ottImage} alt="Coming Soon Movie OTT" loading="lazy" decoding="async" onError={(e) => { e.currentTarget.src = FALLBACK_OTT_IMAGE; }} style={{ width: "100%", maxHeight: "300px", objectFit: "contain", borderRadius: "20px", marginBottom: "24px", backgroundColor: "#f0e9d6" }} />
         )}
 
         <p style={{ color: "#fff", fontSize: "3rem", fontWeight: 700, lineHeight: 1.2, marginBottom: "12px" }}>Coming Soon Movie OTT</p>
@@ -50,7 +53,7 @@ const MoviesOtt = () => {
         <button
           {...getItemProps(0)}
           className="focusable-button"
-          onClick={() => navigate("/home")}
+          onClick={handleGoHome}
           style={{ minWidth: "220px", height: "56px", borderRadius: "9999px", backgroundColor: "#f4bf1f", color: "#000", fontSize: "1.4rem", fontWeight: 700, border: "2px solid transparent", cursor: "pointer" }}
         >
           Go to home

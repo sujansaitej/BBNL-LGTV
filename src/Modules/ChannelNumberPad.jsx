@@ -1,14 +1,18 @@
 import { useEffect, useRef, useCallback } from "react";
 
 /**
- * ChannelNumberPad — custom on-screen numeric keypad shown over the live
- * player, replacing the LG system keyboard (which cannot be auto-hidden).
+ * ChannelNumberPad — DTH-style minimal channel-search overlay shown over the
+ * live player. Sits in the top-right corner so the stream remains visible.
  *
- * Layout (4×3):
- *   1 2 3
- *   4 5 6
- *   7 8 9
- *   DEL 0 OK
+ * Layout (top-right, no backdrop dim):
+ *   ┌──────────────┐
+ *   │   1 2 3      │  ← highlighted typed channel number
+ *   ├──────────────┤
+ *   │ 1  2  3      │
+ *   │ 4  5  6      │
+ *   │ 7  8  9      │
+ *   │ DEL 0 OK     │
+ *   └──────────────┘
  *
  * Focus uses the project's DOM-attribute pattern (`data-focused="true"`).
  * NO React state for focus index. Capture-phase keydown listener with
@@ -212,99 +216,94 @@ const ChannelNumberPad = ({ onSubmit, onClose, initialValue = "" }) => {
   }, [activateKey, onClose, refreshDisplay, resetIdleTimer, setFocus]);
 
   // ── Render ───────────────────────────────────────────────────────────────
+  // DTH-style: anchored top-right, NO fullscreen backdrop, stream stays visible.
   return (
     <div
       style={{
         position: "fixed",
-        inset: 0,
+        top: "32px",
+        right: "32px",
         zIndex: 10000,
+        width: "260px",
+        background: "rgba(15, 20, 35, 0.82)",
+        border: "1px solid rgba(255,255,255,0.18)",
+        borderRadius: "20px",
+        boxShadow: "0 12px 48px rgba(0,0,0,0.7)",
+        padding: "16px",
+        color: "#fff",
+        fontFamily: "'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+        backdropFilter: "blur(12px)",
+        WebkitBackdropFilter: "blur(12px)",
         display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "rgba(0,0,0,0.45)",
+        flexDirection: "column",
+        gap: "12px",
         pointerEvents: "auto",
+        willChange: "contents",
       }}
     >
+      {/* Highlighted typed-channel-number display */}
       <div
+        ref={displayRef}
         style={{
-          width: "320px",
-          height: "420px",
-          background: "rgba(15, 20, 35, 0.92)",
-          border: "1px solid rgba(255,255,255,0.18)",
-          borderRadius: "20px",
-          boxShadow: "0 12px 48px rgba(0,0,0,0.7)",
-          padding: "20px",
-          color: "#fff",
-          fontFamily: "'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
-          backdropFilter: "blur(10px)",
+          height: "72px",
+          borderRadius: "14px",
+          background: "rgba(0,0,0,0.85)",
+          border: "2px solid rgba(255,255,255,0.12)",
           display: "flex",
-          flexDirection: "column",
-          gap: "16px",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: "44px",
+          fontWeight: 800,
+          letterSpacing: "8px",
+          color: "#fff",
+          textShadow: "0 2px 8px rgba(0,0,0,0.8)",
+          willChange: "contents",
         }}
       >
-        {/* Display strip */}
-        <div
-          ref={displayRef}
-          style={{
-            height: "60px",
-            borderRadius: "12px",
-            background: "rgba(0,0,0,0.5)",
-            border: "1px solid rgba(255,255,255,0.12)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "36px",
-            fontWeight: 800,
-            letterSpacing: "6px",
-            color: "#fff",
-          }}
-        >
-          {valueRef.current || "----"}
-        </div>
+        {valueRef.current || "----"}
+      </div>
 
-        {/* 4×3 grid */}
-        <div
-          style={{
-            flex: 1,
-            display: "grid",
-            gridTemplateColumns: `repeat(${COLS}, 1fr)`,
-            gridTemplateRows: `repeat(${ROWS}, 1fr)`,
-            gap: "10px",
-          }}
-        >
-          {KEYS.map((key, idx) => {
-            const isAction = key.v === "DEL" || key.v === "OK";
-            return (
-              <div
-                key={key.v}
-                ref={(el) => { keyRefs.current[idx] = el; }}
-                className="focusable-numpad-key"
-                role="button"
-                tabIndex={-1}
-                onClick={() => { activateKey(idx); resetIdleTimer(); }}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: isAction ? "20px" : "28px",
-                  fontWeight: 800,
-                  color: "#fff",
-                  background: isAction
-                    ? (key.v === "OK" ? "#2563eb" : "rgba(255,255,255,0.08)")
-                    : "rgba(255,255,255,0.06)",
-                  border: "2px solid transparent",
-                  borderRadius: "12px",
-                  cursor: "pointer",
-                  outline: "none",
-                  userSelect: "none",
-                  willChange: "transform",
-                }}
-              >
-                {key.label}
-              </div>
-            );
-          })}
-        </div>
+      {/* Compact 4×3 keypad */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: `repeat(${COLS}, 1fr)`,
+          gridTemplateRows: `repeat(${ROWS}, 56px)`,
+          gap: "8px",
+        }}
+      >
+        {KEYS.map((key, idx) => {
+          const isAction = key.v === "DEL" || key.v === "OK";
+          return (
+            <div
+              key={key.v}
+              ref={(el) => { keyRefs.current[idx] = el; }}
+              className="focusable-numpad-key"
+              role="button"
+              tabIndex={-1}
+              onClick={() => { activateKey(idx); resetIdleTimer(); }}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: isAction ? "16px" : "22px",
+                fontWeight: 800,
+                color: "#fff",
+                background: isAction
+                  ? (key.v === "OK" ? "#2563eb" : "rgba(255,255,255,0.08)")
+                  : "rgba(255,255,255,0.06)",
+                border: "2px solid transparent",
+                borderRadius: "10px",
+                cursor: "pointer",
+                outline: "none",
+                userSelect: "none",
+                willChange: "transform",
+              }}
+            >
+              {key.label}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

@@ -14,6 +14,7 @@ import checkAppLock from './server/OAuthentication-Api/Applock';
 import { userLogout } from './server/OAuthentication-Api/LogoutApi';
 import { useDeviceInformation } from './server/Deviceinformaction/LG-Devicesinformaction';
 import ServiceLocked from './error/OAuthentication/ServiceLocked';
+import { releaseTapLock } from './Remote/useTapAction';
 
 // Direct imports — zero lazy loading = instant page transitions on LG TV
 import BbnlVideo from "./Modules/bbnl";
@@ -26,7 +27,6 @@ import MoviesOtt from './Modules/MoviesOtt';
 import Favorites from './Modules/Favorites';
 import Feedback from './Modules/Feedback';
 import Setting from './Modules/Setting';
-import Bootstrap from './Modules/Bootstrap';
 /**
  * GlobalBackHandler — handles the LG webOS BACK key (keyCode 461).
  *
@@ -43,6 +43,27 @@ import Bootstrap from './Modules/Bootstrap';
  * Pages with custom BACK handling (LivePlayer, LoginOtp) manage their own
  * capture-phase keydown listener and call e.stopPropagation().
  */
+/**
+ * On every React Router pathname change, release the global tap lock so
+ * taps work the instant the new screen mounts (don't have to wait for
+ * the 600ms safety timer).
+ */
+const TapLockResetter = () => {
+  const location = useLocation();
+  useEffect(() => { releaseTapLock(); }, [location.pathname]);
+  return null;
+};
+
+// Routes that own their own BACK key handling. webOS BACK on these routes
+// must NOT bounce the user to /home — the page itself decides what BACK means
+// (e.g. dismissing the channel-number pad on /player must keep the stream).
+// Both the keydown bailout AND the popstate bailout share this list so the
+// behavior stays consistent. webOS still pops history natively when BACK is
+// pressed (preventDefault on keydown does not stop that), so on these routes
+// the popstate handler re-pushes a fresh guard entry instead of navigating —
+// otherwise webOS would show the exit-app dialog on the next BACK press.
+const SELF_HANDLED_ROUTES = ['/login', '/player'];
+
 const GlobalBackHandler = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -52,20 +73,21 @@ const GlobalBackHandler = () => {
   // Keep locationRef in sync
   useEffect(() => { locationRef.current = location.pathname; }, [location.pathname]);
 
-  // Push/remove a dummy browser-history entry based on current route
+  // Push/remove a dummy browser-history entry based on current route.
+  // We push a guard on EVERY non-home route — including self-handled ones —
+  // so webOS BACK always has something to pop instead of triggering the
+  // native "exit app?" dialog. Self-handled routes simply re-push from the
+  // popstate handler instead of navigating.
   useEffect(() => {
     const path = location.pathname;
     const isHome = path === '/home' || path === '/';
-    const selfHandled = path === '/login';
 
-    if (!isHome && !selfHandled) {
-      // Sub-page: push a guard entry so webOS doesn't show exit dialog
+    if (!isHome) {
       if (!hasGuardRef.current) {
         window.history.pushState({ guard: true }, '');
         hasGuardRef.current = true;
       }
     } else {
-      // Home or self-handled page: remove guard if present
       hasGuardRef.current = false;
     }
   }, [location.pathname]);
@@ -73,10 +95,22 @@ const GlobalBackHandler = () => {
   // Listen for popstate — fired when webOS BACK pops our guard entry
   useEffect(() => {
     const onPopState = () => {
-      if (hasGuardRef.current) {
-        hasGuardRef.current = false;
-        navigate('/home', { replace: true });
+      if (!hasGuardRef.current) return;
+      hasGuardRef.current = false;
+
+      const path = locationRef.current;
+
+      // Self-handled route: page owns BACK. Re-push a fresh guard so the
+      // next BACK press still has something for webOS to pop, and DO NOT
+      // navigate to /home (the page already dismissed its overlay or chose
+      // its own destination via its own BACK handler).
+      if (SELF_HANDLED_ROUTES.includes(path)) {
+        window.history.pushState({ guard: true }, '');
+        hasGuardRef.current = true;
+        return;
       }
+
+      navigate('/home', { replace: true });
     };
 
     window.addEventListener('popstate', onPopState);
@@ -87,12 +121,11 @@ const GlobalBackHandler = () => {
   // (some webOS versions fire keydown before popstate)
   useEffect(() => {
     const isBackKey = (e) => e.keyCode === 461 || e.key === 'GoBack' || e.key === 'Back' || e.key === 'Backspace';
-    const selfHandledRoutes = ['/login', '/player'];
 
     const onKeyDown = (e) => {
       if (!isBackKey(e)) return;
       const path = locationRef.current;
-      if (selfHandledRoutes.includes(path)) return;
+      if (SELF_HANDLED_ROUTES.includes(path)) return;
       if (path === '/home' || path === '/') return;
       // Sub-page: prevent webOS exit and navigate to home
       e.preventDefault();
@@ -157,25 +190,19 @@ function App() {
     console.log('✓ WebOS environment initialized');
     console.log('✓ Magic Remote UI stability enabled');
 
+    // Hold the splash long enough for the entrance + brief settle before dismissing.
+    // 1500ms ≈ 0.85s logo fade-in + ~0.65s settle. Combined with the 0.40s exit
+    // animation, total visible bumper is ~1.9s — premium feel, not too slow.
+    const splashTimer = setTimeout(() => {
+      try { window.__BBNL_HIDE_SPLASH__?.(); } catch {}
+    }, 1500);
+
     return () => {
+      clearTimeout(splashTimer);
       cleanup?.();
       cleanupMagicRemoteUIStability();
     };
   }, []);
-
-  // Splash hand-off:
-  //   • Unauthenticated → reveal the Login screen on the 1.5s timer.
-  //   • Authenticated   → splash stays put. The 999 player route hides it on
-  //     the first <video> playable frame (LivePlayer → HLSPlayer onReady);
-  //     the Home fallback route hides it on first paint. The 6s ceiling in
-  //     index.html is the bundle-hang / catastrophic-failure safety net.
-  useEffect(() => {
-    if (isAuthenticated) return;
-    const splashTimer = setTimeout(() => {
-      try { window.__BBNL_HIDE_SPLASH__?.(); } catch {}
-    }, 1500);
-    return () => clearTimeout(splashTimer);
-  }, [isAuthenticated]);
 
   const handleLoginSuccess = () => {
     setIsAuthenticated(true);
@@ -201,6 +228,7 @@ function App() {
     <Router>
       <div data-focusable-container>
         <GlobalBackHandler />
+        <TapLockResetter />
         <Routes>
           <Route 
             path="/bbnl-video" 
@@ -214,7 +242,7 @@ function App() {
             path="/login"
             element={
               isAuthenticated ?
-              <Navigate to="/" replace /> :
+              <Navigate to="/home" replace /> :
               <PhoneNumberOtp onLoginSuccess={handleLoginSuccess} />
             }
           />
@@ -298,7 +326,7 @@ function App() {
           />
           <Route
             path="/"
-            element={isAuthenticated ? <Bootstrap /> : <Navigate to="/login" replace />}
+            element={<Navigate to={isAuthenticated ? "/home" : "/login"} replace />}
           />
         </Routes>
       </div>

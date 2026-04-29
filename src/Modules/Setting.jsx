@@ -8,6 +8,7 @@ import useRaiseTicketStore from "../store/RaiseTicketStore";
 import useAddUsersStore from "../store/AddUsersStore";
 import { requestMobileUpdate } from "../server/modules-api/UpdateMobNumApi";
 import { sessionClear } from "../utils/session";
+import { useTapAction } from "../Remote/useTapAction";
 
 const ArrowBackIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" /></svg>;
 const InfoIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" /></svg>;
@@ -69,6 +70,9 @@ const Setting = ({ onLogout }) => {
   } = useAddUsersStore();
   const deviceInfo = useDeviceInformation();
 
+  const fetchingAccountRef = useRef(false);
+  const fetchingExpiringRef = useRef(false);
+
   const handleLogout = () => {
     if (onLogout) onLogout();
     else sessionClear(); // clears localStorage + sessionStorage + session cookies
@@ -102,13 +106,20 @@ const Setting = ({ onLogout }) => {
     const cached = custCache?.[userid]?.customer || null;
     if (cached) setCustomerData(cached);
 
+    if (fetchingAccountRef.current) return; // already fetching — skip duplicate
+    fetchingAccountRef.current = true;
+
     let cancelled = false;
     setCustomerLoading(!cached);
     (async () => {
-      const res = await fetchCust(userid);
-      if (cancelled) return;
-      if (res?.customer) setCustomerData(res.customer);
-      setCustomerLoading(false);
+      try {
+        const res = await fetchCust(userid);
+        if (cancelled) return;
+        if (res?.customer) setCustomerData(res.customer);
+        setCustomerLoading(false);
+      } finally {
+        fetchingAccountRef.current = false;
+      }
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -126,13 +137,20 @@ const Setting = ({ onLogout }) => {
     const cached = expCache?.[key]?.channels;
     if (Array.isArray(cached)) setExpiringList(cached);
 
+    if (fetchingExpiringRef.current) return; // already fetching — skip duplicate
+    fetchingExpiringRef.current = true;
+
     let cancelled = false;
     setExpiringLoading(!Array.isArray(cached) || cached.length === 0);
     (async () => {
-      const res = await fetchExpiring({ userid, mobile });
-      if (cancelled) return;
-      if (Array.isArray(res?.channels)) setExpiringList(res.channels);
-      setExpiringLoading(false);
+      try {
+        const res = await fetchExpiring({ userid, mobile });
+        if (cancelled) return;
+        if (Array.isArray(res?.channels)) setExpiringList(res.channels);
+        setExpiringLoading(false);
+      } finally {
+        fetchingExpiringRef.current = false;
+      }
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -224,6 +242,16 @@ const Setting = ({ onLogout }) => {
     if (newEl) newEl.setAttribute("data-focused", "true");
     focusedMenuRef.current = newIdx;
   }, []);
+
+  const handleMenuItemSelectRaw = useCallback((index, itemId) => {
+    activeZoneRef.current = "menu";
+    applyMenuFocus(index);
+    if (itemId === "logout") setShowLogoutDialog(true);
+    else setCurrentPage(itemId);
+  }, [applyMenuFocus]);
+  const handleMenuItemSelect = useTapAction(handleMenuItemSelectRaw);
+  const handleMenuItemSelectRef = useRef(handleMenuItemSelect);
+  useEffect(() => { handleMenuItemSelectRef.current = handleMenuItemSelect; }, [handleMenuItemSelect]);
 
   const applyCheckFocus = useCallback((focused) => {
     const el = checkBtnRef.current;
@@ -494,10 +522,10 @@ const Setting = ({ onLogout }) => {
           e.preventDefault();
         } else if (isEnter) {
           e.preventDefault();
-          const item = menuItems[focusedMenuRef.current];
+          const idx = focusedMenuRef.current;
+          const item = menuItems[idx];
           if (!item) return;
-          if (item.id === "logout") setShowLogoutDialog(true);
-          else setCurrentPage(item.id);
+          handleMenuItemSelectRef.current?.(idx, item.id);
         }
       } else if (zone === "check") {
         if (kc === 37) { // LEFT → menu
@@ -662,12 +690,7 @@ const Setting = ({ onLogout }) => {
                   tabIndex={-1}
                   className="focusable-settings-item"
                   data-logout={item.id === "logout" ? "true" : undefined}
-                  onClick={() => {
-                    activeZoneRef.current = "menu";
-                    applyMenuFocus(index);
-                    if (item.id === "logout") setShowLogoutDialog(true);
-                    else setCurrentPage(item.id);
-                  }}
+                  onClick={() => handleMenuItemSelect(index, item.id)}
                   style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px", borderRadius: "14px", backgroundColor: item.id === "logout" ? (isActive ? "rgba(244,67,54,0.15)" : "transparent") : (isActive ? "rgba(255,255,255,0.12)" : "transparent"), border: item.id === "logout" ? "2px solid rgba(244,67,54,0.5)" : "2px solid transparent", padding: "20px", color: item.id === "logout" ? "#f44336" : "#fff", cursor: "pointer", textAlign: "left" }}>
                   <span style={{ color: item.id === "logout" ? "#f44336" : "#fff" }}>{item.icon}</span>
                   <span style={{ fontSize: "20px", fontWeight: 600 }}>{item.label}</span>
@@ -888,6 +911,7 @@ const Setting = ({ onLogout }) => {
                   tabIndex={-1}
                   className="focusable-support-submit"
                   disabled={isTicketSubmitting}
+                  data-disabled={isTicketSubmitting ? "true" : undefined}
                   onClick={() => {
                     if (activeZoneRef.current !== "support") {
                       const menuEl = menuRefs.current[focusedMenuRef.current];
@@ -935,6 +959,7 @@ const Setting = ({ onLogout }) => {
                   tabIndex={-1}
                   className="focusable-mobile-update-btn"
                   disabled={isMobileSubmitting}
+                  data-disabled={isMobileSubmitting ? "true" : undefined}
                   onClick={() => {
                     if (isMobileSubmitting) return;
                     activeZoneRef.current = "mobile";
@@ -1037,6 +1062,7 @@ const Setting = ({ onLogout }) => {
                   tabIndex={-1}
                   className="focusable-users-submit"
                   disabled={isUsersSubmitting || usersMobile.length !== 10}
+                  data-disabled={(isUsersSubmitting || usersMobile.length !== 10) ? "true" : undefined}
                   onClick={() => {
                     if (isUsersSubmitting || usersMobile.length !== 10) return;
                     if (activeZoneRef.current !== "users") {

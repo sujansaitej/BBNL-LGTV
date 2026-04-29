@@ -251,6 +251,25 @@
         box-shadow: 0 0 0 6px rgba(244,191,31,0.3) !important;
       }
 
+      /* Tap acknowledgement — applied via useTapAction (120ms flash) and by
+         useMagicRemote on OK-key activations. Static colors only — no transform. */
+      .focusable-button[data-pressed="true"],
+      .focusable-sidebar-item[data-pressed="true"],
+      .focusable-language-card[data-pressed="true"],
+      .focusable-category[data-pressed="true"],
+      .focusable-channel-tile[data-pressed="true"],
+      [data-pressed="true"].focusable {
+        border-color: #ffd700 !important;
+        background: rgba(255, 215, 0, 0.18) !important;
+      }
+
+      /* Submit-button in-flight state — applied to forms in Settings while a
+         network request is pending. */
+      [data-disabled="true"] {
+        opacity: 0.5 !important;
+        pointer-events: none !important;
+      }
+
       /* ── BBNL Splash Screen — Netflix-style premium intro ────────────────
          Pure black backdrop; only the logo on screen. The logo arrives with a
          soft scale+fade, breathes subtly while React boots, then dissolves
@@ -336,7 +355,7 @@
           setTimeout(function () { if (s && s.parentNode) s.parentNode.removeChild(s); }, 450);
         }
         window.__BBNL_HIDE_SPLASH__ = hide;
-        setTimeout(hide, 6000); // safety ceiling — bundle hang OR slow chnl_data + HLS init on cold boot
+        setTimeout(hide, 3500); // safety ceiling — bundle hang
       })();
     </script>
   </body>

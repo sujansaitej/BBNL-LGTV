@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { fetchComingSoonImage } from "../server/OAuthentication-Api/LogoApi";
 import { TV_KEYS } from "../Remote/useMagicRemote";
+import { useTapAction } from "../Remote/useTapAction";
 
 const Favorites = () => {
   const navigate = useNavigate();
@@ -9,9 +10,10 @@ const Favorites = () => {
   const [imageLoading, setImageLoading] = useState(true);
   const goHomeBtnRef = useRef(null);
 
-  const goHome = useCallback(() => {
+  const goHomeRaw = useCallback(() => {
     navigate("/home", { replace: true });
   }, [navigate]);
+  const goHome = useTapAction(goHomeRaw);
 
   useEffect(() => {
     let isMounted = true;
@@ -61,6 +63,8 @@ const Favorites = () => {
           <img
             src={comingSoonImage}
             alt="Coming Soon TV Channels"
+            loading="lazy"
+            decoding="async"
             onError={(e) => { console.warn("[COMING_SOON_TV_CHANNELS] Image load failed"); e.currentTarget.style.display = "none"; }}
             style={{ width: "100%", maxHeight: "300px", objectFit: "contain", borderRadius: "20px", marginBottom: "24px", backgroundColor: "#f0e9d6" }}
           />

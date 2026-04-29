@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import useFeedbackStore from "../store/FeedbackStore";
 import { TV_KEYS } from "../Remote/useMagicRemote";
+import { useTapAction } from "../Remote/useTapAction";
 
 const ArrowBackIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" /></svg>;
 const StarFilledIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="42" height="42" fill="currentColor"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" /></svg>;
@@ -58,11 +59,12 @@ const Feedback = () => {
   const buttonRefs = useRef([]); // [cancel, submit]
 
   /* ── Keep stable refs to handlers used inside the keydown listener ── */
-  const handleCancel = useCallback(() => {
+  const handleCancelRaw = useCallback(() => {
     navigate("/home", { replace: true });
   }, [navigate]);
+  const handleCancel = useTapAction(handleCancelRaw);
 
-  const handleSubmit = useCallback(async () => {
+  const handleSubmitRaw = useCallback(async () => {
     if (rating === 0) { setError("Please select a rating"); return; }
     if (!feedback.trim()) { setError("Please enter detailed feedback"); return; }
     try {
@@ -88,6 +90,7 @@ const Feedback = () => {
       console.error(err);
     }
   }, [rating, feedback, userid, mobile, submitFeedback]);
+  const handleSubmit = useTapAction(handleSubmitRaw);
 
   const handleCancelRef = useRef(handleCancel);
   const handleSubmitRef = useRef(handleSubmit);

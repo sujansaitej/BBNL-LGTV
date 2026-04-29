@@ -15,6 +15,9 @@ import { useDeviceInformation } from "../server/Deviceinformaction/LG-Devicesinf
 import { postTrpData } from "../server/modules-api/trpdata";
 import { fetchFreshStream } from "../server/modules-api/StreamApi";
 import { fetchStreamAd } from "../server/modules-api/StreamAdsApi";
+import { useTapAction } from "../Remote/useTapAction";
+
+const ZAP_SETTLE_MS = 300;
 
 const getStreamUrl = (channel) => {
   if (!channel) return "";
@@ -37,6 +40,8 @@ const LivePlayer = () => {
 
   const [currentStream,  setCurrentStream]  = useState(initialStreamlink || "");
   const [currentChannel, setCurrentChannel] = useState(channelData || null);
+  const [pendingChannel, setPendingChannel] = useState(null);
+  const pendingChannelRef = useRef(null);
   const [isSidebarOpen,  setIsSidebarOpen]  = useState(false);
   const [isDetailsVisible, setIsDetailsVisible] = useState(false);
   const [isNumberPadVisible, setIsNumberPadVisible] = useState(false);
@@ -72,6 +77,7 @@ const LivePlayer = () => {
   useEffect(() => { lockedRef.current   = !!lockedChannel; }, [lockedChannel]);
   useEffect(() => { chListRef.current  = channelsList; }, [channelsList]);
   useEffect(() => { curChRef.current   = currentChannel; }, [currentChannel]);
+  useEffect(() => { pendingChannelRef.current = pendingChannel; }, [pendingChannel]);
 
   // ── Simple timer start/stop ──────────────────────────────────────────────
   const stop = useCallback((ref) => { if (ref.current) { clearTimeout(ref.current); ref.current = null; } }, []);
@@ -143,7 +149,8 @@ const LivePlayer = () => {
   // Subscription gate: locked channels never reach the HLS player. Instead the
   // ChannelLocked modal opens. Caller logic (sidebar close timer, etc.) still
   // runs — only the stream load is suppressed.
-  const selectChannel = useCallback((channel) => {
+  const selectChannelRaw = useCallback((channel) => {
+    setPendingChannel(null);
     if (channel && !isSubscribed(channel)) {
       setLockedChannel(channel);
       return;
@@ -161,6 +168,7 @@ const LivePlayer = () => {
     setCurrentStream(url);
     setCurrentChannel(channel);
   }, [currentStream]);
+  const selectChannel = useTapAction(selectChannelRaw);
 
   // From sidebar: play channel, close sidebar after 1s, show info bar with timer
   const onSidebarSelect = useCallback((channel) => {
@@ -196,18 +204,50 @@ const LivePlayer = () => {
   const stepChannel = useCallback((dir) => {
     const list = chListRef.current;
     if (!list.length) return;
-    const cur = findChIndex(curChRef.current);
+    // Walk from the pending channel if we're mid-zap, otherwise from current.
+    const startFromCh = pendingChannelRef.current || curChRef.current;
+    const cur = findChIndex(startFromCh);
     let i = cur === -1 ? 0 : (cur + dir + list.length) % list.length;
     for (let guard = 0; guard < list.length; guard++) {
       const candidate = list[i];
       if (candidate && isSubscribed(candidate)) {
-        selectChannel(candidate);
+        setPendingChannel(candidate);
         return;
       }
       i = (i + dir + list.length) % list.length;
     }
     // No subscribed channel exists at all — silent no-op.
-  }, [selectChannel]);
+  }, []);
+
+  // Zap-and-settle: when pendingChannel changes via UP/DOWN, wait
+  // ZAP_SETTLE_MS after the last keypress before committing (HLS reload).
+  // Holding DOWN through 5 channels = 1 stream load, not 5.
+  useEffect(() => {
+    if (!pendingChannel) return;
+    if (pendingChannel === currentChannel) return;
+    const t = setTimeout(() => {
+      if (!isSubscribed(pendingChannel)) {
+        setLockedChannel(pendingChannel);
+        setPendingChannel(null);
+        return;
+      }
+      const url = getStreamUrl(pendingChannel);
+      if (!url) { setLocalError("No stream URL found."); return; }
+      setLocalError("");
+      setCurrentChannel(pendingChannel);
+      setCurrentStream(url);
+      setPendingChannel(null);
+    }, ZAP_SETTLE_MS);
+    return () => clearTimeout(t);
+  }, [pendingChannel, currentChannel]);
+
+  // Show info bar while zapping so the user sees the channel they're
+  // scrolling toward (logo, name, number, EPG line) before HLS commits.
+  useEffect(() => {
+    if (pendingChannel && pendingChannel !== currentChannel) {
+      showInfo();
+    }
+  }, [pendingChannel, currentChannel, showInfo]);
 
   // ── TRP ─────────────────────────────────────────────────────────────────
   const userid = localStorage.getItem("userId") || "";
@@ -300,6 +340,32 @@ const LivePlayer = () => {
     stop(numpadTimer);
   }, [stop]);
 
+  // ── BACK CASCADE ────────────────────────────────────────────────────────
+  // Single source of truth for "what does BACK mean on /player". Dismisses
+  // the topmost overlay if any is open; otherwise navigates home. Called
+  // from BOTH the keydown handler AND a popstate listener — on some webOS
+  // firmwares the BACK button only fires a history pop (popstate) without
+  // firing a matching `keyCode 461` / `key === "GoBack"` keydown, so relying
+  // on keydown alone leaves overlays stuck open.
+  const handleBackCascade = useCallback(() => {
+    if (lockedRef.current)          { setLockedChannel(null); return; }
+    if (sidebarRef.current)         { closeMenu(); return; }
+    if (numpadRef.current)          { hideNumpad(); return; }
+    if (channelNotFoundRef.current) { setChannelNotFound(""); return; }
+    if (detailsRef.current)         { hideInfo(); return; }
+    navigate('/home', { replace: true });
+  }, [closeMenu, hideNumpad, hideInfo, navigate]);
+
+  // popstate-as-BACK fallback. GlobalBackHandler in App.js re-pushes a guard
+  // entry for self-handled routes so this listener still has something to
+  // pop on every press. Idempotent with the keydown path: when both fire,
+  // the cascade runs twice but each step is a no-op the second time.
+  useEffect(() => {
+    const onPop = () => handleBackCascade();
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [handleBackCascade]);
+
   // ── KEYBOARD HANDLER ────────────────────────────────────────────────────
   useEffect(() => {
     const digit = (e) => {
@@ -361,12 +427,7 @@ const LivePlayer = () => {
       if (k === "GoBack" || k === "Back" || kc === 461 || k === "Escape" ||
           (kc === 8 && sidebarRef.current)) {
         e.preventDefault(); e.stopPropagation();
-        if (lockedRef.current)          { setLockedChannel(null); return; }
-        if (sidebarRef.current)         { closeMenu(); return; }
-        if (numpadRef.current)          { hideNumpad(); return; }
-        if (channelNotFoundRef.current) { setChannelNotFound(""); return; }
-        if (detailsRef.current)         { hideInfo(); return; }
-        navigate('/home', { replace: true });
+        handleBackCascade();
         return;
       }
 
@@ -429,8 +490,8 @@ const LivePlayer = () => {
     window.addEventListener("keydown", onKey, true);
     return () => { window.removeEventListener("keydown", onKey, true); stop(numberTimer); };
   }, [lookupChannelByNumber, selectChannel, stepChannel,
-      openMenu, closeMenu, showInfo, hideInfo, hideNumpad, showNumpadDigitMode,
-      startMenuTimer, navigate, stop]);
+      openMenu, showInfo, hideInfo, showNumpadDigitMode,
+      startMenuTimer, handleBackCascade, stop]);
 
   // Pause info timer while sidebar is open (don't hide info behind menu)
   useEffect(() => { if (isSidebarOpen) stop(detailsTimer); }, [isSidebarOpen, stop]);
@@ -525,15 +586,20 @@ const LivePlayer = () => {
         </div>
       ) : (
         <>
+          {/* Seamless relay: when the cached `streamlink` fails fatally
+              (token expiry, segment 404, edge rotation, etc.), HLSPlayer
+              calls `onStreamFailed` after exhausting its short-cycle retry
+              budget; it returns a fresh URL via /stream which HLS swaps in
+              without a black-screen disconnect. `streamAd` drives the BBNL
+              spec row 21 overlay polled per channel switch. */}
           <HLSPlayer
             src={currentStream}
             onStreamFailed={onStreamFailed}
             streamAd={streamAd}
-            onReady={() => { try { window.__BBNL_HIDE_SPLASH__?.(); } catch {} }}
           />
 
           <ChannelsDetails
-            channel={currentChannel}
+            channel={pendingChannel || currentChannel}
             visible={isDetailsVisible}
             sidebarOpen={isSidebarOpen}
           />
