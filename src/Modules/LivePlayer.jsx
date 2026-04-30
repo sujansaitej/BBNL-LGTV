@@ -79,13 +79,28 @@ const LivePlayer = () => {
   useEffect(() => { curChRef.current   = currentChannel; }, [currentChannel]);
   useEffect(() => { pendingChannelRef.current = pendingChannel; }, [pendingChannel]);
 
+  // "Parked on a locked channel" — derived flag, no separate state. True when
+  // we have a channel context but no subscription and no active stream. Used
+  // to (a) pin the info bar persistently, (b) render the Locked badge, (c)
+  // suppress info-bar auto-hide timers and the RIGHT-key info toggle, and
+  // (d) skip /streamAds polling.
+  const isLockedParked = !!(currentChannel && !isSubscribed(currentChannel) && !currentStream);
+  const isLockedParkedRef = useRef(false);
+  useEffect(() => { isLockedParkedRef.current = isLockedParked; }, [isLockedParked]);
+
   // ── Simple timer start/stop ──────────────────────────────────────────────
   const stop = useCallback((ref) => { if (ref.current) { clearTimeout(ref.current); ref.current = null; } }, []);
 
   // ── INFO BAR: show with auto-hide, or just hide ─────────────────────────
+  // When parked on a locked channel the bar is pinned by `isLockedParked` in
+  // the render block (`visible={isDetailsVisible || isLockedParked}`), so
+  // these helpers short-circuit the auto-hide timer and the explicit-hide
+  // path. That keeps the bar — and its Locked badge — on screen as long as
+  // the user is sitting on an unsubscribed channel.
   const showInfo = useCallback(() => {
     stop(detailsTimer);
     setIsDetailsVisible(true);
+    if (isLockedParkedRef.current) return;
     detailsTimer.current = setTimeout(() => {
       setIsDetailsVisible(false);
       detailsTimer.current = null;
@@ -93,6 +108,7 @@ const LivePlayer = () => {
   }, [stop]);
 
   const hideInfo = useCallback(() => {
+    if (isLockedParkedRef.current) return;
     stop(detailsTimer);
     setIsDetailsVisible(false);
   }, [stop]);
@@ -146,13 +162,27 @@ const LivePlayer = () => {
   }, [stop]);
 
   // ── CHANNEL SELECT ──────────────────────────────────────────────────────
-  // Subscription gate: locked channels never reach the HLS player. Instead the
-  // ChannelLocked modal opens. Caller logic (sidebar close timer, etc.) still
-  // runs — only the stream load is suppressed.
+  // Subscription gate: locked channels are PARKED on the player rather than
+  // bouncing the user away. We tear down any active HLS, swap the visible
+  // channel context to the locked one, and open the modal. Dismissing the
+  // modal leaves the user parked here with the info bar pinned (see render
+  // block) — they can press OK to open the menu, type digits, channel-up/
+  // down, etc., just like a normal channel; only the stream pipe is silent.
   const selectChannelRaw = useCallback((channel) => {
     setPendingChannel(null);
     if (channel && !isSubscribed(channel)) {
+      // Re-selecting the locked channel we're already parked on is a no-op,
+      // matching the same-URL early-return for subscribed channels below.
+      const cur = curChRef.current;
+      const sameLocked = cur && !currentStream && (
+        (cur.channelid && channel.channelid && String(cur.channelid) === String(channel.channelid)) ||
+        (cur.channelno && channel.channelno && String(cur.channelno) === String(channel.channelno))
+      );
+      if (sameLocked) return;
+      setCurrentStream("");
+      setCurrentChannel(channel);
       setLockedChannel(channel);
+      setLocalError("");
       return;
     }
     const url = getStreamUrl(channel);
@@ -198,25 +228,20 @@ const LivePlayer = () => {
     });
   };
 
-  // DTH-standard: ↑/↓ stepping skips locked channels silently — avoids modal
-  // spam when the user holds the channel button. Walk in `dir` direction until
-  // we land on a subscribed channel or wrap back to the start.
+  // ↑/↓ stepping advances by exactly one position regardless of subscription.
+  // The 300 ms zap-settle effect below is the single gate that decides what
+  // happens when the user lands somewhere: subscribed → start the stream,
+  // locked → park + open modal. Holding the channel key through a stretch of
+  // locked channels collapses to ONE modal at the end (the debounce eats all
+  // intermediate keypresses) so this is not modal-spammy in practice.
   const stepChannel = useCallback((dir) => {
     const list = chListRef.current;
     if (!list.length) return;
     // Walk from the pending channel if we're mid-zap, otherwise from current.
     const startFromCh = pendingChannelRef.current || curChRef.current;
     const cur = findChIndex(startFromCh);
-    let i = cur === -1 ? 0 : (cur + dir + list.length) % list.length;
-    for (let guard = 0; guard < list.length; guard++) {
-      const candidate = list[i];
-      if (candidate && isSubscribed(candidate)) {
-        setPendingChannel(candidate);
-        return;
-      }
-      i = (i + dir + list.length) % list.length;
-    }
-    // No subscribed channel exists at all — silent no-op.
+    const i = cur === -1 ? 0 : (cur + dir + list.length) % list.length;
+    setPendingChannel(list[i]);
   }, []);
 
   // Zap-and-settle: when pendingChannel changes via UP/DOWN, wait
@@ -227,8 +252,13 @@ const LivePlayer = () => {
     if (pendingChannel === currentChannel) return;
     const t = setTimeout(() => {
       if (!isSubscribed(pendingChannel)) {
+        // Park on the locked channel: tear down any active stream, swap the
+        // visible context, and open the modal. Matches selectChannelRaw.
+        setCurrentStream("");
+        setCurrentChannel(pendingChannel);
         setLockedChannel(pendingChannel);
         setPendingChannel(null);
+        setLocalError("");
         return;
       }
       const url = getStreamUrl(pendingChannel);
@@ -275,7 +305,8 @@ const LivePlayer = () => {
   const grid = currentChannel?.grid || "1";
   useEffect(() => {
     setStreamAd(null);
-    if (!chid || !userid || !mobile || !ip) return undefined;
+    // Locked-parked channels have no stream and no ad context — skip the call.
+    if (!chid || !userid || !mobile || !ip || isLockedParked) return undefined;
 
     const macAddr =
       (deviceInfo.wiredMac && deviceInfo.wiredMac !== "Not available" && deviceInfo.wiredMac) ||
@@ -299,7 +330,7 @@ const LivePlayer = () => {
     }, 1500);
 
     return () => { cancelled = true; clearTimeout(t); };
-  }, [chid, grid, userid, mobile, ip, deviceInfo.wiredMac, deviceInfo.wifiMac]);
+  }, [chid, grid, userid, mobile, ip, deviceInfo.wiredMac, deviceInfo.wifiMac, isLockedParked]);
 
   // ── Fetch channels ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -352,7 +383,9 @@ const LivePlayer = () => {
     if (sidebarRef.current)         { closeMenu(); return; }
     if (numpadRef.current)          { hideNumpad(); return; }
     if (channelNotFoundRef.current) { setChannelNotFound(""); return; }
-    if (detailsRef.current)         { hideInfo(); return; }
+    // While parked on a locked channel the info bar is pinned and not
+    // user-dismissible, so skip the hide step and go straight to /home.
+    if (detailsRef.current && !isLockedParkedRef.current) { hideInfo(); return; }
     navigate('/home', { replace: true });
   }, [closeMenu, hideNumpad, hideInfo, navigate]);
 
@@ -496,8 +529,11 @@ const LivePlayer = () => {
   // Pause info timer while sidebar is open (don't hide info behind menu)
   useEffect(() => { if (isSidebarOpen) stop(detailsTimer); }, [isSidebarOpen, stop]);
 
-  // Mount-time gate: if Home navigated here with a locked channel, surface
-  // the locked modal immediately and DON'T initialise the HLS stream.
+  // Mount-time gate: if Home / LiveChannels navigated here with a locked
+  // channel, surface the modal immediately AND clear the stream so the user
+  // is parked on the locked channel from the first frame. `currentChannel`
+  // was already initialised from the same `channelData` in useState above,
+  // so dismissing the modal lands the user here with the info bar pinned.
   useEffect(() => {
     if (channelData && !isSubscribed(channelData)) {
       setLockedChannel(channelData);
@@ -564,70 +600,73 @@ const LivePlayer = () => {
       )}
 
       {/* Subscription-gate modal (Subscription Not Available → Coming Soon).
-          On dismiss: if we never had a valid stream playing (i.e. the user
-          arrived here by tapping a locked tile on Home or LiveChannels),
-          navigate(-1) to return to that screen with its scroll/filter state
-          intact — MemoryRouter preserves the previous Location. If we WERE
-          playing something subscribed and just blocked a channel switch
-          (sidebar/numpad), stay put — the existing stream keeps playing. */}
+          On dismiss we keep the user parked on the locked channel — the info
+          bar stays pinned with a Locked badge and all normal player chrome
+          (OK→sidebar, digits, channel-up/down, LEFT→numpad) keeps working.
+          See selectChannelRaw / zap-settle for how we set up the parked
+          state before the modal opens. */}
       {lockedChannel && (
         <ChannelLocked
           channel={lockedChannel}
-          onClose={() => {
-            if (!currentStream) navigate(-1);
-            else                setLockedChannel(null);
-          }}
+          onClose={() => setLockedChannel(null)}
         />
       )}
 
-      {!currentStream ? (
+      {/* Seamless relay: when the cached `streamlink` fails fatally
+          (token expiry, segment 404, edge rotation, etc.), HLSPlayer
+          calls `onStreamFailed` after exhausting its short-cycle retry
+          budget; it returns a fresh URL via /stream which HLS swaps in
+          without a black-screen disconnect. `streamAd` drives the BBNL
+          spec row 21 overlay polled per channel switch. The HLS engine
+          is mounted ONLY when a stream URL is present — locked-parked
+          channels render a black canvas with the chrome on top. */}
+      {currentStream && (
+        <HLSPlayer
+          src={currentStream}
+          onStreamFailed={onStreamFailed}
+          streamAd={streamAd}
+        />
+      )}
+
+      {currentChannel && (
+        <ChannelsDetails
+          channel={pendingChannel || currentChannel}
+          visible={isDetailsVisible || isLockedParked}
+          sidebarOpen={isSidebarOpen}
+          locked={isLockedParked}
+        />
+      )}
+
+      {localError && (
+        <div style={{
+          position: "absolute", bottom: "80px", left: "50%",
+          transform: "translateX(-50%)",
+          color: "#ffb347", fontSize: "22px",
+          background: "rgba(0,0,0,0.85)",
+          padding: "14px 32px", borderRadius: "12px",
+          zIndex: 35, border: "1px solid rgba(255,180,71,0.3)",
+        }}>
+          {localError}
+        </div>
+      )}
+
+      {currentChannel && (
+        <div style={{
+          position: "absolute", top: 0, left: 0, height: "100%", zIndex: 20,
+          display: isSidebarOpen ? "block" : "none",
+        }}>
+          <ChannelsSidebar
+            onChannelSelect={onSidebarSelect}
+            currentChannel={currentChannel}
+          />
+        </div>
+      )}
+
+      {!currentChannel && !currentStream && (
         <div style={{ padding: "24px" }}>
           <p style={{ color: "#ff9a9a" }}>No stream link provided.</p>
           {localError && <p style={{ color: "#ffb347" }}>{localError}</p>}
         </div>
-      ) : (
-        <>
-          {/* Seamless relay: when the cached `streamlink` fails fatally
-              (token expiry, segment 404, edge rotation, etc.), HLSPlayer
-              calls `onStreamFailed` after exhausting its short-cycle retry
-              budget; it returns a fresh URL via /stream which HLS swaps in
-              without a black-screen disconnect. `streamAd` drives the BBNL
-              spec row 21 overlay polled per channel switch. */}
-          <HLSPlayer
-            src={currentStream}
-            onStreamFailed={onStreamFailed}
-            streamAd={streamAd}
-          />
-
-          <ChannelsDetails
-            channel={pendingChannel || currentChannel}
-            visible={isDetailsVisible}
-            sidebarOpen={isSidebarOpen}
-          />
-
-          {localError && (
-            <div style={{
-              position: "absolute", bottom: "80px", left: "50%",
-              transform: "translateX(-50%)",
-              color: "#ffb347", fontSize: "22px",
-              background: "rgba(0,0,0,0.85)",
-              padding: "14px 32px", borderRadius: "12px",
-              zIndex: 35, border: "1px solid rgba(255,180,71,0.3)",
-            }}>
-              {localError}
-            </div>
-          )}
-
-          <div style={{
-            position: "absolute", top: 0, left: 0, height: "100%", zIndex: 20,
-            display: isSidebarOpen ? "block" : "none",
-          }}>
-            <ChannelsSidebar
-              onChannelSelect={onSidebarSelect}
-              currentChannel={currentChannel}
-            />
-          </div>
-        </>
       )}
     </div>
   );

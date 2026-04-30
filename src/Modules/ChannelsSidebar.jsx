@@ -29,6 +29,16 @@ const formatPrice = (value) => {
 
 const VIRTUAL_CAT_TITLES = new Set(["all channels", "subscribed channels"]);
 
+// Stable channel-equality for "is this the currently-playing one?". Used both
+// for the cyan-dot marker and for auto-focus-on-current-channel when the user
+// enters a content area.
+const sameChannel = (a, b) => {
+  if (!a || !b) return false;
+  if (a.channelno && b.channelno) return String(a.channelno) === String(b.channelno);
+  if (a.channelid && b.channelid) return String(a.channelid) === String(b.channelid);
+  return false;
+};
+
 // Drop the categories endpoint's virtual entries so the inner category list
 // only contains content categories (Entertainment/Movies/...).
 const stripVirtualCategories = (cats) => {
@@ -75,11 +85,15 @@ const ChannelsSidebar = ({ onChannelSelect, currentChannel }) => {
   const activeTabIdxRef = useRef(activeTabIdx);
   const expandedCatRef = useRef(expandedCat);
   const tabsRef = useRef([]);
+  const groupsRef = useRef([]);
+  const tabChannelsRef = useRef([]);
   const visibleChannelsRef = useRef([]);
+  const currentChannelRef = useRef(currentChannel);
   const onChannelSelectRef = useRef(onChannelSelect);
 
   useEffect(() => { activeTabIdxRef.current = activeTabIdx; }, [activeTabIdx]);
   useEffect(() => { expandedCatRef.current = expandedCat; }, [expandedCat]);
+  useEffect(() => { currentChannelRef.current = currentChannel; }, [currentChannel]);
   useEffect(() => { onChannelSelectRef.current = onChannelSelect; }, [onChannelSelect]);
 
   const userid = localStorage.getItem("userId") || "";
@@ -188,6 +202,7 @@ const ChannelsSidebar = ({ onChannelSelect, currentChannel }) => {
     }
     return [];
   }, [allChannels, activeTab]);
+  useEffect(() => { tabChannelsRef.current = tabChannels; }, [tabChannels]);
 
   // ── Group channels by content category (skipped for "All Channels") ─────
   // Empty groups dropped so users never see "Sports (0)".
@@ -203,6 +218,7 @@ const ChannelsSidebar = ({ onChannelSelect, currentChannel }) => {
       }))
       .filter((g) => g.channels.length > 0);
   }, [tabChannels, contentCategories, activeTab]);
+  useEffect(() => { groupsRef.current = groups; }, [groups]);
 
   // ── Channels currently visible to keyboard navigation ───────────────────
   // For "All Channels" → flat list. For grouped tabs → only the channels
@@ -310,15 +326,41 @@ const ChannelsSidebar = ({ onChannelSelect, currentChannel }) => {
         }
         if (isDown) {
           e.preventDefault(); e.stopPropagation();
+          const cur = currentChannelRef.current;
           if (curTab.kind === "all") {
-            if (chRefs.current.length > 0) {
-              focusedChRef.current = 0;
+            // Auto-focus the currently-playing channel when it exists in the
+            // flat list — otherwise fall back to the first row.
+            const list = tabChannelsRef.current;
+            const matchIdx = cur ? list.findIndex((ch) => sameChannel(cur, ch)) : -1;
+            if (chRefs.current.length > 0 || list.length > 0) {
+              focusedChRef.current = matchIdx >= 0 ? matchIdx : 0;
               activeZoneRef.current = "channels";
               clearAllFocus();
               applyZoneFocus();
             }
           } else {
-            if (catRefs.current.length > 0) {
+            // Grouped tab: if the currently-playing channel lives in one of
+            // the visible groups, auto-expand that group and focus the
+            // matching channel — landing the user exactly where they're at.
+            // Otherwise, focus the first category row (default behavior).
+            const grps = groupsRef.current;
+            let foundGroupIdx = -1;
+            let foundChIdx = -1;
+            if (cur) {
+              for (let g = 0; g < grps.length; g++) {
+                const idx = grps[g].channels.findIndex((ch) => sameChannel(cur, ch));
+                if (idx >= 0) { foundGroupIdx = g; foundChIdx = idx; break; }
+              }
+            }
+            if (foundGroupIdx >= 0) {
+              focusedCatRef.current = foundGroupIdx;
+              focusedChRef.current = foundChIdx;
+              activeZoneRef.current = "channels";
+              // setExpandedCat triggers a re-render; the [expandedCat] effect
+              // then fires clearAllFocus + applyZoneFocus once chRefs are
+              // populated for the newly expanded group.
+              setExpandedCat(foundGroupIdx);
+            } else if (catRefs.current.length > 0) {
               focusedCatRef.current = 0;
               activeZoneRef.current = "categories";
               clearAllFocus();
@@ -365,8 +407,16 @@ const ChannelsSidebar = ({ onChannelSelect, currentChannel }) => {
             // collapse — focus stays on this category row
             setExpandedCat(-1);
           } else {
-            // expand and jump to first channel of the new group
-            focusedChRef.current = 0;
+            // Expand. Jump to the currently-playing channel inside this
+            // group when it lives here; otherwise focus the first channel.
+            const group = groupsRef.current[idx];
+            const cur = currentChannelRef.current;
+            let chIdx = 0;
+            if (group && cur) {
+              const found = group.channels.findIndex((ch) => sameChannel(cur, ch));
+              if (found >= 0) chIdx = found;
+            }
+            focusedChRef.current = chIdx;
             activeZoneRef.current = "channels";
             setExpandedCat(idx);
           }
@@ -431,16 +481,7 @@ const ChannelsSidebar = ({ onChannelSelect, currentChannel }) => {
   }, []);
 
   // ── Render helpers ──────────────────────────────────────────────────────
-  const isCurrentlyPlaying = (ch) => {
-    if (!currentChannel || !ch) return false;
-    if (currentChannel.channelno && ch.channelno) {
-      return String(currentChannel.channelno) === String(ch.channelno);
-    }
-    if (currentChannel.channelid && ch.channelid) {
-      return String(currentChannel.channelid) === String(ch.channelid);
-    }
-    return false;
-  };
+  const isCurrentlyPlaying = (ch) => sameChannel(currentChannel, ch);
 
   const onChevronClick = (dir) => {
     const idx = activeTabIdx;

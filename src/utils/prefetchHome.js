@@ -10,7 +10,7 @@ const ADS_DEFAULTS = {
   displaytype: "multiple",
 };
 
-export const prefetchHomeData = ({ userid, mobile, ip_address = "" } = {}) => {
+export const prefetchHomeData = ({ userid, mobile, ip_address = "", force = false } = {}) => {
   if (!mobile) return;
 
   const channels = useLiveChannelsStore.getState();
@@ -19,15 +19,15 @@ export const prefetchHomeData = ({ userid, mobile, ip_address = "" } = {}) => {
   const apps = useOttAppsStore.getState();
 
   const ignore = () => {};
-  channels.fetchChannels({ userid, mobile }).catch(ignore);
+  channels.fetchChannels({ userid, mobile }, { force }).catch(ignore);
   // Warm the all-channels cache (grid:"") used by the in-player ChannelsSidebar.
   // Same /channelData call but with no grid filter so the sidebar can do its
   // tab/category filtering entirely client-side. Cache key uses trailing pipe.
-  channels.fetchChannels({ userid, mobile, grid: "" }, { key: `${userid}|${mobile}|` }).catch(ignore);
-  channels.fetchCategories({ userid, mobile }).catch(ignore);
-  languages.fetchLanguages({ userid, mobile }).catch(ignore);
-  ads.fetchAds({ userid, mobile, ...ADS_DEFAULTS }, { preferForm: false }).catch(ignore);
-  apps.fetchApps({ userid, mobile, ip_address }).catch(ignore);
+  channels.fetchChannels({ userid, mobile, grid: "" }, { key: `${userid}|${mobile}|`, force }).catch(ignore);
+  channels.fetchCategories({ userid, mobile }, { force }).catch(ignore);
+  languages.fetchLanguages({ userid, mobile }, { force }).catch(ignore);
+  ads.fetchAds({ userid, mobile, ...ADS_DEFAULTS }, { preferForm: false, force }).catch(ignore);
+  apps.fetchApps({ userid, mobile, ip_address }, { force }).catch(ignore);
 };
 
 export default prefetchHomeData;

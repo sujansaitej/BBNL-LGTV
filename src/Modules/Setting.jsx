@@ -5,8 +5,6 @@ import useAppVersionStore from "../store/LogineOttp";
 import usePrimaryCustDetStore from "../store/PrimaryCustDetStore";
 import useExpiringChannelsStore from "../store/ExpiringChannelsStore";
 import useRaiseTicketStore from "../store/RaiseTicketStore";
-import useAddUsersStore from "../store/AddUsersStore";
-import { requestMobileUpdate } from "../server/modules-api/UpdateMobNumApi";
 import { sessionClear } from "../utils/session";
 import { useTapAction } from "../Remote/useTapAction";
 
@@ -40,8 +38,6 @@ const menuItems = [
   { id: "account", label: "Account Info", icon: <InfoIcon /> },
   { id: "expiring", label: "Expiring Channels", icon: <InfoIcon /> },
   { id: "support", label: "Help & Support", icon: <InfoIcon /> },
-  { id: "mobile", label: "Update Mobile", icon: <InfoIcon /> },
-  { id: "users", label: "Manage Users", icon: <InfoIcon /> },
   { id: "logout", label: "Logout", icon: <LogoutIcon /> },
 ];
 
@@ -56,18 +52,10 @@ const Setting = ({ onLogout }) => {
   const [expiringList, setExpiringList] = useState([]);
   const [expiringLoading, setExpiringLoading] = useState(false);
   const [supportComment, setSupportComment] = useState("");
-  const [isMobileSubmitting, setIsMobileSubmitting] = useState(false);
-  const [mobileStatus, setMobileStatus] = useState({ kind: "", message: "" });
-  const [usersMobile, setUsersMobile] = useState("");
   const { versionCache, fetchAppVersion } = useAppVersionStore();
   const { cache: custCache, fetchCust } = usePrimaryCustDetStore();
   const { cache: expCache, fetchExpiring } = useExpiringChannelsStore();
   const { isSubmitting: isTicketSubmitting, submit: submitTicket } = useRaiseTicketStore();
-  const {
-    isSubmitting: isUsersSubmitting,
-    lastResults: usersLastResults,
-    submit: submitAddUsers,
-  } = useAddUsersStore();
   const deviceInfo = useDeviceInformation();
 
   const fetchingAccountRef = useRef(false);
@@ -156,36 +144,6 @@ const Setting = ({ onLogout }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage]);
 
-  const handleMobileUpdate = async () => {
-    if (isMobileSubmitting) return;
-    const userid = localStorage.getItem("userId") || "";
-    if (!userid) {
-      const msg = "Missing user ID — please re-login";
-      setMobileStatus({ kind: "error", message: msg });
-      setToast(msg);
-      return;
-    }
-    setIsMobileSubmitting(true);
-    setMobileStatus({ kind: "info", message: "Requesting mobile number update…" });
-    try {
-      const result = await requestMobileUpdate({ userid });
-      setMobileStatus({
-        kind: result?.success ? "success" : "error",
-        message: result?.message || (result?.success ? "Mobile number updated!" : "Failed to update"),
-      });
-      setToast(result?.message || (result?.success ? "Mobile number updated!" : "Failed to update"));
-    } catch (err) {
-      const msg = err?.message || "Failed to update";
-      setMobileStatus({ kind: "error", message: msg });
-      setToast(msg);
-    } finally {
-      setIsMobileSubmitting(false);
-    }
-  };
-
-  const handleMobileUpdateRef = useRef(handleMobileUpdate);
-  useEffect(() => { handleMobileUpdateRef.current = handleMobileUpdate; });
-
   const handleCheckUpdate = async () => {
     try {
       setToast("Checking for updates…");
@@ -213,7 +171,6 @@ const Setting = ({ onLogout }) => {
   // ── Zoned focus engine ──────────────────────────────────────────────
   // Zones: "menu" (left sidebar items, vertical) | "check" (App Info Check button)
   //        | "support" (Help & Support: textarea + submit, vertical)
-  //        | "mobile" (Update Mobile: Request Update button)
   const activeZoneRef = useRef("menu");
   const focusedMenuRef = useRef(0);
   const menuRefs = useRef([]);
@@ -222,11 +179,6 @@ const Setting = ({ onLogout }) => {
   const focusedSupportRef = useRef(0);
   const supportTextareaRef = useRef(null);
   const supportSubmitRef = useRef(null);
-  const mobileBtnRef = useRef(null);
-  const usersRefs = useRef([]); // [0]=input, [1]=submit
-  const focusedUsersRef = useRef(0);
-  const usersInputRef = useRef(null);
-  const usersSubmitRef = useRef(null);
   const currentPageRef = useRef(currentPage);
   const showLogoutDialogRef = useRef(showLogoutDialog);
   useEffect(() => { currentPageRef.current = currentPage; }, [currentPage]);
@@ -260,13 +212,6 @@ const Setting = ({ onLogout }) => {
     else el.removeAttribute("data-focused");
   }, []);
 
-  const applyMobileFocus = useCallback((focused) => {
-    const el = mobileBtnRef.current;
-    if (!el) return;
-    if (focused) el.setAttribute("data-focused", "true");
-    else el.removeAttribute("data-focused");
-  }, []);
-
   const applySupportFocus = useCallback((newIdx) => {
     const oldIdx = focusedSupportRef.current;
     if (oldIdx !== newIdx) {
@@ -283,22 +228,6 @@ const Setting = ({ onLogout }) => {
     if (el) el.removeAttribute("data-focused");
   }, []);
 
-  const applyUsersFocus = useCallback((newIdx) => {
-    const oldIdx = focusedUsersRef.current;
-    if (oldIdx !== newIdx) {
-      const oldEl = usersRefs.current[oldIdx];
-      if (oldEl) oldEl.removeAttribute("data-focused");
-    }
-    const newEl = usersRefs.current[newIdx];
-    if (newEl) newEl.setAttribute("data-focused", "true");
-    focusedUsersRef.current = newIdx;
-  }, []);
-
-  const clearUsersFocus = useCallback(() => {
-    const el = usersRefs.current[focusedUsersRef.current];
-    if (el) el.removeAttribute("data-focused");
-  }, []);
-
   const switchZone = useCallback((newZone) => {
     const oldZone = activeZoneRef.current;
     if (oldZone === newZone) return;
@@ -309,10 +238,6 @@ const Setting = ({ onLogout }) => {
       applyCheckFocus(false);
     } else if (oldZone === "support") {
       clearSupportFocus();
-    } else if (oldZone === "mobile") {
-      applyMobileFocus(false);
-    } else if (oldZone === "users") {
-      clearUsersFocus();
     }
     activeZoneRef.current = newZone;
     if (newZone === "menu") {
@@ -321,12 +246,8 @@ const Setting = ({ onLogout }) => {
       applyCheckFocus(true);
     } else if (newZone === "support") {
       applySupportFocus(focusedSupportRef.current);
-    } else if (newZone === "mobile") {
-      applyMobileFocus(true);
-    } else if (newZone === "users") {
-      applyUsersFocus(focusedUsersRef.current);
     }
-  }, [applyMenuFocus, applyCheckFocus, applySupportFocus, clearSupportFocus, applyMobileFocus, applyUsersFocus, clearUsersFocus]);
+  }, [applyMenuFocus, applyCheckFocus, applySupportFocus, clearSupportFocus]);
 
   // Apply initial focus to menu on mount
   useEffect(() => {
@@ -340,13 +261,6 @@ const Setting = ({ onLogout }) => {
     }
   }, [currentPage, switchZone]);
 
-  // If user navigates away from "mobile", clear mobile-zone focus and force back to menu
-  useEffect(() => {
-    if (currentPage !== "mobile" && activeZoneRef.current === "mobile") {
-      switchZone("menu");
-    }
-  }, [currentPage, switchZone]);
-
   // If user navigates away from "support", clear textarea + force zone back to menu
   useEffect(() => {
     if (currentPage !== "support") {
@@ -354,15 +268,6 @@ const Setting = ({ onLogout }) => {
       // Reset support content + sub-zone index for next visit
       setSupportComment("");
       focusedSupportRef.current = 0;
-    }
-  }, [currentPage, switchZone]);
-
-  // If user navigates away from "users", clear input + force zone back to menu
-  useEffect(() => {
-    if (currentPage !== "users") {
-      if (activeZoneRef.current === "users") switchZone("menu");
-      setUsersMobile("");
-      focusedUsersRef.current = 0;
     }
   }, [currentPage, switchZone]);
 
@@ -403,51 +308,6 @@ const Setting = ({ onLogout }) => {
   const handleSupportSubmitRef = useRef(handleSupportSubmit);
   useEffect(() => { handleSupportSubmitRef.current = handleSupportSubmit; }, [handleSupportSubmit]);
 
-  // ── Manage Users — focus input + open webOS keyboard ────────────────────
-  const focusUsersInput = useCallback(() => {
-    try {
-      usersInputRef.current?.focus();
-    } catch { /* ignore */ }
-    try {
-      if (window.webOS && window.webOS.keyboard && typeof window.webOS.keyboard.show === "function") {
-        window.webOS.keyboard.show();
-      }
-    } catch { /* ignore */ }
-  }, []);
-
-  // ── Manage Users — submit handler ──────────────────────────────────────
-  const handleAddUserSubmit = useCallback(async () => {
-    const userid = localStorage.getItem("userId") || "";
-    const mac_address = (deviceInfo?.wiredMac && deviceInfo.wiredMac !== "Not available")
-      ? deviceInfo.wiredMac
-      : (deviceInfo?.wifiMac && deviceInfo.wifiMac !== "Not available")
-        ? deviceInfo.wifiMac
-        : "";
-    const mobile = (usersMobile || "").trim();
-
-    if (!userid) {
-      setToast("Missing user ID — please re-login");
-      return;
-    }
-    if (!mac_address) {
-      setToast("MAC address unavailable — try again shortly");
-      return;
-    }
-    if (!/^\d{10}$/.test(mobile)) {
-      setToast("Enter a valid 10-digit mobile number");
-      return;
-    }
-
-    const result = await submitAddUsers({ userid, mac_address, mobiles: [mobile] });
-    setToast(result?.message || (result?.success ? "User added" : "Failed to add user"));
-    if (result?.success) {
-      setUsersMobile("");
-    }
-  }, [deviceInfo, usersMobile, submitAddUsers]);
-
-  const handleAddUserSubmitRef = useRef(handleAddUserSubmit);
-  useEffect(() => { handleAddUserSubmitRef.current = handleAddUserSubmit; }, [handleAddUserSubmit]);
-
   // Main capture-phase keydown handler — arrows + OK + BACK
   useEffect(() => {
     const handleKey = (e) => {
@@ -464,19 +324,12 @@ const Setting = ({ onLogout }) => {
       // via on-screen keyboard), BACK should just close the keyboard / blur — NOT
       // navigate home.  Mirror Feedback.jsx behavior.
       const taActive = document.activeElement === supportTextareaRef.current;
-      const userInputActive = document.activeElement === usersInputRef.current;
 
       if (isBack) {
         if (taActive) {
           e.preventDefault();
           e.stopImmediatePropagation();
           supportTextareaRef.current?.blur();
-          return;
-        }
-        if (userInputActive) {
-          e.preventDefault();
-          e.stopImmediatePropagation();
-          usersInputRef.current?.blur();
           return;
         }
         // Custom BACK: settings → home (preventDefault so GlobalBackHandler doesn't double-fire)
@@ -486,8 +339,8 @@ const Setting = ({ onLogout }) => {
         return;
       }
 
-      // While typing in textarea or users input, let the keyboard own the keys
-      if (taActive || userInputActive) return;
+      // While typing in textarea, let the keyboard own the keys
+      if (taActive) return;
 
       if (!isArrow && !isEnter) return;
 
@@ -502,7 +355,7 @@ const Setting = ({ onLogout }) => {
           e.preventDefault();
           const next = Math.min(menuItems.length - 1, focusedMenuRef.current + 1);
           if (next !== focusedMenuRef.current) applyMenuFocus(next);
-        } else if (kc === 39) { // RIGHT → Check (About) | Support textarea (Help & Support) | Mobile button (Update Mobile) | Users input (Manage Users)
+        } else if (kc === 39) { // RIGHT → Check (About) | Support textarea (Help & Support)
           if (currentPageRef.current === "about" && checkBtnRef.current) {
             e.preventDefault();
             switchZone("check");
@@ -510,13 +363,6 @@ const Setting = ({ onLogout }) => {
             e.preventDefault();
             focusedSupportRef.current = 0;
             switchZone("support");
-          } else if (currentPageRef.current === "mobile" && mobileBtnRef.current) {
-            e.preventDefault();
-            switchZone("mobile");
-          } else if (currentPageRef.current === "users" && usersRefs.current[0]) {
-            e.preventDefault();
-            focusedUsersRef.current = 0;
-            switchZone("users");
           }
         } else if (kc === 37) { // LEFT — no-op in menu zone
           e.preventDefault();
@@ -560,39 +406,6 @@ const Setting = ({ onLogout }) => {
             handleSupportSubmitRef.current?.();
           }
         }
-      } else if (zone === "mobile") {
-        if (kc === 37) { // LEFT → menu
-          e.preventDefault();
-          switchZone("menu");
-        } else if (kc === 39 || kc === 38 || kc === 40) {
-          // No further targets — eat the key
-          e.preventDefault();
-        } else if (isEnter) {
-          e.preventDefault();
-          handleMobileUpdateRef.current?.();
-        }
-      } else if (zone === "users") {
-        if (kc === 37) { // LEFT → menu
-          e.preventDefault();
-          switchZone("menu");
-        } else if (kc === 38) { // UP — input (idx 0) is top
-          e.preventDefault();
-          if (focusedUsersRef.current !== 0) applyUsersFocus(0);
-        } else if (kc === 40) { // DOWN — submit (idx 1) is bottom
-          e.preventDefault();
-          if (focusedUsersRef.current !== 1) applyUsersFocus(1);
-        } else if (kc === 39) { // RIGHT — eat (no further targets)
-          e.preventDefault();
-        } else if (isEnter) {
-          e.preventDefault();
-          if (focusedUsersRef.current === 0) {
-            // OK on input → focus input + open webOS keyboard
-            focusUsersInput();
-          } else {
-            // OK on submit
-            handleAddUserSubmitRef.current?.();
-          }
-        }
       }
     };
 
@@ -601,7 +414,7 @@ const Setting = ({ onLogout }) => {
     // handleCheckUpdate is referenced via closure each call — but listener is registered once.
     // We deliberately keep deps minimal; the handler reads refs for mutable state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [applyMenuFocus, applySupportFocus, applyUsersFocus, focusSupportTextarea, focusUsersInput, switchZone, navigate]);
+  }, [applyMenuFocus, applySupportFocus, focusSupportTextarea, switchZone, navigate]);
 
   // ── Logout dialog focus trap ────────────────────────────────────────
   const dialogBtnRefs = useRef([]); // [0] = Cancel, [1] = Logout
@@ -943,178 +756,6 @@ const Setting = ({ onLogout }) => {
           </div>
         )}
 
-        {/* UPDATE MOBILE NUMBER */}
-        {currentPage === "mobile" && (
-          <div>
-            <p style={{ fontSize: "36px", fontWeight: 700, marginBottom: "12px", lineHeight: 1.1 }}>Update Mobile Number</p>
-            <p style={{ fontSize: "20px", color: "rgba(255,255,255,0.65)", marginBottom: "40px" }}>Request a change to your registered mobile number</p>
-
-            <div style={{ backgroundColor: "rgba(255,255,255,0.06)", border: "2px solid rgba(255,255,255,0.15)", borderRadius: "14px", padding: "32px", maxWidth: "700px" }}>
-              <p style={{ fontSize: "18px", color: "rgba(255,255,255,0.65)", marginBottom: "8px" }}>Current Mobile Number</p>
-              <p style={{ fontSize: "26px", fontWeight: 700, margin: "0 0 28px" }}>{localStorage.getItem("userPhone") || "Not available"}</p>
-
-              <div style={{ display: "flex", alignItems: "center", gap: "20px", flexWrap: "wrap" }}>
-                <button
-                  ref={mobileBtnRef}
-                  tabIndex={-1}
-                  className="focusable-mobile-update-btn"
-                  disabled={isMobileSubmitting}
-                  data-disabled={isMobileSubmitting ? "true" : undefined}
-                  onClick={() => {
-                    if (isMobileSubmitting) return;
-                    activeZoneRef.current = "mobile";
-                    applyMobileFocus(true);
-                    // Clear menu focus when clicking
-                    const menuEl = menuRefs.current[focusedMenuRef.current];
-                    if (menuEl) menuEl.removeAttribute("data-focused");
-                    handleMobileUpdate();
-                  }}
-                  style={{
-                    border: "2px solid rgba(255,255,255,0.4)",
-                    color: "#fff",
-                    backgroundColor: "transparent",
-                    fontSize: "18px",
-                    fontWeight: 600,
-                    padding: "12px 32px",
-                    borderRadius: "8px",
-                    cursor: isMobileSubmitting ? "not-allowed" : "pointer",
-                    opacity: isMobileSubmitting ? 0.6 : 1,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "10px",
-                  }}>
-                  {isMobileSubmitting && <Spinner size={18} />}
-                  {isMobileSubmitting ? "Requesting…" : "Request Update"}
-                </button>
-
-                {mobileStatus.message && (
-                  <p style={{
-                    fontSize: "18px",
-                    margin: 0,
-                    color: mobileStatus.kind === "success"
-                      ? "#4caf50"
-                      : mobileStatus.kind === "error"
-                        ? "#f44336"
-                        : "rgba(255,255,255,0.75)",
-                  }}>
-                    {mobileStatus.message}
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* MANAGE USERS */}
-        {currentPage === "users" && (
-          <div>
-            <p style={{ fontSize: "36px", fontWeight: 700, marginBottom: "12px", lineHeight: 1.1 }}>Manage Users</p>
-            <p style={{ fontSize: "20px", color: "rgba(255,255,255,0.65)", marginBottom: "40px" }}>Add additional users to your subscription</p>
-
-            <div style={{ backgroundColor: "rgba(255,255,255,0.06)", border: "2px solid rgba(255,255,255,0.15)", borderRadius: "14px", padding: "28px 32px", maxWidth: "700px", marginBottom: "24px" }}>
-              <p style={{ fontSize: "18px", color: "rgba(255,255,255,0.65)", marginBottom: "12px" }}>New user mobile number</p>
-              <input
-                ref={(el) => { usersRefs.current[0] = el; usersInputRef.current = el; }}
-                tabIndex={-1}
-                type="tel"
-                inputMode="numeric"
-                maxLength={10}
-                className="focusable-users-input"
-                value={usersMobile}
-                onChange={(e) => {
-                  // restrict to digits only
-                  const digits = (e.target.value || "").replace(/\D/g, "").slice(0, 10);
-                  setUsersMobile(digits);
-                }}
-                onFocus={() => {
-                  try {
-                    if (window.webOS && window.webOS.keyboard && typeof window.webOS.keyboard.show === "function") {
-                      window.webOS.keyboard.show();
-                    }
-                  } catch { /* ignore */ }
-                }}
-                onClick={() => {
-                  if (activeZoneRef.current !== "users") {
-                    const menuEl = menuRefs.current[focusedMenuRef.current];
-                    if (menuEl) menuEl.removeAttribute("data-focused");
-                    activeZoneRef.current = "users";
-                  }
-                  applyUsersFocus(0);
-                }}
-                placeholder="10-digit mobile number"
-                style={{
-                  width: "100%",
-                  color: "#fff",
-                  background: "#1a1a1a",
-                  borderRadius: "10px",
-                  fontSize: "20px",
-                  outline: "none",
-                  border: "1px solid rgba(255,255,255,0.6)",
-                  padding: "14px",
-                  boxSizing: "border-box",
-                  fontFamily: "inherit",
-                  letterSpacing: "1px",
-                }}
-              />
-              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "20px" }}>
-                <button
-                  ref={(el) => { usersRefs.current[1] = el; usersSubmitRef.current = el; }}
-                  tabIndex={-1}
-                  className="focusable-users-submit"
-                  disabled={isUsersSubmitting || usersMobile.length !== 10}
-                  data-disabled={(isUsersSubmitting || usersMobile.length !== 10) ? "true" : undefined}
-                  onClick={() => {
-                    if (isUsersSubmitting || usersMobile.length !== 10) return;
-                    if (activeZoneRef.current !== "users") {
-                      const menuEl = menuRefs.current[focusedMenuRef.current];
-                      if (menuEl) menuEl.removeAttribute("data-focused");
-                      activeZoneRef.current = "users";
-                    }
-                    applyUsersFocus(1);
-                    handleAddUserSubmit();
-                  }}
-                  style={{
-                    border: "2px solid rgba(255,255,255,0.4)",
-                    color: "#fff",
-                    backgroundColor: "transparent",
-                    fontSize: "18px",
-                    fontWeight: 600,
-                    padding: "12px 32px",
-                    borderRadius: "8px",
-                    cursor: (isUsersSubmitting || usersMobile.length !== 10) ? "not-allowed" : "pointer",
-                    opacity: (isUsersSubmitting || usersMobile.length !== 10) ? 0.6 : 1,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "10px",
-                  }}>
-                  {isUsersSubmitting && <Spinner size={18} />}
-                  {isUsersSubmitting ? "Adding..." : "Add User"}
-                </button>
-              </div>
-            </div>
-
-            {Array.isArray(usersLastResults) && usersLastResults.length > 0 && (
-              <div style={{ backgroundColor: "rgba(255,255,255,0.06)", border: "2px solid rgba(255,255,255,0.15)", borderRadius: "14px", padding: "28px 32px", maxWidth: "700px" }}>
-                <p style={{ fontSize: "22px", fontWeight: 700, marginBottom: "16px" }}>Last Submission</p>
-                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                  {usersLastResults.map((row, idx) => {
-                    const mob = row?.mobileno || row?.mobile || "";
-                    const avl = (row?.avl || "").toString();
-                    const isAlready = avl === "true";
-                    const label = isAlready ? "Already a user" : "✓ Added";
-                    const color = isAlready ? "#ffb300" : "#4caf50";
-                    return (
-                      <div key={`u-${mob}-${idx}`} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", borderRadius: "10px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
-                        <p style={{ fontSize: "20px", fontWeight: 600, margin: 0 }}>{mob || "—"}</p>
-                        <p style={{ fontSize: "18px", fontWeight: 600, margin: 0, color }}>{label}</p>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
       {/* LOGOUT CONFIRMATION DIALOG */}

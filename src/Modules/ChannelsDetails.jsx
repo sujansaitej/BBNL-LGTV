@@ -21,7 +21,40 @@ import { useEffect, useMemo, useState } from "react";
  *     not heavy borders — keeps the bar reading as a single surface
  */
 
-const ChannelsDetails = ({ channel, visible = false, sidebarOpen = false }) => {
+const LockBadge = () => (
+  <span
+    aria-label="Subscription required"
+    title="Subscription required"
+    style={{
+      display: "inline-flex",
+      alignItems: "center",
+      gap: "6px",
+      padding: "4px 10px",
+      marginLeft: "10px",
+      borderRadius: "999px",
+      background: "rgba(244,191,31,0.14)",
+      border: "1px solid rgba(244,191,31,0.45)",
+      color: "#F4BF1F",
+      fontSize: "12px",
+      fontWeight: 700,
+      letterSpacing: "1.2px",
+      textTransform: "uppercase",
+      lineHeight: 1,
+      flexShrink: 0,
+      verticalAlign: "middle",
+    }}
+  >
+    <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true">
+      <path
+        d="M7 10V8a5 5 0 0 1 10 0v2h1a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h1Zm2 0h6V8a3 3 0 0 0-6 0v2Z"
+        fill="currentColor"
+      />
+    </svg>
+    Locked
+  </span>
+);
+
+const ChannelsDetails = ({ channel, visible = false, sidebarOpen = false, locked = false }) => {
   const [now, setNow] = useState(new Date());
 
   useEffect(() => {
@@ -195,21 +228,33 @@ const ChannelsDetails = ({ channel, visible = false, sidebarOpen = false }) => {
           >
             {channelNumber}
           </p>
-          <p
+          <div
             style={{
-              fontSize: "20px",
-              fontWeight: 700,
+              display: "flex",
+              alignItems: "center",
               margin: "8px 0 0",
-              color: COLOR.accentWarm,
-              lineHeight: 1.1,
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              maxWidth: sidebarOpen ? "200px" : "260px",
+              minWidth: 0,
             }}
           >
-            {channelName}
-          </p>
+            <p
+              style={{
+                fontSize: "20px",
+                fontWeight: 700,
+                margin: 0,
+                color: COLOR.accentWarm,
+                lineHeight: 1.1,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                maxWidth: locked
+                  ? (sidebarOpen ? "120px" : "180px")
+                  : (sidebarOpen ? "200px" : "260px"),
+              }}
+            >
+              {channelName}
+            </p>
+            {locked && <LockBadge />}
+          </div>
         </div>
       </div>
 

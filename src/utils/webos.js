@@ -251,6 +251,44 @@ export const getWebOSSystemInfo = async (keys = ['modelName', 'firmwareVersion',
 };
 
 /**
+ * Get the TV panel's native display dimensions.
+ * Service: luna://com.webos.service.tv.systemproperty/getSystemInfo
+ *
+ * Returns { width, height, uhd } where width/height are integer pixels of the
+ * panel's native rendering surface, or null if the call fails. Mirrors the
+ * shape of getWebOSSystemInfo and reuses ensureWebOSService — does not
+ * implement its own timeout (the caller in panelResolution.js wraps the call
+ * with Promise.race + a fallback path).
+ */
+export const getWebOSDisplayInfo = async () => {
+  if (!isWebOSTV() || !ensureWebOSService()) return null;
+
+  return new Promise((resolve) => {
+    try {
+      window.webOS.service.request('luna://com.webos.service.tv.systemproperty', {
+        method: 'getSystemInfo',
+        parameters: { keys: ['UHD', 'screenWidth', 'screenHeight'] },
+        onSuccess: (resp) => {
+          if (resp?.returnValue === false) return resolve(null);
+          const w = Number(resp?.screenWidth);
+          const h = Number(resp?.screenHeight);
+          resolve({
+            width: Number.isFinite(w) && w > 0 ? w : null,
+            height: Number.isFinite(h) && h > 0 ? h : null,
+            uhd: resp?.UHD === 'true' || resp?.UHD === true,
+            raw: resp,
+          });
+        },
+        onFailure: () => resolve(null),
+      });
+    } catch (err) {
+      console.warn('⚠ getDisplayInfo failed:', err.message);
+      resolve(null);
+    }
+  });
+};
+
+/**
  * Handle back button for webOS TV
  */
 export const handleWebOSBackButton = (callback) => {

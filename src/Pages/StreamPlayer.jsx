@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import Hls from "hls.js";
 import StreamAdOverlay from "./StreamAdOverlay";
+import { getPanelResolution, getPanelResolutionSync } from "../utils/panelResolution";
 
 const MEDIA_KEY_MAP = new Map([
   ["MediaPlay", "play"], ["MediaPause", "pause"], ["MediaPlayPause", "playPause"],
@@ -50,6 +51,30 @@ const HLSPlayer = ({ src, autoPlay = true, onStreamFailed = null, streamAd = nul
 
   const [loading, setLoading] = useState(true);
   const [showLoader, setShowLoader] = useState(false);
+
+  // ── Adaptive display layer ─────────────────────────────────────────────────
+  // panelRef holds the panel resolution synchronously for the manifest-parsed
+  // handler (which runs inside hls.js callbacks, not React render). panel state
+  // mirrors it so a re-render commits exact pixel sizes onto the <video>
+  // element once Luna detection resolves. First render uses getPanelResolutionSync
+  // (screen.* / window.inner*) so the video is correctly sized even before the
+  // async Luna probe completes — the upgrade to luna-detected dims is invisible.
+  const [panel, setPanel] = useState(() => getPanelResolutionSync());
+  const panelRef = useRef(panel);
+  useEffect(() => { panelRef.current = panel; }, [panel]);
+  useEffect(() => {
+    let cancelled = false;
+    getPanelResolution().then((p) => {
+      if (cancelled) return;
+      // Only update state if Luna actually returned different dims than the
+      // sync fallback — avoids a useless re-render on TVs where screen.* and
+      // Luna agree (the common case).
+      if (!panelRef.current || p.width !== panelRef.current.width || p.height !== panelRef.current.height) {
+        setPanel(p);
+      }
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   // ── Media keys (Play / Pause / FF / Rewind / Stop) ──────────────────────────
   useEffect(() => {
@@ -124,16 +149,36 @@ const HLSPlayer = ({ src, autoPlay = true, onStreamFailed = null, streamAd = nul
     // requests ran but the server didn't respond with the expected
     // playable content, so hls.js hung in "Loading..." indefinitely.
     //
-    // Modest timeout + retry bumps (still well within hls.js sane
-    // ranges) account for slow LG webOS cold-load on first manifest.
+    // hls.js config tuned from a 5-minute live capture against the BBNL CDN
+    // over residential WiFi: 54% of segments take >3 s, p90=6.5 s, max=19.8 s.
+    // Playback is calm-then-bursty — multi-minute clean windows interrupted
+    // by ~1-2 minute bursts where stalls cascade into 404s (CDN ages out the
+    // next segment while we're stalled). See
+    // docs/plans/2026-04-30-stream-buffer-tuning-design.md.
+    //
+    // Strategy: ride further behind the live edge so a stall can't trigger
+    // an age-out 404; widen the level/frag timeouts so a single slow fetch
+    // doesn't turn into a fatal; cap back-buffer so memory stays honest.
     const hls = new Hls({
       enableWorker: true,
       manifestLoadingTimeOut: 10000,
       manifestLoadingMaxRetry: 4,
-      levelLoadingTimeOut: 10000,
+      // levelLoadingTimeOut: probe showed level fetches ≥10 s during bursts.
+      levelLoadingTimeOut: 20000,
       levelLoadingMaxRetry: 4,
-      fragLoadingTimeOut: 20000,
+      // fragLoadingTimeOut: probe showed max segment time 19.8 s; allow more.
+      fragLoadingTimeOut: 30000,
       fragLoadingMaxRetry: 6,
+      // Buffer: generous forward room to soak network bursts; hard ceilings
+      // (maxMaxBufferLength, backBufferLength) prevent unbounded growth.
+      maxBufferLength: 30,
+      maxMaxBufferLength: 60,
+      backBufferLength: 30,
+      // Live edge: sit ~4 segments (~24 s) behind real-time. Trades latency
+      // for resilience — slow segments don't push us into the CDN's age-out
+      // window. Acceptable for IPTV; nobody is racing a broadcaster.
+      liveSyncDurationCount: 4,
+      liveMaxLatencyDurationCount: 10,
       xhrSetup: (xhr) => {
         xhr.setRequestHeader("X-App-Package", "com.bbnl.iptv");
       },
@@ -149,17 +194,39 @@ const HLSPlayer = ({ src, autoPlay = true, onStreamFailed = null, streamAd = nul
       try { onReadyRef.current?.(); } catch {}
     };
 
-    const onWaiting = () => setShowLoader(true);
-    const onStalled = () => setShowLoader(true);
-    const onPlaying = () => {
+    // Debounce the "Reconnecting..." spinner — `waiting` fires on every minor
+    // buffer top-up. With the tighter buffer caps above, top-ups happen more
+    // often, so flashing the spinner instantly would make healthy playback
+    // look broken. 600 ms ≈ one healthy segment fetch — real stalls still
+    // surface within a second, transient ABR/refill events stay invisible.
+    let waitDebounce = null;
+    const showLoaderSoon = () => {
+      if (waitDebounce) return;
+      waitDebounce = setTimeout(() => {
+        waitDebounce = null;
+        setShowLoader(true);
+      }, 600);
+    };
+    const clearLoaderNow = () => {
+      if (waitDebounce) { clearTimeout(waitDebounce); waitDebounce = null; }
       setShowLoader(false);
+    };
+
+    const onWaiting = showLoaderSoon;
+    const onStalled = showLoaderSoon;
+    const onPlaying = () => {
+      clearLoaderNow();
       setLoading(false);
       recoveryAttempts = 0;
       fireReady();
     };
     const onCanPlay = () => {
-      setShowLoader(false);
+      clearLoaderNow();
       setLoading(false);
+      // Reset recovery counter here too: a brief stutter can resolve before
+      // `playing` re-fires, and we don't want the next fatal error backing
+      // off longer than warranted.
+      recoveryAttempts = 0;
       fireReady();
     };
     video.addEventListener("waiting", onWaiting);
@@ -177,6 +244,47 @@ const HLSPlayer = ({ src, autoPlay = true, onStreamFailed = null, streamAd = nul
       clearTimeout(loaderTimer);
       setLoading(false);
       setShowLoader(false);
+
+      // Adaptive quality: cap hls.js's auto-level ceiling (and starting level)
+      // to the largest variant that fits the panel. Prevents wasting bandwidth
+      // and decode CPU on 4K segments destined for a 1080p screen, and avoids
+      // the "first 5s pixelated, then sharpens" effect by booting at the right
+      // tier. Pure ceiling — hls.js still adapts downward freely on bandwidth
+      // drops.
+      const p = panelRef.current;
+      const levels = data && Array.isArray(data.levels) ? data.levels : [];
+      if (p && p.width && levels.length > 1) {
+        const slack = p.width * 1.05;
+        let capIndex = -1;
+        for (let i = 0; i < levels.length; i++) {
+          const lw = levels[i] && levels[i].width;
+          if (typeof lw === "number" && lw <= slack) {
+            if (capIndex === -1 || lw > levels[capIndex].width) capIndex = i;
+          }
+        }
+        // Every level larger than the panel — pick the smallest available so
+        // the user always has something playable.
+        if (capIndex === -1) {
+          let minIdx = 0;
+          for (let i = 1; i < levels.length; i++) {
+            const cw = levels[i] && levels[i].width;
+            const mw = levels[minIdx] && levels[minIdx].width;
+            if (typeof cw === "number" && (typeof mw !== "number" || cw < mw)) minIdx = i;
+          }
+          capIndex = minIdx;
+        }
+        try {
+          hls.autoLevelCapping = capIndex;
+          hls.startLevel = capIndex;
+        } catch (_) { /* defensive — never break playback over a cap */ }
+        const chosen = levels[capIndex] || {};
+        console.log(
+          `[HLSPlayer:Display] panel=${p.width}x${p.height} (${p.tier}) ` +
+          `levels=[${levels.map((l) => `${(l && l.width) || "?"}x${(l && l.height) || "?"}`).join(",")}] ` +
+          `cap=#${capIndex} (${chosen.width || "?"}x${chosen.height || "?"})`,
+        );
+      }
+
       if (autoPlay) {
         video.muted = false;
         video.volume = 1;
@@ -273,6 +381,7 @@ const HLSPlayer = ({ src, autoPlay = true, onStreamFailed = null, streamAd = nul
     return () => {
       clearTimeout(loaderTimer);
       if (recoveryTimer) clearTimeout(recoveryTimer);
+      if (waitDebounce) clearTimeout(waitDebounce);
       video.removeEventListener("waiting", onWaiting);
       video.removeEventListener("stalled", onStalled);
       video.removeEventListener("playing", onPlaying);
@@ -307,9 +416,14 @@ const HLSPlayer = ({ src, autoPlay = true, onStreamFailed = null, streamAd = nul
       <video
         ref={videoRef}
         style={{
-          width: "100vw",
-          height: "100vh",
-          objectFit: "cover",
+          // Stretch-to-fill: every channel paints to the full panel surface
+          // regardless of source aspect. Detected pixel dims (not 100vw/vh)
+          // are used because some webOS firmwares CSS-scale the viewport
+          // smaller than the panel — pixel sizing guarantees we paint to the
+          // hardware surface rather than leaving black borders.
+          width: panel && panel.width ? `${panel.width}px` : "100vw",
+          height: panel && panel.height ? `${panel.height}px` : "100vh",
+          objectFit: "fill",
           backgroundColor: "#000",
           position: "absolute",
           top: 0,

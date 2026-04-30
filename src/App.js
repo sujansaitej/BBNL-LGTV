@@ -15,6 +15,7 @@ import { userLogout } from './server/OAuthentication-Api/LogoutApi';
 import { useDeviceInformation } from './server/Deviceinformaction/LG-Devicesinformaction';
 import ServiceLocked from './error/OAuthentication/ServiceLocked';
 import { releaseTapLock } from './Remote/useTapAction';
+import { useDataRevalidation } from './utils/useDataRevalidation';
 
 // Direct imports — zero lazy loading = instant page transitions on LG TV
 import BbnlVideo from "./Modules/bbnl";
@@ -159,6 +160,19 @@ function App() {
 
   const [isLocked, setIsLocked] = useState(false);
   const deviceInfo = useDeviceInformation();
+
+  // Stale-while-revalidate refresh of home data (channels/categories/languages/
+  // ads/ott apps) on cold launch and on app return from background. Picks up
+  // newly-subscribed channels without requiring logout/login. See
+  // docs/plans/2026-04-30-subscribed-channels-revalidation-design.md.
+  useDataRevalidation({
+    enabled: isAuthenticated,
+    getPayload: () => ({
+      userid: localStorage.getItem('userId') || '',
+      mobile: localStorage.getItem('userPhone') || '',
+      ip_address: deviceInfo?.publicIPv4 || deviceInfo?.privateIPv4 || '',
+    }),
+  });
 
   useEffect(() => {
     if (!isAuthenticated) return;
