@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
+import { create } from 'zustand';
+import { shallow } from 'zustand/shallow';
 import { getWebOSDeviceID, getWebOSNetworkInfo, getWebOSMacAddresses, getWebOSSystemInfo } from '../../utils/webos';
 import { getFormattedDeviceId } from '../../utils/deviceStorage';
 
@@ -14,79 +16,113 @@ import { getFormattedDeviceId } from '../../utils/deviceStorage';
  * 
  * @returns {Object} Device information object containing ipAddress, deviceId (PERMANENT), loading, and error states
  */
+// Singleton store. The first caller to `useDeviceInformation()` triggers the
+// parallel Luna + IP-detection bundle exactly once; every subsequent caller
+// (App.js, LoginOtp.jsx, anything else) subscribes to the same state without
+// re-firing the requests.
+const INITIAL_STATE = {
+  publicIPv4: null,
+  publicIPv6: null,
+  privateIPv4: null,
+  privateIPv6: null,
+  deviceId: null,
+  wiredMac: null,
+  wifiMac: null,
+  connectionType: null,
+  modelName: null,
+  firmwareVersion: null,
+  loading: true,
+  error: null,
+};
+
+const useDeviceInfoStore = create((set, get) => {
+  let inflight = null;
+
+  const runFetch = async () => {
+    try {
+      const deviceUUID = await getFormattedDeviceId();
+
+      const [, networkInfo, publicIPs, macAddresses, systemInfo] = await Promise.all([
+        fetchDeviceIdWithTimeout(5000),
+        fetchNetworkInfoWithTimeout(5000),
+        fetchPublicIPWithTimeout(5000),
+        fetchMacAddressesWithTimeout(5000),
+        fetchSystemInfoWithTimeout(5000),
+      ]);
+
+      set({
+        publicIPv4: publicIPs.ipv4 || 'Not available',
+        publicIPv6: publicIPs.ipv6 || 'Not available',
+        privateIPv4: networkInfo.ipv4 || 'Not available',
+        privateIPv6: networkInfo.ipv6 || 'Not available',
+        deviceId: deviceUUID,
+        wiredMac: macAddresses.wiredMac || 'Not available',
+        wifiMac: macAddresses.wifiMac || 'Not available',
+        connectionType: networkInfo.connectionType || 'Unknown',
+        modelName: systemInfo.modelName || 'Not available',
+        firmwareVersion: systemInfo.firmwareVersion || 'Not available',
+        loading: false,
+        error: null,
+      });
+    } catch (error) {
+      console.error('[ipaddress.jsx] Error fetching device information:', error);
+      const fallbackDeviceId = await getFormattedDeviceId().catch(() => 'Not available');
+      set({
+        publicIPv4: 'Not available',
+        publicIPv6: 'Not available',
+        privateIPv4: 'Not available',
+        privateIPv6: 'Not available',
+        deviceId: fallbackDeviceId,
+        wiredMac: 'Not available',
+        wifiMac: 'Not available',
+        connectionType: 'Unknown',
+        modelName: 'Not available',
+        firmwareVersion: 'Not available',
+        loading: false,
+        error: error.message,
+      });
+    }
+  };
+
+  return {
+    ...INITIAL_STATE,
+    ensureFetched: () => {
+      // Already done — do nothing.
+      if (!get().loading) return;
+      // Already in flight — re-use the existing promise.
+      if (inflight) return inflight;
+      inflight = runFetch();
+      return inflight;
+    },
+  };
+});
+
 export const useDeviceInformation = () => {
-  const [deviceInfo, setDeviceInfo] = useState({
-    publicIPv4: null,
-    publicIPv6: null,
-    privateIPv4: null,
-    privateIPv6: null,
-    deviceId: null,
-    wiredMac: null,
-    wifiMac: null,
-    connectionType: null,
-    modelName: null,
-    firmwareVersion: null,
-    loading: true,
-    error: null,
-  });
+  const ensureFetched = useDeviceInfoStore((s) => s.ensureFetched);
 
   useEffect(() => {
-    const fetchDeviceInfo = async () => {
-      try {
-        setDeviceInfo(prev => ({ ...prev, loading: true, error: null }));
+    ensureFetched();
+  }, [ensureFetched]);
 
-        // Get HARDWARE-BASED Device UUID (NEVER changes per TV)
-        // Priority: LGUDID → MAC Address → localStorage fallback
-        const deviceUUID = await getFormattedDeviceId();
-        
-        // Fetch ALL data in PARALLEL (not sequential) - MUCH FASTER
-        const [, networkInfo, publicIPs, macAddresses, systemInfo] = await Promise.all([
-          fetchDeviceIdWithTimeout(5000),  // 5 second timeout
-          fetchNetworkInfoWithTimeout(5000),
-          fetchPublicIPWithTimeout(5000),
-          fetchMacAddressesWithTimeout(5000),
-          fetchSystemInfoWithTimeout(5000),
-        ]);
-
-        setDeviceInfo({
-          publicIPv4: publicIPs.ipv4 || 'Not available',
-          publicIPv6: publicIPs.ipv6 || 'Not available',
-          privateIPv4: networkInfo.ipv4 || 'Not available',
-          privateIPv6: networkInfo.ipv6 || 'Not available',
-          deviceId: deviceUUID, // HARDWARE-BASED - Never changes
-          wiredMac: macAddresses.wiredMac || 'Not available',
-          wifiMac: macAddresses.wifiMac || 'Not available',
-          connectionType: networkInfo.connectionType || 'Unknown',
-          modelName: systemInfo.modelName || 'Not available',
-          firmwareVersion: systemInfo.firmwareVersion || 'Not available',
-          loading: false,
-          error: null,
-        });
-      } catch (error) {
-        console.error('[ipaddress.jsx] Error fetching device information:', error);
-        // Even on error, try to get hardware-based device ID
-        const fallbackDeviceId = await getFormattedDeviceId().catch(() => 'Not available');
-        setDeviceInfo({
-          publicIPv4: 'Not available',
-          publicIPv6: 'Not available',
-          privateIPv4: 'Not available',
-          privateIPv6: 'Not available',
-          deviceId: fallbackDeviceId,
-          wiredMac: 'Not available',
-          wifiMac: 'Not available',
-          connectionType: 'Unknown',
-          modelName: 'Not available',
-          firmwareVersion: 'Not available',
-          loading: false,
-          error: error.message,
-        });
-      }
-    };
-
-    fetchDeviceInfo();
-  }, []);
-
-  return deviceInfo;
+  // Shallow-compare so a new object identity from the selector doesn't trigger
+  // a re-render unless one of the underlying fields actually changed.
+  return useDeviceInfoStore(
+    (s) => ({
+      publicIPv4: s.publicIPv4,
+      publicIPv6: s.publicIPv6,
+      privateIPv4: s.privateIPv4,
+      privateIPv6: s.privateIPv6,
+      deviceId: s.deviceId,
+      wiredMac: s.wiredMac,
+      wifiMac: s.wifiMac,
+      connectionType: s.connectionType,
+      modelName: s.modelName,
+      firmwareVersion: s.firmwareVersion,
+      loading: s.loading,
+      error: s.error,
+    }),
+    shallow,
+  );
 };
 
 /**

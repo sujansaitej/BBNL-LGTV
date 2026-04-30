@@ -81,12 +81,16 @@
         outline: none !important;
       }
 
-      /* Language cards — no transform to keep text sharp on TV */
+      /* Language items — chrome-free at rest (transparent + 3px transparent border
+         to reserve layout space). Focus reveals a soft dark surface + white border;
+         hover gives a subtle background tint. No transform — TV-safe.
+         Pressed state handled by the global tap-acknowledgement rule below. */
       .focusable-language-card[data-focused="true"] {
-        border: 4px solid rgba(255,255,255,0.9) !important;
+        background: #1a1a1a !important;
+        border-color: #ffffff !important;
       }
       .focusable-language-card[data-hovered="true"]:not([data-focused="true"]) {
-        border: 3px solid rgba(255,255,255,0.3) !important;
+        background: rgba(255,255,255,0.04) !important;
       }
 
       /* Generic buttons (category tabs, OTT, etc.) — no transform to keep text sharp */
@@ -96,6 +100,18 @@
       }
       .focusable-button[data-hovered="true"]:not([data-focused="true"]) {
         border: 3px solid rgba(255,255,255,0.3) !important;
+      }
+
+      /* Channel grid tiles — distinct focus: white border + brand-blue halo +
+         slight surface lift so the focused tile pops out of the dense 7-col
+         grid. Border-only/box-shadow only (no transform) — TV-safe. */
+      .focusable-channel-tile[data-focused="true"] {
+        border-color: #ffffff !important;
+        background: rgba(255,255,255,0.12) !important;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.55) !important;
+      }
+      .focusable-channel-tile[data-hovered="true"]:not([data-focused="true"]) {
+        border-color: rgba(255,255,255,0.35) !important;
       }
 
       /* OTT app cards (Home APPS row) — border + brightness, no transform */
@@ -224,17 +240,47 @@
         border: 2px solid #fff !important;
       }
 
-      /* ChannelLocked modal OK button */
-      .focusable-locked-ok:focus,
-      .focusable-locked-ok[data-focused="true"] {
+      /* Subscription Not Available modal — Pay Now button (transparent
+         outlined CTA, fills with brand blue on focus). */
+      .focusable-paynow-btn:focus,
+      .focusable-paynow-btn[data-focused="true"] {
         border: 2px solid #fff !important;
         background: #5163ed !important;
-        box-shadow: 0 0 0 4px rgba(91,124,250,0.35);
+        box-shadow: 0 0 0 6px rgba(91,124,250,0.35);
+      }
+
+      /* Coming Soon modal — Go Back button (already filled blue, just needs
+         a clear focus ring). */
+      .focusable-goback-btn:focus,
+      .focusable-goback-btn[data-focused="true"] {
+        border: 2px solid #fff !important;
+        background: #5163ed !important;
+        box-shadow: 0 0 0 6px rgba(91,124,250,0.35);
       }
 
       /* Language tabs (second row in player sidebar) */
       .focusable-language-tab[data-focused="true"] {
         border: 2px solid #60a5fa !important;
+        outline: none !important;
+      }
+
+      /* ── ChannelsSidebar redesign (2026-04-30) ─────────────────────────────
+         Three focus zones — tab navigator strip, category rows, channel
+         cards. Border-only (no transform; transforms blur text on LG TV
+         panels per magicRemoteUIStability). */
+      .focusable-tabnav[data-focused="true"] {
+        border: 1.5px solid #ffffff !important;
+        background: rgba(255,255,255,0.04) !important;
+        outline: none !important;
+      }
+      .focusable-category-row[data-focused="true"] {
+        border: 1.5px solid #ffffff !important;
+        background: rgba(255,255,255,0.05) !important;
+        outline: none !important;
+      }
+      .focusable-channel-card[data-focused="true"] {
+        border: 1.5px solid #ffffff !important;
+        background: rgba(255,255,255,0.05) !important;
         outline: none !important;
       }
 

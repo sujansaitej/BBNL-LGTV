@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 
 import fetchOttApps from "../server/modules-api/OttAppsApi";
 import { nowMs } from "./HomeStore";
@@ -11,7 +12,7 @@ const buildAppsKey = (payload) => {
   return `${user}|${mobile}`;
 };
 
-const useOttAppsStore = create((set, get) => ({
+const useOttAppsStore = create(persist((set, get) => ({
   appsCache: {},
   error: "",
 
@@ -83,6 +84,18 @@ const useOttAppsStore = create((set, get) => ({
       return [];
     }
   },
+}), {
+  name: "bbnl_ott_apps_cache_v1",
+  storage: createJSONStorage(() => localStorage),
+  partialize: (state) => ({
+    appsCache: Object.fromEntries(
+      Object.entries(state.appsCache).map(([key, entry]) => [key, {
+        data: entry?.data || [],
+        loadedAt: entry?.loadedAt || 0,
+        fetchMs: entry?.fetchMs || 0,
+      }])
+    ),
+  }),
 }));
 
 export default useOttAppsStore;

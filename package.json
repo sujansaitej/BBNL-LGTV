@@ -19,12 +19,12 @@
     "test": "react-scripts test",
     "eject": "react-scripts eject",
     "tv:package": "ares-package build/ -o .",
-    "tv:install": "ares-install --device tv com.lg.bbnl_2.0.0_all.ipk",
-    "tv:launch": "ares-launch --device tv com.lg.bbnl",
-    "tv:close": "ares-launch --device tv --close com.lg.bbnl",
-    "tv:inspect": "ares-inspect --device tv com.lg.bbnl",
+    "tv:install": "ares-install --device tv com.bbnl.iptv_2.0.0_all.ipk",
+    "tv:launch": "ares-launch --device tv com.bbnl.iptv",
+    "tv:close": "ares-launch --device tv --close com.bbnl.iptv",
+    "tv:inspect": "ares-inspect --device tv com.bbnl.iptv",
     "tv:logs": "ares-log --device tv",
-    "tv:uninstall": "ares-install --device tv --remove com.lg.bbnl",
+    "tv:uninstall": "ares-install --device tv --remove com.bbnl.iptv",
     "deploy": "npm run build && npm run tv:package && npm run tv:install && npm run tv:launch"
   },
   "eslintConfig": {

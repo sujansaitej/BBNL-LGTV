@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import { API_ENDPOINTS, getDefaultHeaders } from "../../server/config";
 
-const FALLBACK_IMAGE = "http://124.40.244.211/netmon/Cabletvapis/showimg/service_locked.png";
+const FALLBACK_IMAGE = "https://bbnlnetmon.bbnl.in/prod/cabletvapis/showimg/service_locked.png";
 
 const ServiceLocked = () => {
   const [imageUrl, setImageUrl] = useState(FALLBACK_IMAGE);

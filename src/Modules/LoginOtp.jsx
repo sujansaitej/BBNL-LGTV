@@ -28,6 +28,7 @@ import fetchLoginLogo from "../server/OAuthentication-Api/LogoApi";
 import { attemptSso } from "../server/OAuthentication-Api/SsoLoginApi";
 import { sessionSet } from "../utils/session";
 import { getWebOSDeviceID } from "../utils/webos";
+import { prefetchHomeData } from "../utils/prefetchHome";
 
 /* ─── tiny spinner ───────────────────────────────────────────────────────── */
 const Spinner = ({ size = 22 }) => (
@@ -185,10 +186,14 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
 
         if (result?.success && result?.customer) {
           const c = result.customer;
-          sessionSet("userId", c.userid || "");
-          sessionSet("userPhone", c.custdet?.[0]?.mobile || "");
+          const ssoUserId = c.userid || "";
+          const ssoMobile = c.custdet?.[0]?.mobile || "";
+          sessionSet("userId", ssoUserId);
+          sessionSet("userPhone", ssoMobile);
           // App.js auth gate reads sessionGet('isAuthenticated') === 'true'.
           sessionSet("isAuthenticated", "true");
+          // Warm Home caches in the background so /home renders against fresh data.
+          prefetchHomeData({ userid: ssoUserId, mobile: ssoMobile, ip_address: ip });
           onLoginSuccess?.();
           navigate("/home");
           return;
@@ -220,10 +225,18 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
       if (result.success) {
         // Persist to both localStorage AND cookies so the session survives
         // any single-store wipe (firmware update / dev reinstall / edge case).
-        sessionSet("userId", result.data?.body?.[0]?.userid || "");
+        const newUserId = result.data?.body?.[0]?.userid || "";
+        sessionSet("userId", newUserId);
         sessionSet("userPhone", phone);
         setServerOtp(String(result.otp || ""));
-        setTimeout(() => setStep(2), 400);
+        // Kick off Home data fetch while the user types the OTP — by the time
+        // they hit Verify, channels/categories/languages/ads/apps are cached.
+        prefetchHomeData({
+          userid: newUserId,
+          mobile: phone,
+          ip_address: deviceInfo.privateIPv4 || deviceInfo.publicIPv4 || "",
+        });
+        setStep(2);
       } else if (result.networkError) {
         setNetworkError(true);
       } else {
@@ -239,8 +252,8 @@ const PhoneAuthApp = ({ onLoginSuccess }) => {
     const { otp, serverOtp, loading } = S.current;
     if (otp.length !== 4 || loading) return;
     if (serverOtp && otp === serverOtp) {
-      setLoading(true);
-      setTimeout(() => { setLoading(false); onLoginSuccess?.(); navigate("/home"); }, 800);
+      onLoginSuccess?.();
+      navigate("/home");
     } else {
       setShowOtpError(true);
     }

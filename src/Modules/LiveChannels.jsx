@@ -4,7 +4,6 @@ import { useLocation, useNavigate } from "react-router-dom";
 import useLiveChannelsStore from "../store/LiveChannelsStore";
 import useLanguageStore from "../store/LivePlayersStore";
 import { isSubscribed } from "../utils/subscription";
-import ChannelLocked from "../error/Modules-Erros/ChannelLocked";
 import ChannelTile from "./components/ChannelTile";
 import { useTapAction } from "../Remote/useTapAction";
 
@@ -12,7 +11,8 @@ const ArrowBackIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0
 const SearchIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" /></svg>;
 const ClearIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" /></svg>;
 
-const COLS = 5;
+const COLS = 7;
+const GRID_GAP = "0.85rem";
 const KEY_THROTTLE = 80;
 
 const LiveChannels = () => {
@@ -27,7 +27,6 @@ const LiveChannels = () => {
   const [selectedLanguageTitle, setSelectedLanguageTitle] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [channelJumpBuffer, setChannelJumpBuffer] = useState("");
-  const [lockedChannel, setLockedChannel] = useState(null);
   const [, startTransition] = useTransition();
   const [renderGrid, setRenderGrid] = useState(false);
   useEffect(() => {
@@ -217,16 +216,12 @@ const LiveChannels = () => {
   }, [filteredChannels]);
 
   const handleChannelSelectRaw = useCallback((ch) => {
-    // Subscription gate — locked tiles open the modal in place. The user
-    // dismisses and stays on /live-channels (no /player round trip, no
-    // "No stream link provided" placeholder to back out of).
-    if (!isSubscribed(ch)) {
-      setLockedChannel(ch);
-      return;
-    }
-    const url = ch.streamlink || ch.stream_link || ch.streamurl || ch.stream_url || ch.url || ch.link || ch.videourl || ch.video_url || ch.hlsurl || ch.hls_url || ch.manifest || ch.manifesturl;
-    if (url) navigate("/player", { state: { streamlink: url, title: ch.chtitle, channelData: ch } });
-    else setLocalError(`No stream URL found for channel: ${ch.chtitle}`);
+    // Always route through /player. LivePlayer owns the subscription gate
+    // (mount-time effect surfaces the Subscription Not Available modal when
+    // channelData isn't subscribed, suppressing HLS load). Go Back from the
+    // modal navigates(-1) back here with filters intact.
+    const url = ch.streamlink || ch.stream_link || ch.streamurl || ch.stream_url || ch.url || ch.link || ch.videourl || ch.video_url || ch.hlsurl || ch.hls_url || ch.manifest || ch.manifesturl || "";
+    navigate("/player", { state: { streamlink: url, title: ch.chtitle, channelData: ch } });
   }, [navigate]);
   const handleChannelSelect = useTapAction(handleChannelSelectRaw);
 
@@ -350,9 +345,9 @@ const LiveChannels = () => {
       {/* Channels Grid */}
       <div className="hide-scrollbar" style={{ flex: 1, overflowY: "auto", padding: "0.5rem 2.5rem 3rem" }}>
         {(!renderGrid || isLoadingChannels) ? (
-          <div style={{ display: "grid", gridTemplateColumns: `repeat(${COLS}, 1fr)`, gap: "1.5rem" }}>
-            {Array.from({ length: 10 }).map((_, i) => (
-              <div key={i} style={{ borderRadius: "16px", height: "14rem", background: "linear-gradient(90deg,rgba(255,255,255,0.04) 25%,rgba(255,255,255,0.08) 50%,rgba(255,255,255,0.04) 75%)", backgroundSize: "400px 100%" }} />
+          <div style={{ display: "grid", gridTemplateColumns: `repeat(${COLS}, 1fr)`, gap: GRID_GAP }}>
+            {Array.from({ length: COLS * 2 }).map((_, i) => (
+              <div key={i} style={{ borderRadius: "14px", aspectRatio: "16/10", background: "linear-gradient(90deg,rgba(255,255,255,0.04) 25%,rgba(255,255,255,0.08) 50%,rgba(255,255,255,0.04) 75%)", backgroundSize: "400px 100%" }} />
             ))}
           </div>
         ) : filteredChannels.length === 0 ? (
@@ -360,7 +355,7 @@ const LiveChannels = () => {
             <p style={{ fontSize: "1.5rem", fontWeight: 600, color: "rgba(255,255,255,0.5)" }}>No channels found</p>
           </div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: `repeat(${COLS}, 1fr)`, gap: "1.5rem" }}>
+          <div style={{ display: "grid", gridTemplateColumns: `repeat(${COLS}, 1fr)`, gap: GRID_GAP }}>
             {filteredChannels.map((channel, index) => (
               <ChannelTile
                 key={`${channel.channelno}-${index}`}
@@ -373,14 +368,6 @@ const LiveChannels = () => {
           </div>
         )}
       </div>
-
-      {/* Channel-locked modal for unsubscribed grid clicks */}
-      {lockedChannel && (
-        <ChannelLocked
-          channel={lockedChannel}
-          onClose={() => setLockedChannel(null)}
-        />
-      )}
     </div>
   );
 };

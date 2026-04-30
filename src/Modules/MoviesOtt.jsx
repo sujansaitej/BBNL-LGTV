@@ -5,7 +5,7 @@ import { API_ENDPOINTS, getDefaultHeaders } from "../server/config";
 import { useEnhancedRemoteNavigation } from "../Remote/useMagicRemote";
 import { useTapAction } from "../Remote/useTapAction";
 
-const FALLBACK_OTT_IMAGE = "http://124.40.244.211/netmon/Cabletvapis/showimg/coming_soon_ott.png";
+const FALLBACK_OTT_IMAGE = "https://bbnlnetmon.bbnl.in/prod/cabletvapis/showimg/coming_soon_ott.png";
 
 const MoviesOtt = () => {
   const navigate = useNavigate();

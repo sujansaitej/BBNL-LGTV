@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 
 import { API_ENDPOINTS } from "../server/config";
 import { nowMs, postForm, postJson } from "./HomeStore";
@@ -15,7 +16,7 @@ const buildAdsKey = (payload) => {
   return `${user}|${mobile}|${area}|${type}|${client}|${src}`;
 };
 
-const useHomeAdsStore = create((set, get) => ({
+const useHomeAdsStore = create(persist((set, get) => ({
   adsCache: {},
   error: "",
   fetchAds: async (payload, options = {}) => {
@@ -101,6 +102,19 @@ const useHomeAdsStore = create((set, get) => ({
       return [];
     }
   },
+}), {
+  name: "bbnl_ads_cache_v1",
+  storage: createJSONStorage(() => localStorage),
+  // Persist only the cache map, not in-flight isLoading flags or transient error messages.
+  partialize: (state) => ({
+    adsCache: Object.fromEntries(
+      Object.entries(state.adsCache).map(([key, entry]) => [key, {
+        data: entry?.data || [],
+        loadedAt: entry?.loadedAt || 0,
+        fetchMs: entry?.fetchMs || 0,
+      }])
+    ),
+  }),
 }));
 
 export default useHomeAdsStore;

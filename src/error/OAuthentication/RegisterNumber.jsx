@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import { API_ENDPOINTS, API_BASE_URL_PROD, getDefaultHeaders } from "../../server/config";
 
-const FALLBACK_LOGIN_REQUIRED_IMAGE = "http://124.40.244.211/netmon/Cabletvapis/showimg/login_required.png";
+const FALLBACK_LOGIN_REQUIRED_IMAGE = "https://bbnlnetmon.bbnl.in/prod/cabletvapis/showimg/login_required.png";
 
 const RegisterNumber = ({ onRetry, message }) => {
   const [imageUrl, setImageUrl] = useState(FALLBACK_LOGIN_REQUIRED_IMAGE);

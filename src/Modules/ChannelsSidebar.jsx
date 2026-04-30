@@ -1,551 +1,800 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, forwardRef } from "react";
 import useLiveChannelsStore from "../store/LiveChannelsStore";
 import useLanguageStore from "../store/LivePlayersStore";
 import { isSubscribed } from "../utils/subscription";
 
+// ── Persist last-active tab across sidebar opens ─────────────────────────
+const LAST_TAB_KEY = "bbnl_sidebar_last_tab_idx";
+const loadLastTab = () => {
+  try {
+    const v = parseInt(localStorage.getItem(LAST_TAB_KEY) || "0", 10);
+    return Number.isFinite(v) && v >= 0 ? v : 0;
+  } catch { return 0; }
+};
+const saveLastTab = (idx) => {
+  try { localStorage.setItem(LAST_TAB_KEY, String(idx)); } catch {}
+};
+
+// ── Format helpers ───────────────────────────────────────────────────────
+const formatPrice = (value) => {
+  if (value === undefined || value === null) return "";
+  const text = String(value).trim();
+  if (!text) return "";
+  if (/^[0-9]+(\.[0-9]+)?$/.test(text)) {
+    const n = Number(text);
+    return `₹${n.toFixed(2)}`;
+  }
+  return text;
+};
+
+const VIRTUAL_CAT_TITLES = new Set(["all channels", "subscribed channels"]);
+
+// Drop the categories endpoint's virtual entries so the inner category list
+// only contains content categories (Entertainment/Movies/...).
+const stripVirtualCategories = (cats) => {
+  if (!Array.isArray(cats)) return [];
+  return cats.filter((c) => {
+    const t = String(c?.title || "").trim().toLowerCase();
+    return t && !VIRTUAL_CAT_TITLES.has(t);
+  });
+};
+
 const ChannelsSidebar = ({ onChannelSelect, currentChannel }) => {
+  // ── Data state ───────────────────────────────────────────────────────────
   const [allChannels, setAllChannels] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [languageCategories, setLanguageCategories] = useState([]);
+  const [contentCategories, setContentCategories] = useState([]);
+  const [languageOptions, setLanguageOptions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const { categories: cachedCategories, channelsCache, fetchCategories, fetchChannels } = useLiveChannelsStore();
+
+  const {
+    categories: cachedCategories,
+    channelsCache,
+    fetchCategories,
+    fetchChannels,
+  } = useLiveChannelsStore();
   const { fetchLanguages } = useLanguageStore();
 
-  // Mutually-exclusive filter mode: "category" | "language"
-  const [filterMode, setFilterMode] = useState("category");
-  const [selectedCategory, setSelectedCategory] = useState(0);
-  const [selectedLanguage, setSelectedLanguage] = useState(-1);
+  // ── UI state ─────────────────────────────────────────────────────────────
+  // activeTabIdx and expandedCat are the only React-state pieces that
+  // influence the render tree. Everything else (focus zones, focus indices)
+  // lives in refs to keep arrow-key navigation re-render-free.
+  const [activeTabIdx, setActiveTabIdx] = useState(loadLastTab);
+  const [expandedCat, setExpandedCat] = useState(-1);
 
-  // ── ALL navigation state in REFS — zero re-renders on keypress ──────────
-  const activeZoneRef = useRef("categories"); // "categories" | "languages" | "channels"
+  // ── Focus refs (zero re-renders on keypress) ─────────────────────────────
+  const activeZoneRef = useRef("tabnav"); // "tabnav" | "categories" | "channels"
   const focusedCatRef = useRef(0);
-  const focusedLangRef = useRef(0);
   const focusedChRef = useRef(0);
+
+  const tabnavRef = useRef(null);
   const catRefs = useRef([]);
-  const langTabsRef = useRef([]);
   const chRefs = useRef([]);
-  const channelListRef = useRef(null);
-  const channelsRef = useRef([]);       // stable ref for filtered channels
-  const categoriesRef = useRef([]);     // stable ref for categories array
-  const languagesDataRef = useRef([]);  // stable ref for language tabs array
+
+  // ── Stable refs for handler reads (avoid stale closures) ────────────────
+  const activeTabIdxRef = useRef(activeTabIdx);
+  const expandedCatRef = useRef(expandedCat);
+  const tabsRef = useRef([]);
+  const visibleChannelsRef = useRef([]);
   const onChannelSelectRef = useRef(onChannelSelect);
 
-  // Keep refs in sync
-  useEffect(() => { categoriesRef.current = categories; }, [categories]);
-  useEffect(() => { languagesDataRef.current = languageCategories; }, [languageCategories]);
+  useEffect(() => { activeTabIdxRef.current = activeTabIdx; }, [activeTabIdx]);
+  useEffect(() => { expandedCatRef.current = expandedCat; }, [expandedCat]);
   useEffect(() => { onChannelSelectRef.current = onChannelSelect; }, [onChannelSelect]);
 
   const userid = localStorage.getItem("userId") || "";
   const mobile = localStorage.getItem("userPhone") || "";
   const payloadBase = useMemo(() => ({ userid, mobile }), [userid, mobile]);
 
-  const formatPrice = (value) => {
-    if (value === undefined || value === null) return "";
-    const text = String(value).trim();
-    if (!text) return "";
-    if (text === "0" || text === "0.0" || text === "0.00") return "Free";
-    return /^[0-9]+(\.[0-9]+)?$/.test(text) ? `₹${text}` : text;
-  };
-
   // ── Load categories ──────────────────────────────────────────────────────
   useEffect(() => {
-    const loadCategories = async () => {
+    let cancelled = false;
+    const load = async () => {
       try {
         if (cachedCategories.length > 0) {
-          setCategories(cachedCategories);
+          setContentCategories(stripVirtualCategories(cachedCategories));
         }
         const cats = await fetchCategories(payloadBase);
-        setCategories(cats);
-      } catch (err) {
-        console.error("Failed to fetch categories:", err);
+        if (!cancelled) setContentCategories(stripVirtualCategories(cats));
+      } catch {
+        // keep going — sidebar still works without categories (only "All Channels" tab usable)
       }
     };
-    loadCategories();
+    load();
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Load language categories ─────────────────────────────────────────────
+  // ── Load languages ──────────────────────────────────────────────────────
   useEffect(() => {
-    const loadLanguages = async () => {
+    let cancelled = false;
+    const load = async () => {
       try {
         const langs = await fetchLanguages(payloadBase);
-        // Filter out catch-alls that duplicate the categories row
+        if (cancelled) return;
         const filtered = (Array.isArray(langs) ? langs : []).filter((l) => {
           const title = String(l?.langtitle || "").trim().toLowerCase();
-          return title && title !== "all channels" && title !== "subscribed channels";
+          return title && !VIRTUAL_CAT_TITLES.has(title);
         });
-        setLanguageCategories(filtered);
-      } catch (err) {
-        console.error("Failed to fetch languages:", err);
+        setLanguageOptions(filtered);
+      } catch {
+        // languages absent → only Subscribed/All tabs render
       }
     };
-    loadLanguages();
+    load();
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Load ALL channels once (empty grid = all channels) ─────────────────
+  // ── Load all channels (one network call, then everything is in-memory) ──
   useEffect(() => {
-    const loadChannels = async () => {
+    let cancelled = false;
+    const load = async () => {
       try {
         setLoading(true);
         setError("");
-        const payload = { ...payloadBase, grid: "" };
         const key = `${userid}|${mobile}|`;
         const cached = channelsCache[key]?.data;
-        if (cached) setAllChannels(cached || []);
-        const channelsData = await fetchChannels(payload, { key });
-        setAllChannels(channelsData || []);
-      } catch (err) {
-        setError("Failed to load channels");
-        console.error(err);
+        if (cached && cached.length > 0) {
+          setAllChannels(cached);
+          setLoading(false);
+        }
+        const data = await fetchChannels({ ...payloadBase, grid: "" }, { key });
+        if (!cancelled) setAllChannels(Array.isArray(data) ? data : []);
+      } catch {
+        if (!cancelled) setError("Failed to load channels");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
-    loadChannels();
+    load();
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Client-side filtering ────────────────────────────────────────────────
-  const channels = useMemo(() => {
-    if (allChannels.length === 0) return allChannels;
+  // ── Unified tab list ─────────────────────────────────────────────────────
+  const tabs = useMemo(() => {
+    const langTabs = languageOptions.map((l) => ({
+      kind: "lang",
+      title: l.langtitle || "—",
+      langid: String(l.langid || "").trim(),
+    }));
+    return [
+      { kind: "subscribed", title: "Subscribed Channels" },
+      { kind: "all",        title: "All Channels" },
+      ...langTabs,
+    ];
+  }, [languageOptions]);
+  useEffect(() => { tabsRef.current = tabs; }, [tabs]);
 
-    // Language filter wins when explicitly active
-    if (filterMode === "language" && selectedLanguage >= 0) {
-      const lang = languageCategories[selectedLanguage];
-      if (!lang) return allChannels;
-      const targetId = String(lang.langid || "").trim();
-      if (!targetId) return allChannels;
-      return allChannels.filter((c) => String(c.langid || "").trim() === targetId);
-    }
-
-    // Otherwise: category filter
-    if (categories.length === 0) return allChannels;
-    const activeCat = categories[selectedCategory];
-    if (!activeCat) return allChannels;
-    const activeTitle = activeCat.title;
-    const activeGrid = activeCat.grid;
-
-    if (activeTitle === "All Channels" || activeGrid === "") {
-      return allChannels;
-    }
-    if (activeGrid === "subs" || activeTitle === "Subscribed Channels") {
-      return allChannels.filter(isSubscribed);
-    }
-    return allChannels.filter((c) => c.grid === activeGrid);
-  }, [allChannels, categories, selectedCategory, languageCategories, selectedLanguage, filterMode]);
-
-  // Keep channelsRef in sync with filtered channels
-  useEffect(() => { channelsRef.current = channels; }, [channels]);
-
-  // Reset channel focus when filter changes
+  // Clamp activeTabIdx if the persisted value is now out of range.
   useEffect(() => {
-    focusedChRef.current = 0;
+    if (activeTabIdx >= tabs.length) {
+      setActiveTabIdx(0);
+    }
+  }, [tabs.length, activeTabIdx]);
+
+  const activeTab = tabs[activeTabIdx] || tabs[0];
+
+  // ── Filter channels for the active tab ───────────────────────────────────
+  const tabChannels = useMemo(() => {
+    if (!activeTab || allChannels.length === 0) return [];
+    if (activeTab.kind === "all") return allChannels;
+    if (activeTab.kind === "subscribed") return allChannels.filter(isSubscribed);
+    if (activeTab.kind === "lang") {
+      const id = activeTab.langid;
+      if (!id) return [];
+      return allChannels.filter((c) => String(c.langid || "").trim() === id);
+    }
+    return [];
+  }, [allChannels, activeTab]);
+
+  // ── Group channels by content category (skipped for "All Channels") ─────
+  // Empty groups dropped so users never see "Sports (0)".
+  const groups = useMemo(() => {
+    if (!activeTab || activeTab.kind === "all") return [];
+    if (contentCategories.length === 0 || tabChannels.length === 0) return [];
+    return contentCategories
+      .map((cat) => ({
+        category: cat,
+        channels: tabChannels.filter(
+          (c) => String(c.grid || "").trim() === String(cat.grid || "").trim(),
+        ),
+      }))
+      .filter((g) => g.channels.length > 0);
+  }, [tabChannels, contentCategories, activeTab]);
+
+  // ── Channels currently visible to keyboard navigation ───────────────────
+  // For "All Channels" → flat list. For grouped tabs → only the channels
+  // inside the expanded group.
+  const visibleChannels = useMemo(() => {
+    if (!activeTab) return [];
+    if (activeTab.kind === "all") return tabChannels;
+    if (expandedCat < 0 || expandedCat >= groups.length) return [];
+    return groups[expandedCat].channels;
+  }, [activeTab, tabChannels, groups, expandedCat]);
+  useEffect(() => { visibleChannelsRef.current = visibleChannels; }, [visibleChannels]);
+
+  // ── Persist last tab ─────────────────────────────────────────────────────
+  useEffect(() => { saveLastTab(activeTabIdx); }, [activeTabIdx]);
+
+  // ── DOM focus helpers (no React re-renders) ─────────────────────────────
+  const clearAllFocus = useCallback(() => {
+    if (tabnavRef.current) tabnavRef.current.removeAttribute("data-focused");
+    catRefs.current.forEach((el) => { if (el) el.removeAttribute("data-focused"); });
     chRefs.current.forEach((el) => { if (el) el.removeAttribute("data-focused"); });
-  }, [selectedCategory, selectedLanguage, filterMode]);
-
-  // ── Pure DOM focus — ZERO re-renders ────────────────────────────────────
-  const moveFocus = useCallback((zone, newIndex) => {
-    const refs = zone === "categories" ? catRefs
-               : zone === "languages"  ? langTabsRef
-               : chRefs;
-    const prevRef = zone === "categories" ? focusedCatRef
-                  : zone === "languages"  ? focusedLangRef
-                  : focusedChRef;
-    const oldIndex = prevRef.current;
-
-    if (oldIndex !== newIndex) {
-      const oldEl = refs.current[oldIndex];
-      if (oldEl) oldEl.removeAttribute("data-focused");
-    }
-
-    const newEl = refs.current[newIndex];
-    if (newEl) {
-      newEl.setAttribute("data-focused", "true");
-      newEl.scrollIntoView({ block: "nearest", inline: "nearest" });
-    }
-
-    prevRef.current = newIndex;
   }, []);
 
-  // Switch between zones — clear old zone focus, apply new
-  const switchZone = useCallback((newZone) => {
-    const oldZone = activeZoneRef.current;
-    if (oldZone === newZone) return;
+  const focusEl = useCallback((el) => {
+    if (!el) return;
+    el.setAttribute("data-focused", "true");
+    el.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, []);
 
-    const oldRefs = oldZone === "categories" ? catRefs
-                  : oldZone === "languages"  ? langTabsRef
-                  : chRefs;
-    const oldRef  = oldZone === "categories" ? focusedCatRef
-                  : oldZone === "languages"  ? focusedLangRef
-                  : focusedChRef;
-    const oldEl = oldRefs.current[oldRef.current];
-    if (oldEl) oldEl.removeAttribute("data-focused");
-
-    activeZoneRef.current = newZone;
-
-    const newRef = newZone === "categories" ? focusedCatRef
-                 : newZone === "languages"  ? focusedLangRef
-                 : focusedChRef;
-    moveFocus(newZone, newRef.current);
-  }, [moveFocus]);
-
-  // ── Apply initial focus when component mounts or sidebar becomes visible
-  useEffect(() => {
-    if (categories.length > 0) {
-      moveFocus("categories", focusedCatRef.current);
+  const applyZoneFocus = useCallback(() => {
+    const zone = activeZoneRef.current;
+    if (zone === "tabnav") {
+      focusEl(tabnavRef.current);
+    } else if (zone === "categories") {
+      focusEl(catRefs.current[focusedCatRef.current]);
+    } else if (zone === "channels") {
+      focusEl(chRefs.current[focusedChRef.current]);
     }
-  }, [categories.length, moveFocus]);
+  }, [focusEl]);
 
-  // ── SINGLE keyboard handler — registered ONCE, reads from refs ──────────
+  // Initial mount → focus the tab navigator.
   useEffect(() => {
-    const handleKey = (e) => {
-      const key = e.key;
+    activeZoneRef.current = "tabnav";
+    clearAllFocus();
+    applyZoneFocus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // After tab change → re-apply focus (refs reattach to fresh DOM nodes).
+  useEffect(() => {
+    clearAllFocus();
+    if (activeZoneRef.current === "channels" && activeTab?.kind !== "all") {
+      // Tab switch invalidates channel focus — fall back to tabnav.
+      activeZoneRef.current = "tabnav";
+    }
+    applyZoneFocus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTabIdx]);
+
+  // After accordion change → re-focus into the new context.
+  useEffect(() => {
+    clearAllFocus();
+    applyZoneFocus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expandedCat]);
+
+  // ── Keyboard handler ─────────────────────────────────────────────────────
+  useEffect(() => {
+    const onKey = (e) => {
+      const k = e.key;
       const kc = e.keyCode;
       const zone = activeZoneRef.current;
+      const tabsNow = tabsRef.current;
+      const curTab = tabsNow[activeTabIdxRef.current];
+      if (!curTab) return;
 
-      if (zone === "categories") {
-        if (key === "ArrowLeft" || kc === 37) {
+      const isLeft  = k === "ArrowLeft"  || kc === 37;
+      const isRight = k === "ArrowRight" || kc === 39;
+      const isUp    = k === "ArrowUp"    || kc === 38;
+      const isDown  = k === "ArrowDown"  || kc === 40;
+      const isOk    = k === "Enter"      || kc === 13 || k === " ";
+
+      // ── ZONE: tabnav ────────────────────────────────────────────────────
+      if (zone === "tabnav") {
+        if (isLeft) {
           e.preventDefault(); e.stopPropagation();
-          const next = Math.max(0, focusedCatRef.current - 1);
-          if (next !== focusedCatRef.current) moveFocus("categories", next);
-        } else if (key === "ArrowRight" || kc === 39) {
-          e.preventDefault(); e.stopPropagation();
-          const next = Math.min(categoriesRef.current.length - 1, focusedCatRef.current + 1);
-          if (next !== focusedCatRef.current) moveFocus("categories", next);
-        } else if (key === "ArrowDown" || kc === 40) {
-          e.preventDefault(); e.stopPropagation();
-          if (languagesDataRef.current.length > 0) {
-            switchZone("languages");
-          } else if (channelsRef.current.length > 0) {
-            switchZone("channels");
+          const idx = activeTabIdxRef.current;
+          if (idx > 0) {
+            setExpandedCat(-1);
+            focusedCatRef.current = 0;
+            focusedChRef.current = 0;
+            setActiveTabIdx(idx - 1);
           }
-        } else if (key === "Enter" || kc === 13 || key === " ") {
-          e.preventDefault(); e.stopPropagation();
-          setFilterMode("category");
-          setSelectedLanguage(-1);
-          setSelectedCategory(focusedCatRef.current);
+          return;
         }
-      } else if (zone === "languages") {
-        if (key === "ArrowLeft" || kc === 37) {
+        if (isRight) {
           e.preventDefault(); e.stopPropagation();
-          const next = Math.max(0, focusedLangRef.current - 1);
-          if (next !== focusedLangRef.current) moveFocus("languages", next);
-        } else if (key === "ArrowRight" || kc === 39) {
-          e.preventDefault(); e.stopPropagation();
-          const next = Math.min(languagesDataRef.current.length - 1, focusedLangRef.current + 1);
-          if (next !== focusedLangRef.current) moveFocus("languages", next);
-        } else if (key === "ArrowUp" || kc === 38) {
-          e.preventDefault(); e.stopPropagation();
-          switchZone("categories");
-        } else if (key === "ArrowDown" || kc === 40) {
-          e.preventDefault(); e.stopPropagation();
-          if (channelsRef.current.length > 0) switchZone("channels");
-        } else if (key === "Enter" || kc === 13 || key === " ") {
-          e.preventDefault(); e.stopPropagation();
-          setFilterMode("language");
-          setSelectedLanguage(focusedLangRef.current);
+          const idx = activeTabIdxRef.current;
+          if (idx < tabsNow.length - 1) {
+            setExpandedCat(-1);
+            focusedCatRef.current = 0;
+            focusedChRef.current = 0;
+            setActiveTabIdx(idx + 1);
+          }
+          return;
         }
-      } else if (zone === "channels") {
-        if (key === "ArrowUp" || kc === 38) {
+        if (isDown) {
+          e.preventDefault(); e.stopPropagation();
+          if (curTab.kind === "all") {
+            if (chRefs.current.length > 0) {
+              focusedChRef.current = 0;
+              activeZoneRef.current = "channels";
+              clearAllFocus();
+              applyZoneFocus();
+            }
+          } else {
+            if (catRefs.current.length > 0) {
+              focusedCatRef.current = 0;
+              activeZoneRef.current = "categories";
+              clearAllFocus();
+              applyZoneFocus();
+            }
+          }
+          return;
+        }
+        if (isOk) { e.preventDefault(); e.stopPropagation(); return; }
+        return;
+      }
+
+      // ── ZONE: categories ────────────────────────────────────────────────
+      if (zone === "categories") {
+        if (isUp) {
+          e.preventDefault(); e.stopPropagation();
+          if (focusedCatRef.current === 0) {
+            activeZoneRef.current = "tabnav";
+            clearAllFocus();
+            applyZoneFocus();
+          } else {
+            const old = catRefs.current[focusedCatRef.current];
+            if (old) old.removeAttribute("data-focused");
+            focusedCatRef.current -= 1;
+            focusEl(catRefs.current[focusedCatRef.current]);
+          }
+          return;
+        }
+        if (isDown) {
+          e.preventDefault(); e.stopPropagation();
+          const next = Math.min(catRefs.current.length - 1, focusedCatRef.current + 1);
+          if (next !== focusedCatRef.current) {
+            const old = catRefs.current[focusedCatRef.current];
+            if (old) old.removeAttribute("data-focused");
+            focusedCatRef.current = next;
+            focusEl(catRefs.current[next]);
+          }
+          return;
+        }
+        if (isOk) {
+          e.preventDefault(); e.stopPropagation();
+          const idx = focusedCatRef.current;
+          if (expandedCatRef.current === idx) {
+            // collapse — focus stays on this category row
+            setExpandedCat(-1);
+          } else {
+            // expand and jump to first channel of the new group
+            focusedChRef.current = 0;
+            activeZoneRef.current = "channels";
+            setExpandedCat(idx);
+          }
+          return;
+        }
+        return;
+      }
+
+      // ── ZONE: channels ──────────────────────────────────────────────────
+      if (zone === "channels") {
+        if (isUp) {
           e.preventDefault(); e.stopPropagation();
           if (focusedChRef.current === 0) {
-            if (languagesDataRef.current.length > 0) switchZone("languages");
-            else switchZone("categories");
+            // Return to parent context: category row for grouped tabs,
+            // tab navigator for the flat "All Channels" tab.
+            const old = chRefs.current[focusedChRef.current];
+            if (old) old.removeAttribute("data-focused");
+            if (curTab.kind === "all") {
+              activeZoneRef.current = "tabnav";
+            } else {
+              focusedCatRef.current = expandedCatRef.current >= 0 ? expandedCatRef.current : 0;
+              activeZoneRef.current = "categories";
+            }
+            applyZoneFocus();
           } else {
-            moveFocus("channels", focusedChRef.current - 1);
+            const old = chRefs.current[focusedChRef.current];
+            if (old) old.removeAttribute("data-focused");
+            focusedChRef.current -= 1;
+            focusEl(chRefs.current[focusedChRef.current]);
           }
-        } else if (key === "ArrowDown" || kc === 40) {
-          e.preventDefault(); e.stopPropagation();
-          const next = Math.min(channelsRef.current.length - 1, focusedChRef.current + 1);
-          if (next !== focusedChRef.current) moveFocus("channels", next);
-        } else if (key === "Enter" || kc === 13 || key === " ") {
-          e.preventDefault(); e.stopPropagation();
-          const ch = channelsRef.current[focusedChRef.current];
-          if (ch && onChannelSelectRef.current) onChannelSelectRef.current(ch);
+          return;
         }
+        if (isDown) {
+          e.preventDefault(); e.stopPropagation();
+          const next = Math.min(chRefs.current.length - 1, focusedChRef.current + 1);
+          if (next !== focusedChRef.current) {
+            const old = chRefs.current[focusedChRef.current];
+            if (old) old.removeAttribute("data-focused");
+            focusedChRef.current = next;
+            focusEl(chRefs.current[next]);
+          }
+          return;
+        }
+        if (isOk) {
+          e.preventDefault(); e.stopPropagation();
+          const ch = visibleChannelsRef.current[focusedChRef.current];
+          if (ch && onChannelSelectRef.current) onChannelSelectRef.current(ch);
+          return;
+        }
+        return;
       }
     };
 
-    // NOT capture phase — so LivePlayer's capture handler runs first
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [moveFocus, switchZone]); // stable deps only — never re-registers
+    // Non-capture so LivePlayer's capture-phase handler runs first; LivePlayer
+    // already returns early when sidebar is open for arrow keys, so this
+    // handler still gets the events while sidebar owns the input. Stable
+    // deps — the handler reads everything else via refs, so this listener
+    // is registered exactly once for the lifetime of the component.
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // ── Render ───────────────────────────────────────────────────────────────
-  const isNowPlaying = (ch) => {
+  // ── Render helpers ──────────────────────────────────────────────────────
+  const isCurrentlyPlaying = (ch) => {
     if (!currentChannel || !ch) return false;
-    return currentChannel.channelno && ch.channelno &&
-      String(currentChannel.channelno) === String(ch.channelno);
+    if (currentChannel.channelno && ch.channelno) {
+      return String(currentChannel.channelno) === String(ch.channelno);
+    }
+    if (currentChannel.channelid && ch.channelid) {
+      return String(currentChannel.channelid) === String(ch.channelid);
+    }
+    return false;
   };
+
+  const onChevronClick = (dir) => {
+    const idx = activeTabIdx;
+    if (dir < 0 && idx > 0) {
+      setExpandedCat(-1); focusedCatRef.current = 0; focusedChRef.current = 0;
+      setActiveTabIdx(idx - 1);
+    } else if (dir > 0 && idx < tabs.length - 1) {
+      setExpandedCat(-1); focusedCatRef.current = 0; focusedChRef.current = 0;
+      setActiveTabIdx(idx + 1);
+    }
+  };
+
+  const atLeftEdge  = activeTabIdx <= 0;
+  const atRightEdge = activeTabIdx >= tabs.length - 1;
 
   return (
     <div style={{
       width: "400px",
-      color: "#fff",
-      background: "#0f1423",
-      border: "1px solid rgba(255,255,255,0.15)",
-      borderRadius: "16px",
-      boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
       height: "100vh",
+      background: "#0F1423",
+      borderRight: "1px solid rgba(255,255,255,0.10)",
       display: "flex",
       flexDirection: "column",
-      padding: "15px 15px 0",
+      color: "#fff",
       fontFamily: "'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+      overflow: "hidden",
     }}>
 
-      {/* ── Header ── */}
-      <p style={{
-        fontSize: "22px", fontWeight: 800, letterSpacing: "3px",
-        color: "#a0aec0", margin: "0 0 12px 4px", textTransform: "uppercase",
-      }}>
-        LIVE TV
-      </p>
+      {/* ── Tab Navigator ── */}
+      <div style={{ padding: "16px 12px 8px" }}>
+        <div
+          ref={tabnavRef}
+          className="focusable-tabnav"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            height: "56px",
+            borderRadius: "12px",
+            border: "1.5px solid transparent",
+            padding: "0 8px",
+          }}
+        >
+          <button
+            type="button"
+            tabIndex={-1}
+            onClick={() => onChevronClick(-1)}
+            aria-label="Previous tab"
+            style={{
+              width: "40px", height: "40px",
+              borderRadius: "10px",
+              background: "rgba(255,255,255,0.08)",
+              border: "none",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: atLeftEdge ? "default" : "pointer",
+              opacity: atLeftEdge ? 0.4 : 1,
+              flexShrink: 0,
+            }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </button>
 
-      {/* ── Category Tabs ── */}
-      <div className="hide-scrollbar" style={{
-        display: "flex", gap: "10px", overflowX: "auto",
-        paddingBottom: "8px", flexShrink: 0,
-      }}>
-        {categories.map((cat, idx) => {
-          const isSelected = filterMode === "category" && selectedCategory === idx;
-          return (
-            <div
-              key={cat.grid || cat.title || idx}
-              ref={(el) => { catRefs.current[idx] = el; }}
-              className="focusable-category-tab"
-              data-selected={isSelected || undefined}
-              onClick={() => {
-                setFilterMode("category");
-                setSelectedLanguage(-1);
-                setSelectedCategory(idx);
-                focusedCatRef.current = idx;
-                activeZoneRef.current = "categories";
-                moveFocus("categories", idx);
-              }}
-              style={{
-                height: "40px", padding: "0 20px", fontSize: "20px", fontWeight: 700,
-                color: isSelected ? "#fff" : "#a0aec0",
-                backgroundColor: isSelected ? "#2563eb" : "transparent",
-                borderRadius: "9999px",
-                border: isSelected ? "2px solid #2563eb" : "1.5px solid #2d3748",
-                cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0, outline: "none",
-                display: "flex", alignItems: "center", justifyContent: "center",
-              }}
-            >
-              {cat.title}
-            </div>
-          );
-        })}
+          <div style={{
+            flex: 1,
+            textAlign: "center",
+            color: "#22D3EE",
+            fontSize: "22px",
+            fontWeight: 700,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            padding: "0 4px",
+          }}>
+            {activeTab?.title || ""}
+          </div>
+
+          <button
+            type="button"
+            tabIndex={-1}
+            onClick={() => onChevronClick(+1)}
+            aria-label="Next tab"
+            style={{
+              width: "40px", height: "40px",
+              borderRadius: "10px",
+              background: "rgba(255,255,255,0.08)",
+              border: "none",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: atRightEdge ? "default" : "pointer",
+              opacity: atRightEdge ? 0.4 : 1,
+              flexShrink: 0,
+            }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </button>
+        </div>
       </div>
 
-      {/* ── Language Tabs ── */}
-      {languageCategories.length > 0 && (
-        <div className="hide-scrollbar" style={{
-          display: "flex", gap: "8px", overflowX: "auto",
-          paddingTop: "6px", paddingBottom: "10px", flexShrink: 0,
+      {/* ── CATEGORIES micro-label (hidden on All Channels) ── */}
+      {activeTab?.kind !== "all" && (
+        <div style={{
+          padding: "4px 22px 8px",
+          fontSize: "13px",
+          fontWeight: 700,
+          letterSpacing: "2px",
+          color: "#94A3B8",
+          textTransform: "uppercase",
         }}>
-          {languageCategories.map((lang, idx) => {
-            const isSelected = filterMode === "language" && selectedLanguage === idx;
-            return (
-              <div
-                key={lang.langid || lang.langtitle || idx}
-                ref={(el) => { langTabsRef.current[idx] = el; }}
-                className="focusable-language-tab"
-                data-selected={isSelected || undefined}
-                onClick={() => {
-                  setFilterMode("language");
-                  setSelectedLanguage(idx);
-                  focusedLangRef.current = idx;
-                  activeZoneRef.current = "languages";
-                  moveFocus("languages", idx);
-                }}
-                style={{
-                  height: "34px", padding: "0 16px", fontSize: "17px", fontWeight: 700,
-                  color: isSelected ? "#fff" : "#a0aec0",
-                  backgroundColor: isSelected ? "#7c3aed" : "transparent",
-                  borderRadius: "9999px",
-                  border: isSelected ? "2px solid #7c3aed" : "1.5px solid #2d3748",
-                  cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0, outline: "none",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                }}
-              >
-                {lang.langtitle || "—"}
-              </div>
-            );
-          })}
+          CATEGORIES
         </div>
       )}
 
-      {/* ── NOW WATCHING ── */}
-      {currentChannel && (
-        <>
-          <p style={{
-            fontSize: "18px", fontWeight: 800, letterSpacing: "2.5px",
-            color: "#2563eb", margin: "8px 0 10px 4px", textTransform: "uppercase",
-          }}>
-            WATCHING Now
-          </p>
-          <div style={{
-            display: "flex", alignItems: "center", gap: "14px",
-            padding: "14px 16px", borderRadius: "14px",
-            border: "1.5px solid #2563eb",
-            backgroundColor: "#1a2340",
-            marginBottom: "16px", flexShrink: 0,
-          }}>
-            {currentChannel.chlogo ? (
-              <img src={currentChannel.chlogo} alt={currentChannel.chtitle} style={{
-                width: "52px", height: "52px", objectFit: "contain", backgroundColor: "#fff",
-                borderRadius: "12px", border: "1.5px solid #2d3748", flexShrink: 0,
+      {/* ── Content area ── */}
+      <div
+        className="hide-scrollbar"
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          padding: "0 12px 16px",
+        }}
+      >
+        {loading && allChannels.length === 0 && (
+          <div style={{ padding: "20px 8px" }}>
+            {[0, 1, 2].map((i) => (
+              <div key={i} style={{
+                height: "56px",
+                marginBottom: "8px",
+                borderRadius: "12px",
+                background: "rgba(255,255,255,0.04)",
               }} />
-            ) : (
-              <div style={{
-                width: "52px", height: "52px", backgroundColor: "#1a2340",
-                borderRadius: "12px", flexShrink: 0,
-              }} />
-            )}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{
-                fontSize: "26px", fontWeight: 700, color: "#fff",
-                margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-              }}>
-                {currentChannel.chtitle}
-              </p>
-              <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "4px" }}>
-                <span style={{
-                  width: "8px", height: "8px", borderRadius: "50%",
-                  backgroundColor: "#22c55e", display: "inline-block",
-                }} />
-                <span style={{ fontSize: "18px", fontWeight: 700, color: "#22c55e" }}>LIVE</span>
-              </div>
-            </div>
-            <span style={{ fontSize: "30px", fontWeight: 800, color: "#60a5fa", flexShrink: 0 }}>
-              {currentChannel.channelno}
-            </span>
+            ))}
           </div>
-        </>
-      )}
-
-      {/* ── CHANNELS header ── */}
-      <p style={{
-        fontSize: "18px", fontWeight: 800, letterSpacing: "2.5px",
-        color: "#a0aec0", margin: "0 0 10px 4px", textTransform: "uppercase",
-      }}>
-        CHANNELS
-      </p>
-
-      {/* ── Channel List ── */}
-      <div ref={channelListRef} className="hide-scrollbar" style={{ flex: 1, overflowY: "auto", paddingRight: "4px" }}>
-        {loading && (
-          <p style={{ textAlign: "center", fontSize: "20px", fontWeight: 600, color: "#a0aec0", marginTop: "40px" }}>
-            Loading channels...
-          </p>
         )}
+
         {error && (
-          <p style={{ textAlign: "center", fontSize: "18px", fontWeight: 600, color: "#f44336", marginTop: "40px" }}>{error}</p>
-        )}
-        {!loading && !error && channels.length === 0 && (
-          <p style={{ textAlign: "center", fontSize: "18px", fontWeight: 600, color: "#718096", marginTop: "40px" }}>
-            No channels found
-          </p>
+          <p style={{
+            textAlign: "center", color: "#f87171",
+            fontSize: "16px", fontWeight: 600, marginTop: "32px",
+          }}>{error}</p>
         )}
 
-        {channels.map((channel, index) => {
-          const isPlaying = isNowPlaying(channel);
-          const locked = !isSubscribed(channel);
-          const priceLabel = formatPrice(channel.chprice);
+        {/* "All Channels" — flat channel list */}
+        {!loading && !error && activeTab?.kind === "all" && (() => {
+          chRefs.current = [];
+          if (tabChannels.length === 0) {
+            return <EmptyState text="No channels available" />;
+          }
+          return tabChannels.map((ch, idx) => (
+            <ChannelCard
+              key={ch.channelno || ch.channelid || idx}
+              ref={(el) => { chRefs.current[idx] = el; }}
+              channel={ch}
+              isPlaying={isCurrentlyPlaying(ch)}
+              onClick={() => onChannelSelectRef.current && onChannelSelectRef.current(ch)}
+            />
+          ));
+        })()}
 
-          return (
-            <div
-              // PERF: stable key — channelno → channelid → fallback. Index left
-              // out so React can keep <img> elements when the filter changes,
-              // preventing logo re-fetches on every category click (B.10/B.11).
-              key={channel.channelno || channel.channelid || index}
-              ref={(el) => { chRefs.current[index] = el; }}
-              className="focusable-sidebar-item"
-              onClick={() => {
-                if (onChannelSelect) onChannelSelect(channel);
-              }}
-              style={{
-                width: "100%", display: "flex", alignItems: "center", gap: "14px",
-                borderRadius: "14px", padding: "12px 14px", marginBottom: "4px",
-                backgroundColor: isPlaying ? "#1a2340" : "transparent",
-                border: "2px solid transparent",
-                cursor: "pointer", textAlign: "left", color: "#fff", outline: "none",
-                opacity: locked ? 0.55 : 1,
-                transition: "opacity 0.15s",
-              }}
-            >
-              {/* Logo (with padlock overlay if locked) */}
-              <div style={{ position: "relative", flexShrink: 0 }}>
-                {channel.chlogo ? (
-                  <img src={channel.chlogo} alt={channel.chtitle} style={{
-                    width: "52px", height: "52px", objectFit: "contain", backgroundColor: "#fff",
-                    borderRadius: "12px", border: "1.5px solid #2d3748",
-                  }} onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.style.display = "none"; }} />
-                ) : (
-                  <div style={{
-                    width: "52px", height: "52px", backgroundColor: "#1a2340",
-                    borderRadius: "12px", border: "1.5px solid #2d3748",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                  }}>
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                      <rect x="3" y="3" width="18" height="18" rx="3" stroke="rgba(255,255,255,0.2)" strokeWidth="1.5" />
-                      <path d="M9 8L9 16L17 12L9 8Z" fill="rgba(255,255,255,0.15)" />
-                    </svg>
-                  </div>
-                )}
-                {locked && (
-                  <div style={{
-                    position: "absolute", right: -4, bottom: -4,
-                    width: "24px", height: "24px",
-                    borderRadius: "50%",
-                    background: "#0F1729",
-                    border: "1.5px solid #F4BF1F",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    color: "#F4BF1F",
-                  }} aria-label="locked">
-                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="5" y="11" width="14" height="9" rx="2" />
-                      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
-                    </svg>
+        {/* Grouped tab — categories with accordion */}
+        {!loading && !error && activeTab && activeTab.kind !== "all" && (() => {
+          catRefs.current = [];
+          chRefs.current = [];
+          if (groups.length === 0) {
+            return <EmptyState text="No channels in this tab" />;
+          }
+          return groups.map((g, gIdx) => {
+            const isExpanded = expandedCat === gIdx;
+            return (
+              <div key={g.category.grid || g.category.title || gIdx}>
+                <div
+                  ref={(el) => { catRefs.current[gIdx] = el; }}
+                  className="focusable-category-row"
+                  onClick={() => {
+                    focusedCatRef.current = gIdx;
+                    activeZoneRef.current = "categories";
+                    if (expandedCat === gIdx) {
+                      setExpandedCat(-1);
+                    } else {
+                      focusedChRef.current = 0;
+                      activeZoneRef.current = "channels";
+                      setExpandedCat(gIdx);
+                    }
+                  }}
+                  style={{
+                    height: "56px",
+                    padding: "0 16px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    borderRadius: "12px",
+                    border: "1.5px solid transparent",
+                    cursor: "pointer",
+                    marginBottom: "8px",
+                    background: "transparent",
+                  }}
+                >
+                  <span style={{ fontSize: "22px", fontWeight: 600, color: "#fff" }}>
+                    {g.category.title}
+                  </span>
+                  <span style={{ fontSize: "22px", fontWeight: 600, color: "#CBD5E1" }}>
+                    ({g.channels.length})
+                  </span>
+                </div>
+
+                {isExpanded && (
+                  <div style={{ marginBottom: "16px" }}>
+                    {g.channels.map((ch, cIdx) => (
+                      <ChannelCard
+                        key={ch.channelno || ch.channelid || cIdx}
+                        ref={(el) => { chRefs.current[cIdx] = el; }}
+                        channel={ch}
+                        isPlaying={isCurrentlyPlaying(ch)}
+                        onClick={() => onChannelSelectRef.current && onChannelSelectRef.current(ch)}
+                      />
+                    ))}
                   </div>
                 )}
               </div>
-
-              {/* Info */}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{
-                  fontSize: "24px", fontWeight: 700, margin: 0,
-                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                  color: "#e2e8f0",
-                }}>
-                  {channel.chtitle}
-                </p>
-                {priceLabel && (
-                  <p style={{
-                    fontSize: "20px", fontWeight: 700, margin: "4px 0 0",
-                    color: locked ? "#F4BF1F" : "#EC1946",
-                  }}>
-                    {locked ? `${priceLabel} · Subscribe` : priceLabel}
-                  </p>
-                )}
-              </div>
-
-              {/* Channel Number */}
-              <span style={{
-                fontSize: "24px", fontWeight: 800, color: "#e2e8f0",
-                flexShrink: 0, minWidth: "3rem", textAlign: "right",
-              }}>
-                {channel.channelno}
-              </span>
-            </div>
-          );
-        })}
+            );
+          });
+        })()}
       </div>
     </div>
   );
 };
+
+// ── ChannelCard subcomponent ──────────────────────────────────────────────
+// forwardRef so the parent can wire chRefs[idx] via callback ref.
+const ChannelCard = forwardRef(({ channel, isPlaying, onClick }, ref) => {
+  const locked = !isSubscribed(channel);
+  const priceLabel = formatPrice(channel.chprice);
+
+  return (
+    <div
+      ref={ref}
+      className="focusable-channel-card"
+      onClick={onClick}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "12px",
+        height: "88px",
+        padding: "12px",
+        marginBottom: "4px",
+        borderRadius: "14px",
+        border: "1.5px solid transparent",
+        cursor: "pointer",
+        opacity: locked ? 0.55 : 1,
+        background: "transparent",
+      }}
+    >
+      {/* Logo tile */}
+      <div style={{ position: "relative", flexShrink: 0 }}>
+        {channel.chlogo ? (
+          <img
+            src={channel.chlogo}
+            alt={channel.chtitle || ""}
+            loading="lazy"
+            style={{
+              width: "64px", height: "64px",
+              objectFit: "contain",
+              background: "#fff",
+              borderRadius: "12px",
+              border: "1px solid rgba(0,0,0,0.06)",
+            }}
+            onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.style.display = "none"; }}
+          />
+        ) : (
+          <div style={{
+            width: "64px", height: "64px",
+            background: "#1a2340",
+            borderRadius: "12px",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+              <rect x="3" y="3" width="18" height="18" rx="3" stroke="rgba(255,255,255,0.25)" strokeWidth="1.5" />
+              <path d="M9 8L9 16L17 12L9 8Z" fill="rgba(255,255,255,0.18)" />
+            </svg>
+          </div>
+        )}
+        {locked && (
+          <div style={{
+            position: "absolute", right: -4, bottom: -4,
+            width: "24px", height: "24px",
+            borderRadius: "50%",
+            background: "#0F1729",
+            border: "1.5px solid #F4BF1F",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            color: "#F4BF1F",
+          }} aria-label="locked">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="5" y="11" width="14" height="9" rx="2" />
+              <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+            </svg>
+          </div>
+        )}
+      </div>
+
+      {/* Name + price */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          display: "flex", alignItems: "center", gap: "8px",
+          whiteSpace: "nowrap", overflow: "hidden",
+        }}>
+          {isPlaying && (
+            <span style={{
+              width: "8px", height: "8px",
+              borderRadius: "50%",
+              background: "#22D3EE",
+              flexShrink: 0,
+            }} aria-label="now playing" />
+          )}
+          <span style={{
+            fontSize: "22px", fontWeight: 600, color: "#fff",
+            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+            minWidth: 0,
+          }}>
+            {channel.chtitle}
+          </span>
+        </div>
+        {priceLabel && (
+          <div style={{
+            fontSize: "18px", fontWeight: 600, color: "#22C55E",
+            marginTop: "4px",
+          }}>
+            {priceLabel}
+          </div>
+        )}
+      </div>
+
+      {/* Channel number */}
+      <span style={{
+        fontSize: "24px", fontWeight: 700, color: "#fff",
+        flexShrink: 0, minWidth: "3rem", textAlign: "right",
+      }}>
+        {channel.channelno}
+      </span>
+    </div>
+  );
+});
+ChannelCard.displayName = "ChannelCard";
+
+// ── EmptyState ────────────────────────────────────────────────────────────
+const EmptyState = ({ text }) => (
+  <p style={{
+    textAlign: "center",
+    color: "#94A3B8",
+    fontSize: "16px",
+    fontWeight: 600,
+    marginTop: "40px",
+  }}>{text}</p>
+);
 
 export default ChannelsSidebar;

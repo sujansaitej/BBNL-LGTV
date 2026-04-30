@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 
 import { API_ENDPOINTS } from "../server/config";
 import { nowMs, postJson } from "./HomeStore";
@@ -26,7 +27,7 @@ const buildChannelMaps = (channels = []) => {
 	return { byNumber, byId };
 };
 
-const useLiveChannelsStore = create((set, get) => ({
+const useLiveChannelsStore = create(persist((set, get) => ({
 	categories: [],
 	categoriesLoadedAt: 0,
 	isLoadingCategories: false,
@@ -181,6 +182,36 @@ const useLiveChannelsStore = create((set, get) => ({
 			}));
 			return [];
 		}
+	},
+}), {
+	name: "bbnl_channels_cache_v1",
+	storage: createJSONStorage(() => localStorage),
+	// Persist only the bits the TTL freshness check on reads needs. byNumber/byId
+	// are derived from `data` and recomputed on rehydrate so we don't waste
+	// localStorage write time / quota on duplicated channel records.
+	partialize: (state) => ({
+		categories: state.categories,
+		categoriesLoadedAt: state.categoriesLoadedAt,
+		channelsCache: Object.fromEntries(
+			Object.entries(state.channelsCache).map(([key, entry]) => [key, {
+				data: entry?.data || [],
+				count: entry?.count || 0,
+				loadedAt: entry?.loadedAt || 0,
+				fetchMs: entry?.fetchMs || 0,
+			}])
+		),
+	}),
+	onRehydrateStorage: () => (rehydratedState, error) => {
+		if (error || !rehydratedState) return;
+		// Rebuild byNumber/byId lookup maps from the persisted channels[] so the
+		// O(1) lookup helpers (getChannelByNumber, etc.) keep working without a
+		// network refetch.
+		const cache = rehydratedState.channelsCache || {};
+		Object.keys(cache).forEach((key) => {
+			const entry = cache[key];
+			const maps = buildChannelMaps(entry?.data || []);
+			cache[key] = { ...entry, byNumber: maps.byNumber, byId: maps.byId };
+		});
 	},
 }));
 

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 
 import { API_ENDPOINTS } from "../server/config";
 import { nowMs, postJson } from "./HomeStore";
@@ -11,7 +12,7 @@ const buildLangKey = (payload) => {
   return `${user}|${mobile}`;
 };
 
-const useLanguageStore = create((set, get) => ({
+const useLanguageStore = create(persist((set, get) => ({
   languagesCache: {},
   error: "",
   fetchLanguages: async (payload, options = {}) => {
@@ -76,6 +77,18 @@ const useLanguageStore = create((set, get) => ({
       return [];
     }
   },
+}), {
+  name: "bbnl_languages_cache_v1",
+  storage: createJSONStorage(() => localStorage),
+  partialize: (state) => ({
+    languagesCache: Object.fromEntries(
+      Object.entries(state.languagesCache).map(([key, entry]) => [key, {
+        data: entry?.data || [],
+        loadedAt: entry?.loadedAt || 0,
+        fetchMs: entry?.fetchMs || 0,
+      }])
+    ),
+  }),
 }));
 
 export default useLanguageStore;

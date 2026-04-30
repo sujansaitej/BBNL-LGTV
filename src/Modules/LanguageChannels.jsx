@@ -7,27 +7,8 @@ import { useTapAction } from "../Remote/useTapAction";
 
 const ArrowBackIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" /></svg>;
 
-const COLS = 4;
+const COLS = 7;
 const KEY_THROTTLE = 80;
-
-const GRADIENT_COLORS = [
-  "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-  "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
-  "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
-  "linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)",
-  "linear-gradient(135deg, #fa709a 0%, #fee140 100%)",
-  "linear-gradient(135deg, #30cfd0 0%, #330867 100%)",
-  "linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)",
-  "linear-gradient(135deg, #ff9a56 0%, #ff6a88 100%)",
-  "linear-gradient(135deg, #2e2e78 0%, #662d8c 100%)",
-  "linear-gradient(135deg, #1a9be6 0%, #1565c0 100%)",
-  "linear-gradient(135deg, #eb3349 0%, #f45c43 100%)",
-  "linear-gradient(135deg, #12c2e9 0%, #c471ed 100%)",
-  "linear-gradient(135deg, #11998e 0%, #38ef7d 100%)",
-  "linear-gradient(135deg, #ee0979 0%, #ff6a00 100%)",
-  "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-  "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)",
-];
 
 const LanguageChannels = () => {
   const navigate = useNavigate();
@@ -93,6 +74,8 @@ const LanguageChannels = () => {
   // Apply initial focus when languages load
   useEffect(() => {
     if (languages.length > 0) {
+      const prevEl = itemRefs.current[focusIdxRef.current];
+      if (prevEl) prevEl.removeAttribute("data-focused");
       zoneRef.current = "grid";
       focusIdxRef.current = 0;
       const el = itemRefs.current[0];
@@ -192,10 +175,10 @@ const LanguageChannels = () => {
   }
 
   return (
-    <div className="hide-scrollbar" style={{ background: "#000", width: "100%", height: "100vh", overflowY: "auto", overflowX: "hidden", color: "#fff", padding: "24px", fontFamily: '"Roboto","Helvetica","Arial",sans-serif' }}>
+    <div className="hide-scrollbar" style={{ background: "#000", width: "100%", height: "100vh", overflowY: "auto", overflowX: "hidden", color: "#fff", padding: "24px 32px 32px 32px", fontFamily: '"Roboto","Helvetica","Arial",sans-serif' }}>
 
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "48px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "20px", marginBottom: "32px" }}>
         <div
           ref={backBtnRef}
           className="focusable-button"
@@ -206,7 +189,11 @@ const LanguageChannels = () => {
         >
           <ArrowBackIcon />
         </div>
-        <p style={{ fontSize: "32px", fontWeight: 700, margin: 0, flex: 1, textAlign: "center" }}>Select Language</p>
+        <div style={{ flex: 1, textAlign: "center" }}>
+          <p style={{ fontSize: "36px", fontWeight: 700, margin: 0, lineHeight: 1.2 }}>Select Language</p>
+          <p style={{ fontSize: "18px", fontWeight: 400, margin: "6px 0 0 0", color: "#888" }}>Choose a language to filter channels</p>
+        </div>
+        <div style={{ width: "50px", flexShrink: 0 }} aria-hidden="true" />
       </div>
 
       {/* Error */}
@@ -220,17 +207,17 @@ const LanguageChannels = () => {
       {loading && (
         <>
           <style>{`@keyframes _shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}`}</style>
-          <div style={{ display: "grid", gridTemplateColumns: `repeat(${COLS}, 1fr)`, gap: "24px", paddingBottom: "32px" }}>
-            {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} style={{ borderRadius: "20px", height: "280px", background: "linear-gradient(90deg,rgba(255,255,255,0.06) 25%,rgba(255,255,255,0.12) 50%,rgba(255,255,255,0.06) 75%)", backgroundSize: "400px 100%", animation: "_shimmer 1.4s ease infinite" }} />
+          <div style={{ display: "grid", gridTemplateColumns: `repeat(${COLS}, 1fr)`, gap: "12px", paddingBottom: "32px" }}>
+            {Array.from({ length: COLS * 2 }).map((_, i) => (
+              <div key={i} style={{ borderRadius: "16px", height: "calc((100vh - 200px) / 2.5)", background: "linear-gradient(90deg,rgba(255,255,255,0.04) 25%,rgba(255,255,255,0.09) 50%,rgba(255,255,255,0.04) 75%)", backgroundSize: "400px 100%", animation: "_shimmer 1.4s ease infinite" }} />
             ))}
           </div>
         </>
       )}
 
-      {/* Language Cards */}
+      {/* Language items — chrome-free: just logo + label, focus reveals surface */}
       {!loading && (
-        <div style={{ display: "grid", gridTemplateColumns: `repeat(${COLS}, 1fr)`, gap: "24px", paddingBottom: "32px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: `repeat(${COLS}, 1fr)`, gap: "12px", paddingBottom: "32px" }}>
           {languages.map((lang, index) => (
             <div
               key={index}
@@ -240,17 +227,18 @@ const LanguageChannels = () => {
               tabIndex={-1}
               onClick={() => handleLanguageClick(lang.langid, lang.langtitle)}
               style={{
-                background: GRADIENT_COLORS[index % GRADIENT_COLORS.length],
-                borderRadius: "20px",
-                padding: "30px",
+                background: "transparent",
+                borderRadius: "16px",
+                padding: "16px 12px",
                 cursor: "pointer",
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
                 justifyContent: "center",
-                minHeight: "280px",
+                height: "calc((100vh - 200px) / 2.5)",
                 border: "3px solid transparent",
                 outline: "none",
+                boxSizing: "border-box",
               }}
             >
               {lang.langlogo && (
@@ -259,11 +247,11 @@ const LanguageChannels = () => {
                   alt={lang.langtitle}
                   loading="lazy"
                   decoding="async"
-                  style={{ width: "120px", height: "120px", objectFit: "contain", marginBottom: "20px", filter: "drop-shadow(0 4px 8px rgba(0,0,0,0.3))" }}
+                  style={{ maxWidth: "80%", maxHeight: "55%", objectFit: "contain", marginBottom: "14px" }}
                   onError={(e) => { e.currentTarget.style.display = "none"; }}
                 />
               )}
-              <p style={{ fontSize: "24px", fontWeight: 700, color: "#fff", textAlign: "center", textShadow: "0 2px 4px rgba(0,0,0,0.3)", margin: 0 }}>{lang.langtitle}</p>
+              <p style={{ fontSize: "28px", fontWeight: 600, color: "#fff", textAlign: "center", margin: 0, lineHeight: 1.2, width: "100%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lang.langtitle}</p>
             </div>
           ))}
         </div>

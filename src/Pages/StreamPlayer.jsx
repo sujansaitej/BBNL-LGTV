@@ -135,7 +135,7 @@ const HLSPlayer = ({ src, autoPlay = true, onStreamFailed = null, streamAd = nul
       fragLoadingTimeOut: 20000,
       fragLoadingMaxRetry: 6,
       xhrSetup: (xhr) => {
-        xhr.setRequestHeader("X-App-Package", "com.lgiptv.bbnl");
+        xhr.setRequestHeader("X-App-Package", "com.bbnl.iptv");
       },
     });
     hlsRef.current = hls;

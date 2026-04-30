@@ -563,18 +563,19 @@ const LivePlayer = () => {
         />
       )}
 
-      {/* Channel-locked popup (subscription gate).
+      {/* Subscription-gate modal (Subscription Not Available → Coming Soon).
           On dismiss: if we never had a valid stream playing (i.e. the user
-          arrived here via a locked deep-link or grid click), bounce back to
-          /home so they don't land on the empty "No stream link provided"
-          placeholder. If we WERE playing something subscribed and just blocked
-          a channel switch, stay put — the existing stream keeps playing. */}
+          arrived here by tapping a locked tile on Home or LiveChannels),
+          navigate(-1) to return to that screen with its scroll/filter state
+          intact — MemoryRouter preserves the previous Location. If we WERE
+          playing something subscribed and just blocked a channel switch
+          (sidebar/numpad), stay put — the existing stream keeps playing. */}
       {lockedChannel && (
         <ChannelLocked
           channel={lockedChannel}
           onClose={() => {
-            setLockedChannel(null);
-            if (!currentStream) navigate('/home', { replace: true });
+            if (!currentStream) navigate(-1);
+            else                setLockedChannel(null);
           }}
         />
       )}

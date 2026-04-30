@@ -2,7 +2,9 @@
 import axios from "axios";
 
 // Base URL for API endpoints
-export const API_BASE_URL_PROD = "http://124.40.244.211/netmon/cabletvapis";
+// Production: https://bbnlnetmon.bbnl.in/prod/cabletvapis
+// Testing:    http://124.40.244.211/netmon/cabletvapis
+export const API_BASE_URL_PROD = "https://bbnlnetmon.bbnl.in/prod/cabletvapis";
 
 // Reads the pinned device ID from localStorage at call time
 const getDeviceID = () => {

@@ -5,7 +5,6 @@ import useLanguageStore from "../store/LivePlayersStore";
 import useHomeAdsStore from "../store/ChannelsSearchStore";
 import useOttAppsStore from "../store/OttAppsStore";
 import { isSubscribed } from "../utils/subscription";
-import ChannelLocked from "../error/Modules-Erros/ChannelLocked";
 import { useTapAction } from "../Remote/useTapAction";
 
 const CATEGORY_COLORS = [
@@ -27,6 +26,28 @@ const FavoriteIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 
 const SettingsIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="34" height="34" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" /></svg>;
 const SearchIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" /></svg>;
 const ClearIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" /></svg>;
+
+// Dim placeholder tile preserving real-tile dimensions while data loads — no
+// layout shift when actual content arrives. Static (no shimmer animation) to
+// avoid the jitter weak TV panels show when animating large translucent areas.
+const SkeletonTile = ({ aspectRatio = "16/9", height }) => (
+  <div style={{
+    width: "100%",
+    aspectRatio: height ? undefined : aspectRatio,
+    height,
+    borderRadius: "0.75rem",
+    background: "#121212",
+    border: "1px solid rgba(255,255,255,0.04)",
+  }} />
+);
+
+const SkeletonRow = ({ count, cols, aspectRatio, height }) => (
+  <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: "1rem" }}>
+    {Array.from({ length: count }).map((_, i) => (
+      <SkeletonTile key={i} aspectRatio={aspectRatio} height={height} />
+    ))}
+  </div>
+);
 
 const menuItems = [
   { icon: <HomeIcon />, path: "/home", label: "Home" },
@@ -62,8 +83,6 @@ const Home = () => {
     return names.map((n) => channels.find((ch) => (ch.chtitle || "").toLowerCase().trim() === n)).filter(Boolean).slice(0, ROW_COLS);
   }, [channels]);
 
-  const [lockedChannel, setLockedChannel] = useState(null);
-
   // ── Search ──────────────────────────────────────────────────────────────
   // Header search bar, mirrors the LiveChannels UX. When the debounced term
   // is non-empty, the normal home sections (categories/channels/sports/apps/
@@ -91,14 +110,12 @@ const Home = () => {
   }, [channels, debouncedSearchTerm]);
 
   const handleChannelPlayRaw = useCallback((ch) => {
-    // Subscription gate — locked channels surface the modal here, never reach
-    // the player. The user can dismiss and stay on Home to keep browsing.
-    if (!isSubscribed(ch)) {
-      setLockedChannel(ch);
-      return;
-    }
-    const url = ch.streamlink || ch.stream_link || ch.streamurl || ch.stream_url || ch.url || ch.link;
-    if (url) navigate("/player", { state: { streamlink: url, title: ch.chtitle, channelData: ch } });
+    // Always route through /player. LivePlayer owns the subscription gate
+    // (mount-time effect surfaces the Subscription Not Available modal when
+    // channelData isn't subscribed, suppressing HLS load). Go Back from the
+    // modal navigates(-1) back here.
+    const url = ch.streamlink || ch.stream_link || ch.streamurl || ch.stream_url || ch.url || ch.link || "";
+    navigate("/player", { state: { streamlink: url, title: ch.chtitle, channelData: ch } });
   }, [navigate]);
   const handleChannelPlay = useTapAction(handleChannelPlayRaw);
 
@@ -454,6 +471,7 @@ const Home = () => {
   const { appsCache: ottAppsCache, fetchApps: fetchOttAppsAction } = useOttAppsStore();
   const ottAppsKey = `${userid}|${mobile}`;
   const ottApps = useMemo(() => ottAppsCache[ottAppsKey]?.data || [], [ottAppsCache, ottAppsKey]);
+  const ottAppsLoading = !!ottAppsCache[ottAppsKey]?.isLoading;
 
   useEffect(() => {
     if (!mobile) return;
@@ -630,12 +648,16 @@ const Home = () => {
         </div>
       </div>
 
-      <div ref={scrollContainerRef} className="hide-scrollbar" style={{ display: "flex", flexDirection: "column", flex: 1, height: "100vh", overflowY: "auto", overflowX: "hidden", marginLeft: "100px", width: "calc(100% - 100px)" }}>
+      <div ref={scrollContainerRef} className="hide-scrollbar" style={{ display: "flex", flexDirection: "column", flex: 1, height: "100vh", overflowY: "auto", overflowX: "hidden", marginLeft: "100px", width: "calc(100% - 100px)", scrollPaddingTop: "6rem" }}>
         {/* MAIN CONTENT */}
-        <div data-focusable-section="home-content" style={{ width: "100%", paddingLeft: "1rem", paddingRight: "1.5rem", paddingTop: "1.5rem", paddingBottom: "3rem" }}>
+        <div data-focusable-section="home-content" style={{ width: "100%", paddingLeft: "1rem", paddingRight: "1.5rem", paddingTop: 0, paddingBottom: "3rem" }}>
 
-          {/* TOP HEADER — search bar (focusable pill, ENTER to type) */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", marginBottom: "1.5rem", gap: "1rem" }}>
+          {/* TOP HEADER — search bar (focusable pill, ENTER to type).
+              Sticky so the search stays visible while the user scrolls categories
+              and channel rows. Negative horizontal margins + reapplied padding
+              extend the background edge-to-edge so scrolling content doesn't
+              peek through the parent's lateral padding. */}
+          <div style={{ position: "sticky", top: 0, zIndex: 50, backgroundColor: "#0a0a0a", marginLeft: "-1rem", marginRight: "-1.5rem", paddingLeft: "1rem", paddingRight: "1.5rem", paddingTop: "1.5rem", paddingBottom: "1.25rem", marginBottom: "0.75rem", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "1rem" }}>
             <div
               ref={(el) => { searchRefs.current[0] = el; }}
               className="focusable-button"
@@ -785,7 +807,7 @@ const Home = () => {
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.25rem" }}>
               <p style={{ fontSize: "1.75rem", fontWeight: 700, color: "#fff", margin: 0 }}>CHANNELS</p>
             </div>
-            {langLoading && <p style={{ fontSize: "1.25rem", color: "rgba(255,255,255,0.6)" }}>Loading channels...</p>}
+            {langLoading && <SkeletonRow count={CH_COLS} cols={CH_COLS} height="10rem" />}
             {langError && langError !== "NO_LOGIN" && <p style={{ fontSize: "1.25rem", color: "#f44336" }}>{langError}</p>}
             {!langLoading && !langError && (
               <div style={{ display: "grid", gridTemplateColumns: `repeat(${CH_COLS}, 1fr)`, gap: "1rem", overflow: "hidden", maxHeight: "calc(11rem * 5 + 4rem)" }}>
@@ -815,6 +837,12 @@ const Home = () => {
           </div>
 
           {/* SPORTS */}
+          {channelsEntry.isLoading && sportsChannels.length === 0 && (
+            <div style={{ marginBottom: "2rem" }}>
+              <p style={{ fontSize: "1.75rem", fontWeight: 700, color: "#fff", margin: "0 0 1.25rem" }}>SPORTS</p>
+              <SkeletonRow count={ROW_COLS} cols={ROW_COLS} aspectRatio="16/9" />
+            </div>
+          )}
           {sportsChannels.length > 0 && (
             <div style={{ marginBottom: "2rem" }}>
               <p style={{ fontSize: "1.75rem", fontWeight: 700, color: "#fff", margin: "0 0 1.25rem" }}>SPORTS</p>
@@ -841,6 +869,12 @@ const Home = () => {
           )}
 
           {/* APPS — OTT apps from /allowedapps (launched via webOS applicationManager) */}
+          {ottAppsLoading && ottApps.length === 0 && (
+            <div style={{ marginBottom: "2rem" }}>
+              <p style={{ fontSize: "1.75rem", fontWeight: 700, color: "#fff", margin: "0 0 1.25rem" }}>APPS</p>
+              <SkeletonRow count={ROW_COLS} cols={ROW_COLS} aspectRatio="16/9" />
+            </div>
+          )}
           {ottApps.length > 0 && (
             <div style={{ marginBottom: "2rem" }}>
               <p style={{ fontSize: "1.75rem", fontWeight: 700, color: "#fff", margin: "0 0 1.25rem" }}>APPS</p>
@@ -886,6 +920,12 @@ const Home = () => {
           )}
 
           {/* ENTERTAINMENT */}
+          {channelsEntry.isLoading && entertainmentChannels.length === 0 && (
+            <div style={{ marginBottom: "3rem" }}>
+              <p style={{ fontSize: "1.75rem", fontWeight: 700, color: "#fff", margin: "0 0 1.25rem" }}>ENTERTAINMENT</p>
+              <SkeletonRow count={ROW_COLS} cols={ROW_COLS} aspectRatio="16/9" />
+            </div>
+          )}
           {entertainmentChannels.length > 0 && (
             <div style={{ marginBottom: "3rem" }}>
               <p style={{ fontSize: "1.75rem", fontWeight: 700, color: "#fff", margin: "0 0 1.25rem" }}>ENTERTAINMENT</p>
@@ -917,13 +957,6 @@ const Home = () => {
         </div>
       </div>
 
-      {/* Channel-locked modal for unsubscribed channel taps from Home tiles */}
-      {lockedChannel && (
-        <ChannelLocked
-          channel={lockedChannel}
-          onClose={() => setLockedChannel(null)}
-        />
-      )}
     </div>
   );
 };
