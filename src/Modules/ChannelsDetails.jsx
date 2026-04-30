@@ -28,23 +28,23 @@ const LockBadge = () => (
     style={{
       display: "inline-flex",
       alignItems: "center",
-      gap: "6px",
-      padding: "4px 10px",
-      marginLeft: "10px",
+      gap: "8px",
+      padding: "6px 14px",
+      marginLeft: "12px",
       borderRadius: "999px",
       background: "rgba(244,191,31,0.14)",
       border: "1px solid rgba(244,191,31,0.45)",
       color: "#F4BF1F",
-      fontSize: "12px",
+      fontSize: "16px",
       fontWeight: 700,
-      letterSpacing: "1.2px",
+      letterSpacing: "1.4px",
       textTransform: "uppercase",
       lineHeight: 1,
       flexShrink: 0,
       verticalAlign: "middle",
     }}
   >
-    <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true">
+    <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
       <path
         d="M7 10V8a5 5 0 0 1 10 0v2h1a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h1Zm2 0h6V8a3 3 0 0 0-6 0v2Z"
         fill="currentColor"
@@ -114,9 +114,9 @@ const ChannelsDetails = ({ channel, visible = false, sidebarOpen = false, locked
   };
 
   const labelStyle = {
-    fontSize: "11px",
+    fontSize: "15px",
     fontWeight: 600,
-    letterSpacing: "1.6px",
+    letterSpacing: "1.8px",
     color: COLOR.label,
     margin: 0,
     textTransform: "uppercase",
@@ -124,9 +124,9 @@ const ChannelsDetails = ({ channel, visible = false, sidebarOpen = false, locked
   };
 
   const valueStyle = {
-    fontSize: "20px",
+    fontSize: "28px",
     fontWeight: 700,
-    margin: "8px 0 0",
+    margin: "10px 0 0",
     color: COLOR.value,
     lineHeight: 1.1,
     fontVariantNumeric: "tabular-nums",
@@ -138,7 +138,7 @@ const ChannelsDetails = ({ channel, visible = false, sidebarOpen = false, locked
   // Stat cell with vertical hairline divider on the LEFT (so cells stack
   // cleanly without a trailing divider on the last item).
   const statCellStyle = {
-    padding: sidebarOpen ? "0 18px" : "0 28px",
+    padding: sidebarOpen ? "0 22px" : "0 32px",
     borderLeft: `1px solid ${COLOR.divider}`,
     minWidth: 0,
     display: "flex",
@@ -161,7 +161,10 @@ const ChannelsDetails = ({ channel, visible = false, sidebarOpen = false, locked
         transform: "translate(-50%, 0) translateZ(0)",
         width: barWidth,
         maxWidth: barMaxWidth,
-        height: "108px",
+        // minHeight (not height) so the bar can grow when the Device ID
+        // wraps to multiple lines. The flex layout's alignItems:stretch
+        // keeps all cells (and the dividers between them) the same height.
+        minHeight: "140px",
         display: visible ? "flex" : "none",
         alignItems: "stretch",
         color: COLOR.value,
@@ -181,17 +184,17 @@ const ChannelsDetails = ({ channel, visible = false, sidebarOpen = false, locked
         style={{
           display: "flex",
           alignItems: "center",
-          gap: "16px",
-          padding: sidebarOpen ? "0 22px" : "0 28px",
+          gap: "20px",
+          padding: sidebarOpen ? "0 24px" : "0 32px",
           flexShrink: 0,
           minWidth: 0,
         }}
       >
         <div
           style={{
-            width: "58px",
-            height: "58px",
-            borderRadius: "12px",
+            width: "76px",
+            height: "76px",
+            borderRadius: "14px",
             background: "rgba(255,255,255,0.96)",
             display: "flex",
             alignItems: "center",
@@ -208,7 +211,7 @@ const ChannelsDetails = ({ channel, visible = false, sidebarOpen = false, locked
               width: "100%",
               height: "100%",
               objectFit: "contain",
-              padding: "6px",
+              padding: "8px",
             }}
             onError={(e) => { e.currentTarget.style.display = "none"; }}
           />
@@ -217,7 +220,7 @@ const ChannelsDetails = ({ channel, visible = false, sidebarOpen = false, locked
         <div style={{ minWidth: 0, display: "flex", flexDirection: "column", justifyContent: "center" }}>
           <p
             style={{
-              fontSize: "26px",
+              fontSize: "36px",
               fontWeight: 700,
               margin: 0,
               color: COLOR.value,
@@ -232,13 +235,13 @@ const ChannelsDetails = ({ channel, visible = false, sidebarOpen = false, locked
             style={{
               display: "flex",
               alignItems: "center",
-              margin: "8px 0 0",
+              margin: "10px 0 0",
               minWidth: 0,
             }}
           >
             <p
               style={{
-                fontSize: "20px",
+                fontSize: "28px",
                 fontWeight: 700,
                 margin: 0,
                 color: COLOR.accentWarm,
@@ -247,8 +250,8 @@ const ChannelsDetails = ({ channel, visible = false, sidebarOpen = false, locked
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 maxWidth: locked
-                  ? (sidebarOpen ? "120px" : "180px")
-                  : (sidebarOpen ? "200px" : "260px"),
+                  ? (sidebarOpen ? "150px" : "220px")
+                  : (sidebarOpen ? "240px" : "320px"),
               }}
             >
               {channelName}
@@ -279,10 +282,20 @@ const ChannelsDetails = ({ channel, visible = false, sidebarOpen = false, locked
 
         <div style={statCellStyle}>
           <p style={labelStyle}>DEVICE ID</p>
+          {/* Device ID is shown in full — the spread overrides
+              valueStyle's whiteSpace:nowrap / overflow:hidden /
+              textOverflow:ellipsis so long IDs (e.g. UDID + suffix)
+              wrap to multiple lines instead of truncating. wordBreak:
+              break-all handles IDs without separators (long contiguous
+              hex strings) so wrap points exist on every character. */}
           <p
             style={{
               ...valueStyle,
-              maxWidth: sidebarOpen ? "180px" : "260px",
+              whiteSpace: "normal",
+              overflow: "visible",
+              textOverflow: "clip",
+              wordBreak: "break-all",
+              maxWidth: "none",
             }}
             title={deviceId}
           >
@@ -296,7 +309,7 @@ const ChannelsDetails = ({ channel, visible = false, sidebarOpen = false, locked
             style={{
               ...valueStyle,
               color: COLOR.accentCool,
-              maxWidth: sidebarOpen ? "160px" : "240px",
+              maxWidth: sidebarOpen ? "200px" : "300px",
             }}
             title={userId}
           >
@@ -309,7 +322,7 @@ const ChannelsDetails = ({ channel, visible = false, sidebarOpen = false, locked
       <div
         style={{
           flexShrink: 0,
-          padding: sidebarOpen ? "0 22px 0 18px" : "0 32px 0 24px",
+          padding: sidebarOpen ? "0 26px 0 22px" : "0 36px 0 28px",
           borderLeft: `1px solid ${COLOR.divider}`,
           display: "flex",
           flexDirection: "column",
@@ -320,7 +333,7 @@ const ChannelsDetails = ({ channel, visible = false, sidebarOpen = false, locked
       >
         <p
           style={{
-            fontSize: "30px",
+            fontSize: "40px",
             fontWeight: 700,
             margin: 0,
             color: COLOR.value,
@@ -333,9 +346,9 @@ const ChannelsDetails = ({ channel, visible = false, sidebarOpen = false, locked
         </p>
         <p
           style={{
-            fontSize: "13px",
+            fontSize: "17px",
             color: COLOR.valueDim,
-            margin: "8px 0 0",
+            margin: "10px 0 0",
             fontWeight: 500,
             letterSpacing: "0.4px",
           }}

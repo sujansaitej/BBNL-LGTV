@@ -6,6 +6,7 @@ import useHomeAdsStore from "../store/ChannelsSearchStore";
 import useOttAppsStore from "../store/OttAppsStore";
 import { isSubscribed } from "../utils/subscription";
 import { useTapAction } from "../Remote/useTapAction";
+import SearchPill from "./components/SearchPill";
 
 const CATEGORY_COLORS = [
   "rgba(236,25,71,0.98)", "rgba(123,47,247,0.98)", "rgba(42,170,138,0.98)", "rgba(155,89,182,0.98)", "rgba(230,126,34,0.98)",
@@ -24,8 +25,6 @@ const MovieIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 
 const FeedbackIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="34" height="34" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z" /></svg>;
 const FavoriteIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="34" height="34" fill="currentColor"><path d="M16.5 3c-1.74 0-3.41.81-4.5 2.09C10.91 3.81 9.24 3 7.5 3 4.42 3 2 5.42 2 8.5c0 3.78 3.4 6.86 8.55 11.54L12 21.35l1.45-1.32C18.6 15.36 22 12.28 22 8.5 22 5.42 19.58 3 16.5 3zm-4.4 15.55l-.1.1-.1-.1C7.14 14.24 4 11.39 4 8.5 4 6.5 5.5 5 7.5 5c1.54 0 3.04.99 3.57 2.36h1.87C13.46 5.99 14.96 5 16.5 5c2 0 3.5 1.5 3.5 3.5 0 2.89-3.14 5.74-7.9 10.05z" /></svg>;
 const SettingsIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="34" height="34" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" /></svg>;
-const SearchIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" /></svg>;
-const ClearIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" /></svg>;
 
 // Dim placeholder tile preserving real-tile dimensions while data loads — no
 // layout shift when actual content arrives. Static (no shimmer animation) to
@@ -658,48 +657,15 @@ const Home = () => {
               extend the background edge-to-edge so scrolling content doesn't
               peek through the parent's lateral padding. */}
           <div style={{ position: "sticky", top: 0, zIndex: 50, backgroundColor: "#0a0a0a", marginLeft: "-1rem", marginRight: "-1.5rem", paddingLeft: "1rem", paddingRight: "1.5rem", paddingTop: "1.5rem", paddingBottom: "1.25rem", marginBottom: "0.75rem", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "1rem" }}>
-            <div
+            <SearchPill
               ref={(el) => { searchRefs.current[0] = el; }}
-              className="focusable-button"
-              role="button"
-              tabIndex={-1}
-              onClick={() => {
-                const inputEl = searchRefs.current[0]?.querySelector("input");
-                if (inputEl) inputEl.focus();
-              }}
-              style={{
-                width: "28rem",
-                display: "flex",
-                alignItems: "center",
-                backgroundColor: "rgba(255,255,255,0.06)",
-                border: isSearchFocused ? "2px solid #667eea" : "2px solid rgba(255,255,255,0.2)",
-                borderRadius: "28px",
-                height: "3.5rem",
-                padding: "0 1.25rem",
-                gap: "10px",
-                outline: "none",
-                flexShrink: 0,
-              }}
-            >
-              <span style={{ color: "rgba(255,255,255,0.5)", display: "flex", flexShrink: 0 }}><SearchIcon /></span>
-              <input
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                onFocus={() => setIsSearchFocused(true)}
-                onBlur={() => setIsSearchFocused(false)}
-                placeholder="Search channels by name or number..."
-                maxLength={50}
-                style={{ flex: 1, background: "none", border: "none", outline: "none", color: "#fff", fontSize: "1.1rem", fontWeight: 500 }}
-              />
-              {searchTerm && (
-                <div
-                  onClick={(e) => { e.stopPropagation(); setSearchTerm(""); }}
-                  style={{ color: "#fff", cursor: "pointer", display: "flex", padding: "4px", flexShrink: 0 }}
-                >
-                  <ClearIcon />
-                </div>
-              )}
-            </div>
+              value={searchTerm}
+              onChange={setSearchTerm}
+              onFocusChange={setIsSearchFocused}
+              placeholder="Search channels by name or number..."
+              width="28rem"
+              height="3.5rem"
+            />
           </div>
 
           {debouncedSearchTerm.trim() ? (

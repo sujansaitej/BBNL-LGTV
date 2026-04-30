@@ -28,7 +28,7 @@ const getMediaAction = (event) => {
 // surfaces a permanent failure to the user.
 const REFRESH_EVERY = 4;
 
-const HLSPlayer = ({ src, autoPlay = true, onStreamFailed = null, streamAd = null, onReady = null }) => {
+const HLSPlayer = ({ src, autoPlay = true, onStreamFailed = null, streamAd = null, onReady = null, onChannelUnavailable = null }) => {
   const videoRef = useRef(null);
   const hlsRef = useRef(null);
 
@@ -36,8 +36,15 @@ const HLSPlayer = ({ src, autoPlay = true, onStreamFailed = null, streamAd = nul
   useEffect(() => { onReadyRef.current = onReady; }, [onReady]);
   const onStreamFailedRef = useRef(onStreamFailed);
   useEffect(() => { onStreamFailedRef.current = onStreamFailed; }, [onStreamFailed]);
+  const onChannelUnavailableRef = useRef(onChannelUnavailable);
+  useEffect(() => { onChannelUnavailableRef.current = onChannelUnavailable; }, [onChannelUnavailable]);
   const readyFiredRef = useRef(false);
   useEffect(() => { readyFiredRef.current = false; }, [src]);
+  // Once we've confirmed a channel URL is permanently dead (manifest 404),
+  // stop all further retry/recovery for the current src — otherwise hls.js
+  // retries forever and the user sees an infinite "reconnecting" loop.
+  const givenUpRef = useRef(false);
+  useEffect(() => { givenUpRef.current = false; }, [src]);
 
   const [overrideSrc, setOverrideSrc] = useState("");
   const refreshInFlightRef = useRef(false);
@@ -149,36 +156,18 @@ const HLSPlayer = ({ src, autoPlay = true, onStreamFailed = null, streamAd = nul
     // requests ran but the server didn't respond with the expected
     // playable content, so hls.js hung in "Loading..." indefinitely.
     //
-    // hls.js config tuned from a 5-minute live capture against the BBNL CDN
-    // over residential WiFi: 54% of segments take >3 s, p90=6.5 s, max=19.8 s.
-    // Playback is calm-then-bursty — multi-minute clean windows interrupted
-    // by ~1-2 minute bursts where stalls cascade into 404s (CDN ages out the
-    // next segment while we're stalled). See
-    // docs/plans/2026-04-30-stream-buffer-tuning-design.md.
-    //
-    // Strategy: ride further behind the live edge so a stall can't trigger
-    // an age-out 404; widen the level/frag timeouts so a single slow fetch
-    // doesn't turn into a fatal; cap back-buffer so memory stays honest.
+    // Modest timeout + retry bumps (still well within hls.js sane ranges)
+    // account for slow LG webOS cold-load on first manifest. All other
+    // playback parameters left at hls.js defaults — display the stream
+    // exactly as the server delivers, no client-side adaptation.
     const hls = new Hls({
       enableWorker: true,
       manifestLoadingTimeOut: 10000,
       manifestLoadingMaxRetry: 4,
-      // levelLoadingTimeOut: probe showed level fetches ≥10 s during bursts.
-      levelLoadingTimeOut: 20000,
+      levelLoadingTimeOut: 10000,
       levelLoadingMaxRetry: 4,
-      // fragLoadingTimeOut: probe showed max segment time 19.8 s; allow more.
-      fragLoadingTimeOut: 30000,
+      fragLoadingTimeOut: 20000,
       fragLoadingMaxRetry: 6,
-      // Buffer: generous forward room to soak network bursts; hard ceilings
-      // (maxMaxBufferLength, backBufferLength) prevent unbounded growth.
-      maxBufferLength: 30,
-      maxMaxBufferLength: 60,
-      backBufferLength: 30,
-      // Live edge: sit ~4 segments (~24 s) behind real-time. Trades latency
-      // for resilience — slow segments don't push us into the CDN's age-out
-      // window. Acceptable for IPTV; nobody is racing a broadcaster.
-      liveSyncDurationCount: 4,
-      liveMaxLatencyDurationCount: 10,
       xhrSetup: (xhr) => {
         xhr.setRequestHeader("X-App-Package", "com.bbnl.iptv");
       },
@@ -195,17 +184,16 @@ const HLSPlayer = ({ src, autoPlay = true, onStreamFailed = null, streamAd = nul
     };
 
     // Debounce the "Reconnecting..." spinner — `waiting` fires on every minor
-    // buffer top-up. With the tighter buffer caps above, top-ups happen more
-    // often, so flashing the spinner instantly would make healthy playback
-    // look broken. 600 ms ≈ one healthy segment fetch — real stalls still
-    // surface within a second, transient ABR/refill events stay invisible.
+    // buffer top-up. 1500 ms is the canonical "user starts noticing" web-perf
+    // threshold; transient blips that resolve faster never surface. Strictly
+    // a UI-text timing change — does not touch the stream itself.
     let waitDebounce = null;
     const showLoaderSoon = () => {
       if (waitDebounce) return;
       waitDebounce = setTimeout(() => {
         waitDebounce = null;
         setShowLoader(true);
-      }, 600);
+      }, 1500);
     };
     const clearLoaderNow = () => {
       if (waitDebounce) { clearTimeout(waitDebounce); waitDebounce = null; }
@@ -307,8 +295,30 @@ const HLSPlayer = ({ src, autoPlay = true, onStreamFailed = null, streamAd = nul
         responseText: data.response && data.response.text,
         reason: data.reason,
       });
+
       if (!data.fatal) {
         // Non-fatal: hls.js handles internally. Do nothing.
+        return;
+      }
+
+      // Already gave up on this src — silence any further fatal events from
+      // hls.js's internal retries until the parent swaps in a new src.
+      if (givenUpRef.current) return;
+
+      // Permanent: the channel's master manifest itself is 404. Retrying
+      // is pointless — the URL is dead on the CDN. Surface to the parent
+      // so it can show "channel unavailable" UI and stop wedging the user
+      // on a black-screen reconnecting loop.
+      const isDeadManifest =
+        data.type === Hls.ErrorTypes.NETWORK_ERROR &&
+        data.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR &&
+        data.response && data.response.code === 404;
+      if (isDeadManifest) {
+        givenUpRef.current = true;
+        try { hls.stopLoad(); } catch (_) { /* ignore */ }
+        if (typeof onChannelUnavailableRef.current === "function") {
+          try { onChannelUnavailableRef.current(); } catch (_) { /* ignore */ }
+        }
         return;
       }
 

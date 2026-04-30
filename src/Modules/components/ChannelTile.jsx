@@ -1,7 +1,7 @@
 import { memo } from "react";
 
 const PlayIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="rgba(0,0,0,0.18)" strokeWidth="1.5">
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="rgba(0,0,0,0.18)" strokeWidth="1.5">
     <rect x="3" y="3" width="18" height="18" rx="3" />
     <path d="M9 8L9 16L17 12L9 8Z" fill="rgba(0,0,0,0.12)" />
   </svg>
@@ -59,15 +59,15 @@ function ChannelTileImpl({ channel, index, setRef, onSelect }) {
               if (parent) {
                 const fallback = document.createElement("div");
                 fallback.style.cssText = "display:flex;flex-direction:column;align-items:center;gap:6px";
-                fallback.innerHTML = '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="rgba(0,0,0,0.18)" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 8L9 16L17 12L9 8Z" fill="rgba(0,0,0,0.12)"/></svg><span style="font-size:11px;color:rgba(0,0,0,0.35);font-weight:700;letter-spacing:0.5px">NO LOGO</span>';
+                fallback.innerHTML = '<svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="rgba(0,0,0,0.18)" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 8L9 16L17 12L9 8Z" fill="rgba(0,0,0,0.12)"/></svg><span style="font-size:14px;color:rgba(0,0,0,0.35);font-weight:700;letter-spacing:0.5px">NO LOGO</span>';
                 parent.appendChild(fallback);
               }
             }}
           />
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px" }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
             <PlayIcon />
-            <span style={{ fontSize: "11px", color: "rgba(0,0,0,0.35)", fontWeight: 700, letterSpacing: "0.5px" }}>NO LOGO</span>
+            <span style={{ fontSize: "14px", color: "rgba(0,0,0,0.35)", fontWeight: 700, letterSpacing: "0.5px" }}>NO LOGO</span>
           </div>
         )}
 
@@ -75,13 +75,13 @@ function ChannelTileImpl({ channel, index, setRef, onSelect }) {
           <div
             style={{
               position: "absolute",
-              top: "6px",
-              left: "6px",
-              padding: "3px 10px",
+              top: "8px",
+              left: "8px",
+              padding: "5px 12px",
               background: "rgba(0,0,0,0.78)",
               color: "#fff",
-              borderRadius: "7px",
-              fontSize: "0.95rem",
+              borderRadius: "8px",
+              fontSize: "1.2rem",
               fontWeight: 800,
               letterSpacing: "0.3px",
               lineHeight: 1.2,
@@ -95,13 +95,13 @@ function ChannelTileImpl({ channel, index, setRef, onSelect }) {
           <div
             style={{
               position: "absolute",
-              top: "6px",
-              right: "6px",
-              padding: "3px 9px",
+              top: "8px",
+              right: "8px",
+              padding: "5px 12px",
               background: isFree ? "rgba(34,197,94,0.95)" : "rgba(244,191,31,0.95)",
               color: isFree ? "#03110a" : "#1c1100",
-              borderRadius: "7px",
-              fontSize: "0.85rem",
+              borderRadius: "8px",
+              fontSize: "1.05rem",
               fontWeight: 800,
               letterSpacing: "0.3px",
               lineHeight: 1.2,
@@ -112,10 +112,10 @@ function ChannelTileImpl({ channel, index, setRef, onSelect }) {
         )}
       </div>
 
-      <div style={{ padding: "8px 10px 9px" }}>
+      <div style={{ padding: "10px 12px 12px" }}>
         <p
           style={{
-            fontSize: "1.15rem",
+            fontSize: "1.5rem",
             fontWeight: 700,
             margin: 0,
             color: "#fff",

@@ -5,11 +5,10 @@ import useLiveChannelsStore from "../store/LiveChannelsStore";
 import useLanguageStore from "../store/LivePlayersStore";
 import { isSubscribed } from "../utils/subscription";
 import ChannelTile from "./components/ChannelTile";
+import SearchPill from "./components/SearchPill";
 import { useTapAction } from "../Remote/useTapAction";
 
 const ArrowBackIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" /></svg>;
-const SearchIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" /></svg>;
-const ClearIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" /></svg>;
 
 const COLS = 7;
 const GRID_GAP = "0.85rem";
@@ -169,8 +168,11 @@ const LiveChannels = () => {
     if (match?.langtitle) setSelectedLanguageTitle(match.langtitle);
   }, [languages, selectedLanguageId]);
 
+  // 300ms debounce — matches Home, keeps the grid responsive while typing.
+  // Auto-play on exact match (effect below) still gates on length===1, so a
+  // shorter window doesn't trigger spurious auto-plays mid-keystroke.
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearchTerm(searchTerm), 1500);
+    const t = setTimeout(() => setDebouncedSearchTerm(searchTerm), 300);
     return () => clearTimeout(t);
   }, [searchTerm]);
 
@@ -283,9 +285,9 @@ const LiveChannels = () => {
   if (authError === "NO_LOGIN") {
     return (
       <div style={{ background: "#000", minHeight: "100vh", color: "#fff", padding: "32px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-        <p style={{ fontSize: "28px", fontWeight: 700, marginBottom: "16px" }}>Login Required</p>
-        <p style={{ fontSize: "16px", color: "#999" }}>Please log in to view TV channels.</p>
-        <button onClick={() => navigate("/login")} style={{ padding: "12px 32px", fontSize: "16px", fontWeight: 600, background: "#667eea", color: "#fff", border: "none", borderRadius: "12px", cursor: "pointer", marginTop: "16px" }}>Go to Login</button>
+        <p style={{ fontSize: "36px", fontWeight: 700, marginBottom: "20px" }}>Login Required</p>
+        <p style={{ fontSize: "20px", color: "#999" }}>Please log in to view TV channels.</p>
+        <button onClick={() => navigate("/login")} style={{ padding: "14px 36px", fontSize: "20px", fontWeight: 600, background: "#667eea", color: "#fff", border: "none", borderRadius: "12px", cursor: "pointer", marginTop: "20px" }}>Go to Login</button>
       </div>
     );
   }
@@ -295,7 +297,7 @@ const LiveChannels = () => {
 
       {/* Channel Jump HUD */}
       {channelJumpBuffer && (
-        <div style={{ position: "fixed", top: "1.5rem", right: "2rem", backgroundColor: "#667eea", color: "#fff", padding: "0.75rem 1.5rem", borderRadius: "0.75rem", fontSize: "1.5rem", fontWeight: 700, zIndex: 100 }}>
+        <div style={{ position: "fixed", top: "1.5rem", right: "2rem", backgroundColor: "#667eea", color: "#fff", padding: "1rem 1.75rem", borderRadius: "0.75rem", fontSize: "1.875rem", fontWeight: 700, zIndex: 100 }}>
           Channel: {channelJumpBuffer}
         </div>
       )}
@@ -317,30 +319,20 @@ const LiveChannels = () => {
           {selectedLanguageTitle ? `TV Channels — ${selectedLanguageTitle}` : "TV Channels"}
         </p>
 
-        <div
+        <SearchPill
           ref={searchRef}
-          className="focusable-button"
-          style={{ width: "22rem", display: "flex", alignItems: "center", backgroundColor: "rgba(255,255,255,0.06)", border: isSearchFocused ? "2px solid #667eea" : "2px solid rgba(255,255,255,0.2)", borderRadius: "28px", height: "3.25rem", padding: "0 1rem", gap: "8px", outline: "none", flexShrink: 0 }}
-        >
-          <span style={{ color: "rgba(255,255,255,0.4)", display: "flex", flexShrink: 0 }}><SearchIcon /></span>
-          <input
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            onFocus={() => setIsSearchFocused(true)}
-            onBlur={() => setIsSearchFocused(false)}
-            placeholder="Search channels..."
-            maxLength={50}
-            style={{ flex: 1, background: "none", border: "none", outline: "none", color: "#fff", fontSize: "1.1rem", fontWeight: 500 }}
-          />
-          {searchTerm && (
-            <div onClick={() => setSearchTerm("")} style={{ color: "#fff", cursor: "pointer", display: "flex", padding: "4px", flexShrink: 0 }}><ClearIcon /></div>
-          )}
-        </div>
+          value={searchTerm}
+          onChange={setSearchTerm}
+          onFocusChange={setIsSearchFocused}
+          placeholder="Search channels..."
+          width="22rem"
+          height="3.25rem"
+        />
       </div>
 
       {/* Errors */}
-      {error && <p style={{ fontSize: "1.1rem", color: "#f44336", margin: "0 2.5rem 1rem" }}>{error}</p>}
-      {localError && <p style={{ fontSize: "1.1rem", color: "#ff9800", margin: "0 2.5rem 1rem" }}>{localError}</p>}
+      {error && <p style={{ fontSize: "1.4rem", color: "#f44336", margin: "0 2.5rem 1rem" }}>{error}</p>}
+      {localError && <p style={{ fontSize: "1.4rem", color: "#ff9800", margin: "0 2.5rem 1rem" }}>{localError}</p>}
 
       {/* Channels Grid */}
       <div className="hide-scrollbar" style={{ flex: 1, overflowY: "auto", padding: "0.5rem 2.5rem 3rem" }}>
@@ -352,7 +344,7 @@ const LiveChannels = () => {
           </div>
         ) : filteredChannels.length === 0 ? (
           <div style={{ textAlign: "center", padding: "6rem 0" }}>
-            <p style={{ fontSize: "1.5rem", fontWeight: 600, color: "rgba(255,255,255,0.5)" }}>No channels found</p>
+            <p style={{ fontSize: "1.875rem", fontWeight: 600, color: "rgba(255,255,255,0.5)" }}>No channels found</p>
           </div>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: `repeat(${COLS}, 1fr)`, gap: GRID_GAP }}>

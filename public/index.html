@@ -256,14 +256,36 @@
         outline: none !important;
       }
       .focusable-category-row[data-focused="true"] {
-        border: 1.5px solid #ffffff !important;
-        background: rgba(255,255,255,0.05) !important;
+        background: linear-gradient(90deg,
+          rgba(34,211,238,0.18) 0%,
+          rgba(34,211,238,0.04) 100%) !important;
+        border-color: transparent !important;
         outline: none !important;
       }
+      /* Channel card — three states layered via attributes:
+         (1) focused: gradient cyan tint, no border (cleaner on TV panels
+             where 1-2px borders fringe / anti-alias unevenly)
+         (2) playing (always-on): persistent left rail via inset shadow —
+             no DOM mutation, no `position:relative` requirement, survives
+             scroll without per-frame work
+         (3) playing+focused: thicker rail + slightly stronger gradient
+         All three are TV-safe (no transform; no shadow that washes out on
+         OLED). Three independent visual channels (color + shape + text)
+         satisfy `color-not-only` accessibility. */
       .focusable-channel-card[data-focused="true"] {
-        border: 1.5px solid #ffffff !important;
-        background: rgba(255,255,255,0.05) !important;
+        background: linear-gradient(90deg,
+          rgba(34,211,238,0.20) 0%,
+          rgba(34,211,238,0.06) 100%) !important;
         outline: none !important;
+      }
+      .focusable-channel-card[data-playing="true"] {
+        box-shadow: inset 3px 0 0 #22D3EE !important;
+      }
+      .focusable-channel-card[data-playing="true"][data-focused="true"] {
+        background: linear-gradient(90deg,
+          rgba(34,211,238,0.22) 0%,
+          rgba(34,211,238,0.08) 100%) !important;
+        box-shadow: inset 4px 0 0 #22D3EE !important;
       }
 
       /* Feedback page — zoned focus styles */

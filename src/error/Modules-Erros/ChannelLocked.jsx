@@ -11,8 +11,10 @@ import { sessionGet } from "../../utils/session";
  *
  * Step 2 ("Coming Soon"):
  *   - Subscription portal placeholder. Single "Go Back" CTA.
- *   - OK on Go Back, or BACK key, both close the whole flow and return to
- *     the original screen — they DO NOT re-show Step 1.
+ *   - OK on Go Back: returns to Step 1 (the "Subscription Not Available"
+ *     screen). The button literally goes back one step.
+ *   - Remote BACK key: dismisses the whole flow (parks the user on the
+ *     locked channel — see LivePlayer's onClose handler).
  *
  * Public API is unchanged from the previous component:
  *   <ChannelLocked channel={...} onClose={...} />
@@ -96,9 +98,11 @@ const ChannelLocked = ({ channel, onClose }) => {
         if (isOk)   { setStep(2); return; }
         if (isBack) { onClose?.(); return; }
       } else {
-        // Step 2: OK on Go Back, or BACK key, both fully close the flow
-        // (per design — never bounce back to Step 1).
-        if (isOk || isBack) { onClose?.(); return; }
+        // Step 2: OK on the "Go Back" button returns to Step 1 (the button
+        // literally goes back one step). The remote BACK key dismisses the
+        // whole flow.
+        if (isOk)   { setStep(1); return; }
+        if (isBack) { onClose?.(); return; }
       }
     };
     window.addEventListener("keydown", onKey, true);
@@ -245,7 +249,7 @@ const ChannelLocked = ({ channel, onClose }) => {
           ref={goBackRef}
           tabIndex={0}
           className="focusable-goback-btn"
-          onClick={() => onClose?.()}
+          onClick={() => setStep(1)}
           style={{
             minWidth: "260px", height: "76px",
             padding: "0 40px",

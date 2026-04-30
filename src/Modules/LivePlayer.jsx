@@ -17,7 +17,21 @@ import { fetchFreshStream } from "../server/modules-api/StreamApi";
 import { fetchStreamAd } from "../server/modules-api/StreamAdsApi";
 import { useTapAction } from "../Remote/useTapAction";
 
-const ZAP_SETTLE_MS = 300;
+// Surf-mode state machine timings (DTH-style hold-to-fast-forward).
+//   HOLD_ARM_MS    — 2nd same-direction keydown within this window after the
+//                    1st step transitions us into HOLDING (interval-driven).
+//   SURF_STEP_MS   — step interval while HOLDING (~5 channels/sec).
+//   KEY_ABSENCE_MS — gap with no keydown of the active arrow → release. Covers
+//                    webOS firmwares that drop `keyup` events.
+//   ZAP_SETTLE_MS  — pause after the last step before HLS commit / park.
+//   PARKED_IDLE_MS — continuous idle on a locked-parked channel before the
+//                    ChannelLocked modal auto-opens.
+// Full design: docs/plans/2026-04-30-dth-channel-surf-hold-design.md
+const HOLD_ARM_MS    = 180;
+const SURF_STEP_MS   = 200;
+const KEY_ABSENCE_MS = 350;
+const ZAP_SETTLE_MS  = 250;
+const PARKED_IDLE_MS = 1500;
 
 const getStreamUrl = (channel) => {
   if (!channel) return "";
@@ -61,6 +75,21 @@ const LivePlayer = () => {
   const numberTimer    = useRef(null);
   const lastTrpStream  = useRef("");
 
+  // ── Surf state-machine refs (DTH-style hold-to-fast-forward) ───────────
+  // All refs — zero React state churn during a hold. Drives `pendingChannel`
+  // directly; the existing zap-settle effect commits HLS after the last step.
+  const surfStateRef         = useRef("idle"); // "idle" | "stepping" | "holding"
+  const surfDirRef           = useRef(0);      // +1 | -1 | 0
+  const holdArmTimerRef      = useRef(null);
+  const surfIntervalRef      = useRef(null);
+  const keyAbsenceTimerRef   = useRef(null);
+  // Parked-idle popup (option B in the design): land on a locked channel,
+  // wait for true idle, only then surface the modal. `popupShownForLockedRef`
+  // tracks the chid we already popped so we don't loop the modal after the
+  // user dismisses and stays parked.
+  const parkedIdleTimerRef   = useRef(null);
+  const popupShownForLockedRef = useRef("");
+
   // Stable refs — keyboard handler reads these, never stale
   const sidebarRef           = useRef(false);
   const detailsRef           = useRef(false);
@@ -90,6 +119,21 @@ const LivePlayer = () => {
 
   // ── Simple timer start/stop ──────────────────────────────────────────────
   const stop = useCallback((ref) => { if (ref.current) { clearTimeout(ref.current); ref.current = null; } }, []);
+
+  // Drop out of any active surf state and clear hold/keyup timers. Leaves
+  // `pendingChannel` intact so the zap-settle effect commits whatever channel
+  // the user landed on. Called on keyup, on KEY_ABSENCE_MS gap, on direction
+  // reversal cleanup, and when any non-UP/DOWN key arrives mid-surf.
+  const exitSurfState = useCallback(() => {
+    if (surfIntervalRef.current) {
+      clearInterval(surfIntervalRef.current);
+      surfIntervalRef.current = null;
+    }
+    stop(holdArmTimerRef);
+    stop(keyAbsenceTimerRef);
+    surfStateRef.current = "idle";
+    surfDirRef.current = 0;
+  }, [stop]);
 
   // ── INFO BAR: show with auto-hide, or just hide ─────────────────────────
   // When parked on a locked channel the bar is pinned by `isLockedParked` in
@@ -252,11 +296,13 @@ const LivePlayer = () => {
     if (pendingChannel === currentChannel) return;
     const t = setTimeout(() => {
       if (!isSubscribed(pendingChannel)) {
-        // Park on the locked channel: tear down any active stream, swap the
-        // visible context, and open the modal. Matches selectChannelRaw.
+        // Park silently on the locked channel — the info bar stays pinned
+        // with the Locked badge, but we do NOT open the modal here. The
+        // parked-idle effect surfaces the modal after PARKED_IDLE_MS of true
+        // idle, so a hold that scrolls THROUGH locked channels never
+        // interrupts. Surf-driven settles only.
         setCurrentStream("");
         setCurrentChannel(pendingChannel);
-        setLockedChannel(pendingChannel);
         setPendingChannel(null);
         setLocalError("");
         return;
@@ -278,6 +324,50 @@ const LivePlayer = () => {
       showInfo();
     }
   }, [pendingChannel, currentChannel, showInfo]);
+
+  // Parked-idle popup — option B: when the user lands (and stays) on a
+  // locked channel for PARKED_IDLE_MS without any input, surface the
+  // ChannelLocked modal. Reset on every keypress (keyboard handler kills
+  // `parkedIdleTimerRef` on any key while parked) and on park-channel
+  // change. `popupShownForLockedRef` ensures we don't re-pop after the user
+  // dismisses and stays sitting on the same locked channel — one shot per
+  // landing.
+  useEffect(() => {
+    if (!isLockedParked || !currentChannel) {
+      // Left the locked-park state (channel switched to subscribed, channel
+      // cleared, etc). Forget which chid we already popped for — next time
+      // the user lands on a locked channel, it should be a fresh shot.
+      stop(parkedIdleTimerRef);
+      popupShownForLockedRef.current = "";
+      return undefined;
+    }
+    const chKey = String(currentChannel.chid || currentChannel.channelid ||
+                         currentChannel.channelno || "");
+    if (popupShownForLockedRef.current === chKey) return undefined;
+    if (lockedChannel) return undefined; // modal already up
+
+    stop(parkedIdleTimerRef);
+    parkedIdleTimerRef.current = setTimeout(() => {
+      parkedIdleTimerRef.current = null;
+      setLockedChannel(currentChannel);
+      // popupShownForLockedRef is set by the lockedChannel-tracker effect
+      // below — this keeps the "already shown" bookkeeping in one place
+      // regardless of which path opened the modal.
+    }, PARKED_IDLE_MS);
+    return () => stop(parkedIdleTimerRef);
+  }, [isLockedParked, currentChannel, lockedChannel, stop]);
+
+  // Track which channel the modal is currently open for. Any path that opens
+  // it (parked-idle timer, mount with locked channelData, explicit
+  // sidebar/numpad select) marks the chid as "already shown". The
+  // parked-idle effect above bails out while popupShown === chKey, so after
+  // the user dismisses, sitting on the same locked channel doesn't re-pop.
+  useEffect(() => {
+    if (!lockedChannel) return;
+    const chKey = String(lockedChannel.chid || lockedChannel.channelid ||
+                         lockedChannel.channelno || "");
+    popupShownForLockedRef.current = chKey;
+  }, [lockedChannel]);
 
   // ── TRP ─────────────────────────────────────────────────────────────────
   const userid = localStorage.getItem("userId") || "";
@@ -444,6 +534,19 @@ const LivePlayer = () => {
         startMenuTimer();
       }
 
+      // Any key while parked on a locked channel kills the popup-idle
+      // fuse — it counts as user interaction and pushes the auto-popup off.
+      if (isLockedParkedRef.current) stop(parkedIdleTimerRef);
+
+      // Any non-UP/DOWN key cancels the active surf state. Surf is a
+      // strictly UP/DOWN affair; once the user does anything else (digit,
+      // LEFT, RIGHT, OK, BACK), the hold is over.
+      const isUpDown = (kc === 38 || kc === 40 ||
+                        k === "ArrowUp" || k === "ArrowDown");
+      if (!isUpDown && surfStateRef.current !== "idle") {
+        exitSurfState();
+      }
+
       // DIGITS — type via remote, show floating badge, commit after 2s
       const d = digit(e);
       if (d) {
@@ -474,15 +577,100 @@ const LivePlayer = () => {
         return;
       }
 
-      // UP / DOWN → step channel (only when no sidebar is open)
+      // UP / DOWN — DTH-style surf state machine.
+      // First press with the info bar hidden just shows the bar (legacy
+      // behaviour preserved). Subsequent presses drive `pendingChannel`
+      // through the existing zap-settle effect, which commits HLS / park
+      // ZAP_SETTLE_MS after the last step. The state machine itself is
+      // what makes hold-to-fast-forward feel right on webOS — see
+      // docs/plans/2026-04-30-dth-channel-surf-hold-design.md.
       if (k === "ArrowUp" || kc === 38 || k === "ArrowDown" || kc === 40) {
         if (sidebarRef.current) return;
         e.preventDefault(); e.stopPropagation();
         if (!detailsRef.current) {
           showInfo();
-        } else {
-          stepChannel((k === "ArrowUp" || kc === 38) ? 1 : -1);
+          return;
+        }
+
+        const dir = (k === "ArrowUp" || kc === 38) ? 1 : -1;
+
+        // Reset/restart absence timer. If no UP/DOWN keydown arrives within
+        // KEY_ABSENCE_MS, treat the key as released and drop to settle.
+        // This is the keyup-fallback path for webOS firmwares that swallow
+        // keyup events in pointer mode.
+        stop(keyAbsenceTimerRef);
+        keyAbsenceTimerRef.current = setTimeout(() => {
+          exitSurfState();
+        }, KEY_ABSENCE_MS);
+
+        const state = surfStateRef.current;
+
+        if (state === "idle") {
+          // First press — step once, arm hold detection. If a 2nd same-dir
+          // keydown arrives within HOLD_ARM_MS, we'll enter HOLDING.
+          surfStateRef.current = "stepping";
+          surfDirRef.current = dir;
+          stepChannel(dir);
           showInfo();
+          stop(holdArmTimerRef);
+          holdArmTimerRef.current = setTimeout(() => {
+            holdArmTimerRef.current = null;
+          }, HOLD_ARM_MS);
+          return;
+        }
+
+        if (state === "stepping") {
+          if (dir !== surfDirRef.current) {
+            // Mid-burst direction reversal — re-arm in the new direction.
+            surfDirRef.current = dir;
+            stepChannel(dir);
+            showInfo();
+            stop(holdArmTimerRef);
+            holdArmTimerRef.current = setTimeout(() => {
+              holdArmTimerRef.current = null;
+            }, HOLD_ARM_MS);
+            return;
+          }
+          if (holdArmTimerRef.current) {
+            // 2nd same-dir keydown inside HOLD_ARM_MS → enter HOLDING. We
+            // own the rate from here; native auto-repeat keydowns are
+            // swallowed (they only serve to keep keyAbsenceTimerRef alive).
+            stop(holdArmTimerRef);
+            surfStateRef.current = "holding";
+            stepChannel(dir);
+            showInfo();
+            surfIntervalRef.current = setInterval(() => {
+              stepChannel(surfDirRef.current);
+              showInfo();
+            }, SURF_STEP_MS);
+            return;
+          }
+          // Slow tap (gap > HOLD_ARM_MS but < KEY_ABSENCE_MS). Step once.
+          stepChannel(dir);
+          showInfo();
+          return;
+        }
+
+        if (state === "holding") {
+          if (dir !== surfDirRef.current) {
+            // Mid-hold reversal — drop to stepping in the new dir, re-arm.
+            if (surfIntervalRef.current) {
+              clearInterval(surfIntervalRef.current);
+              surfIntervalRef.current = null;
+            }
+            surfStateRef.current = "stepping";
+            surfDirRef.current = dir;
+            stepChannel(dir);
+            showInfo();
+            stop(holdArmTimerRef);
+            holdArmTimerRef.current = setTimeout(() => {
+              holdArmTimerRef.current = null;
+            }, HOLD_ARM_MS);
+            return;
+          }
+          // Same-direction repeat keydown — interval owns the step rate.
+          // Swallow it; keyAbsenceTimerRef was already reset above.
+          return;
         }
         return;
       }
@@ -520,11 +708,26 @@ const LivePlayer = () => {
       }
     };
 
+    // Primary release path: drop straight to settle on UP/DOWN keyup.
+    // The KEY_ABSENCE_MS gap inside `onKey` is the fallback for firmwares
+    // that swallow keyup events.
+    const onKeyUp = (e) => {
+      if (e.keyCode === 38 || e.keyCode === 40 ||
+          e.key === "ArrowUp" || e.key === "ArrowDown") {
+        if (surfStateRef.current !== "idle") exitSurfState();
+      }
+    };
+
     window.addEventListener("keydown", onKey, true);
-    return () => { window.removeEventListener("keydown", onKey, true); stop(numberTimer); };
+    window.addEventListener("keyup",   onKeyUp, true);
+    return () => {
+      window.removeEventListener("keydown", onKey, true);
+      window.removeEventListener("keyup",   onKeyUp, true);
+      stop(numberTimer);
+    };
   }, [lookupChannelByNumber, selectChannel, stepChannel,
       openMenu, showInfo, hideInfo, showNumpadDigitMode,
-      startMenuTimer, handleBackCascade, stop]);
+      startMenuTimer, handleBackCascade, exitSurfState, stop]);
 
   // Pause info timer while sidebar is open (don't hide info behind menu)
   useEffect(() => { if (isSidebarOpen) stop(detailsTimer); }, [isSidebarOpen, stop]);
@@ -545,6 +748,25 @@ const LivePlayer = () => {
   // Cleanup
   useEffect(() => () => {
     stop(detailsTimer); stop(sidebarTimer); stop(numpadTimer); stop(numberTimer);
+    stop(holdArmTimerRef); stop(keyAbsenceTimerRef); stop(parkedIdleTimerRef);
+    if (surfIntervalRef.current) {
+      clearInterval(surfIntervalRef.current);
+      surfIntervalRef.current = null;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Channel-permanently-unavailable handler ─────────────────────────────
+  // HLSPlayer calls this when the master manifest comes back HTTP 404 — i.e.
+  // the channel's CDN URL is dead, not a transient network problem. We surface
+  // the existing ChannelNotFound modal with the channel number, then unmount
+  // the player so its retry loop stops. The modal's onClose bounces back so
+  // the user lands on the previous screen instead of a black canvas.
+  const onChannelUnavailable = useCallback(() => {
+    const ch = curChRef.current;
+    const label = String(ch?.channelno || ch?.chno || ch?.channelid || ch?.chid || "");
+    setCurrentStream("");
+    setChannelNotFound(label || "this channel");
   }, []);
 
   // ── /stream fallback ────────────────────────────────────────────────────
@@ -591,11 +813,19 @@ const LivePlayer = () => {
         />
       )}
 
-      {/* Channel-not-found popup (auto-clears) */}
+      {/* Channel-not-found popup (auto-clears).
+          Two triggers: (1) user typed a channel number that doesn't exist —
+          modal just clears and the existing stream keeps playing; (2) the
+          live stream's master manifest 404'd, so we cleared currentStream
+          to stop hls.js retrying — modal close needs to bounce back, since
+          staying here leaves a black canvas. */}
       {channelNotFound && (
         <ChannelNotFound
           channelNumber={channelNotFound}
-          onClose={() => setChannelNotFound("")}
+          onClose={() => {
+            setChannelNotFound("");
+            if (!currentStream) navigate(-1);
+          }}
         />
       )}
 
@@ -624,6 +854,7 @@ const LivePlayer = () => {
         <HLSPlayer
           src={currentStream}
           onStreamFailed={onStreamFailed}
+          onChannelUnavailable={onChannelUnavailable}
           streamAd={streamAd}
         />
       )}
@@ -658,6 +889,7 @@ const LivePlayer = () => {
           <ChannelsSidebar
             onChannelSelect={onSidebarSelect}
             currentChannel={currentChannel}
+            isOpen={isSidebarOpen}
           />
         </div>
       )}

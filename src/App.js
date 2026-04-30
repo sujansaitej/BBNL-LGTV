@@ -65,11 +65,34 @@ const TapLockResetter = () => {
 // otherwise webOS would show the exit-app dialog on the next BACK press.
 const SELF_HANDLED_ROUTES = ['/login', '/player'];
 
+// Any focused HTML text input (search pills, support textarea, feedback
+// textarea) consumes BACK to blur first, so the on-screen keyboard closes
+// without leaving the page. Hidden inputs on /login are SELF_HANDLED.
+const isTextInputFocused = () => {
+  const ae = document.activeElement;
+  if (!ae) return false;
+  const tag = ae.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA';
+};
+
+const blurActiveInputAndHideKeyboard = () => {
+  try { document.activeElement?.blur?.(); } catch { /* ignore */ }
+  try {
+    if (window.webOS && window.webOS.keyboard && typeof window.webOS.keyboard.hide === 'function') {
+      window.webOS.keyboard.hide();
+    }
+  } catch { /* ignore */ }
+};
+
 const GlobalBackHandler = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const locationRef = useRef(location.pathname);
   const hasGuardRef = useRef(false);
+  // Set in keydown when BACK blurred a focused text input. The popstate that
+  // fires immediately after (webOS native pop) reads this and re-pushes the
+  // guard instead of navigating to /home.
+  const justBlurredInputRef = useRef(false);
 
   // Keep locationRef in sync
   useEffect(() => { locationRef.current = location.pathname; }, [location.pathname]);
@@ -99,6 +122,24 @@ const GlobalBackHandler = () => {
       if (!hasGuardRef.current) return;
       hasGuardRef.current = false;
 
+      // Keydown handler already blurred a focused input — don't navigate, just
+      // re-push the guard so the next BACK still has something to pop.
+      if (justBlurredInputRef.current) {
+        justBlurredInputRef.current = false;
+        window.history.pushState({ guard: true }, '');
+        hasGuardRef.current = true;
+        return;
+      }
+
+      // Popstate-only path (some webOS versions don't fire keydown for BACK):
+      // a focused text input still owns BACK — blur and re-push.
+      if (isTextInputFocused()) {
+        blurActiveInputAndHideKeyboard();
+        window.history.pushState({ guard: true }, '');
+        hasGuardRef.current = true;
+        return;
+      }
+
       const path = locationRef.current;
 
       // Self-handled route: page owns BACK. Re-push a fresh guard so the
@@ -125,6 +166,21 @@ const GlobalBackHandler = () => {
 
     const onKeyDown = (e) => {
       if (!isBackKey(e)) return;
+
+      // Active text input owns BACK — blur first so the on-screen keyboard
+      // closes without leaving the page. Press BACK again to leave the page
+      // normally. Self-handled routes (/login, /player) install their own
+      // capture-phase handlers BEFORE App.js (window-level fires before
+      // document-level), so they intercept BACK before this runs and aren't
+      // affected by this branch.
+      if (isTextInputFocused()) {
+        e.preventDefault();
+        e.stopPropagation();
+        blurActiveInputAndHideKeyboard();
+        justBlurredInputRef.current = true;
+        return;
+      }
+
       const path = locationRef.current;
       if (SELF_HANDLED_ROUTES.includes(path)) return;
       if (path === '/home' || path === '/') return;
