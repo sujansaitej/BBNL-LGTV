@@ -222,6 +222,31 @@ const HLSPlayer = ({ src, autoPlay = true, onStreamFailed = null, streamAd = nul
     video.addEventListener("playing", onPlaying);
     video.addEventListener("canplay", onCanPlay);
 
+    // ── LG webOS hardware-overlay aspect override ───────────────────────────
+    // `<video>` on webOS is backed by a hardware overlay plane that decides
+    // aspect on its own — CSS `object-fit: fill` and CSS `transform` are
+    // ignored by the plane (verified via on-device CDP: element box is
+    // panel-sized with non-uniform transform, plane still pillarboxes).
+    //
+    // The platform DOES expose `HTMLMediaElement.mediaOption` (verified — the
+    // property exists on this firmware) which is read by the media pipeline
+    // when the source attaches. Setting it BEFORE `hls.attachMedia(...)` so
+    // the platform picks it up the moment the MSE blob URL is bound.
+    //
+    // `apertureModeOption: 2` is the most commonly documented value for
+    // "stretch to 16:9" on LG webOS. We also set it as an HTML attribute as
+    // belt-and-suspenders since some firmwares only honor the attribute path.
+    try {
+      const mediaOpt = JSON.stringify({
+        option: { adaptiveStreaming: { apertureModeOption: 2 } },
+      });
+      video.mediaOption = mediaOpt;
+      video.setAttribute("mediaOption", mediaOpt);
+      console.log("[HLSPlayer] mediaOption pre-attach:", mediaOpt);
+    } catch (e) {
+      console.warn("[HLSPlayer] mediaOption set failed:", e && e.message);
+    }
+
     hls.loadSource(normalizedSrc);
     hls.attachMedia(video);
 
@@ -426,11 +451,6 @@ const HLSPlayer = ({ src, autoPlay = true, onStreamFailed = null, streamAd = nul
       <video
         ref={videoRef}
         style={{
-          // Stretch-to-fill: every channel paints to the full panel surface
-          // regardless of source aspect. Detected pixel dims (not 100vw/vh)
-          // are used because some webOS firmwares CSS-scale the viewport
-          // smaller than the panel — pixel sizing guarantees we paint to the
-          // hardware surface rather than leaving black borders.
           width: panel && panel.width ? `${panel.width}px` : "100vw",
           height: panel && panel.height ? `${panel.height}px` : "100vh",
           objectFit: "fill",

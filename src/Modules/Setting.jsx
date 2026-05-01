@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, Fragment } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDeviceInformation } from "../server/Deviceinformaction/LG-Devicesinformaction";
 import useAppVersionStore from "../store/LogineOttp";
@@ -574,12 +574,15 @@ const Setting = ({ onLogout }) => {
             <div style={{ backgroundColor: "rgba(255,255,255,0.06)", border: "2px solid rgba(255,255,255,0.15)", borderRadius: "14px", padding: "28px 32px", marginBottom: "24px" }}>
               <p style={{ fontSize: "40px", fontWeight: 700, marginBottom: "16px" }}>TV Information</p>
               <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", rowGap: "18px", columnGap: "16px" }}>
-                {[["TV Model Name", deviceInfo.modelName], ["Device ID", deviceInfo.deviceId], ["Connection Type", deviceInfo.connectionType || "Unknown"]].map(([label, value]) => (
-                  <>
-                    <p key={`l-${label}`} style={{ fontSize: "32px", color: "rgba(255,255,255,0.55)", fontWeight: 600, margin: 0 }}>{label}</p>
-                    <p key={`v-${label}`} style={{ fontSize: "32px", fontWeight: 700, margin: 0 }}>{deviceInfo.loading ? <Spinner size={24} /> : (value || "Not available")}</p>
-                  </>
-                ))}
+                {[["TV Model Name", deviceInfo.modelName], ["Device ID", deviceInfo.deviceId], ["Connection Type", deviceInfo.connectionType || "Unknown"]].map(([label, value]) => {
+                  const isDeviceId = label === "Device ID";
+                  return (
+                    <Fragment key={label}>
+                      <p style={{ fontSize: "32px", color: "rgba(255,255,255,0.55)", fontWeight: 600, margin: 0 }}>{label}</p>
+                      <p style={{ fontSize: isDeviceId ? "22px" : "32px", fontWeight: 700, margin: 0, maxWidth: isDeviceId ? "360px" : undefined, wordBreak: isDeviceId ? "break-all" : undefined, lineHeight: isDeviceId ? 1.4 : undefined, alignSelf: "center" }}>{deviceInfo.loading ? <Spinner size={24} /> : (value || "Not available")}</p>
+                    </Fragment>
+                  );
+                })}
               </div>
             </div>
 

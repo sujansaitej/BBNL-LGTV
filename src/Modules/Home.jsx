@@ -6,6 +6,7 @@ import useHomeAdsStore from "../store/ChannelsSearchStore";
 import useOttAppsStore from "../store/OttAppsStore";
 import { isSubscribed } from "../utils/subscription";
 import { useTapAction } from "../Remote/useTapAction";
+import { goToPlayer } from "../utils/navigation";
 import SearchPill from "./components/SearchPill";
 
 const CATEGORY_COLORS = [
@@ -111,11 +112,10 @@ const Home = () => {
   const handleChannelPlayRaw = useCallback((ch) => {
     // Always route through /player. LivePlayer owns the subscription gate
     // (mount-time effect surfaces the Subscription Not Available modal when
-    // channelData isn't subscribed, suppressing HLS load). Go Back from the
-    // modal navigates(-1) back here.
-    const url = ch.streamlink || ch.stream_link || ch.streamurl || ch.stream_url || ch.url || ch.link || "";
-    navigate("/player", { state: { streamlink: url, title: ch.chtitle, channelData: ch } });
-  }, [navigate]);
+    // channelData isn't subscribed, suppressing HLS load). goToPlayer stamps
+    // origin so the player's BACK returns here.
+    goToPlayer(navigate, location, ch);
+  }, [navigate, location]);
   const handleChannelPlay = useTapAction(handleChannelPlayRaw);
 
   const cancelInfoChannelAutoplay = useCallback((reason = "interaction") => {
@@ -553,8 +553,7 @@ const Home = () => {
       const infoChannel = channels.find((ch) => String(ch.channelno || ch.channelid || ch.channel_no || "").trim() === "999");
       hasAutoPlayedRef.current = true;
       if (infoChannel && isSubscribed(infoChannel)) {
-        const streamUrl = infoChannel.streamlink || infoChannel.stream_link || infoChannel.streamurl || infoChannel.stream_url || infoChannel.url || infoChannel.link;
-        if (streamUrl) navigate("/player", { state: { streamlink: streamUrl, title: infoChannel.chtitle, channelData: infoChannel } });
+        goToPlayer(navigate, location, infoChannel);
       }
     }, 1000);
     return () => { if (autoPlayTimerRef.current) { clearTimeout(autoPlayTimerRef.current); autoPlayTimerRef.current = null; } };
@@ -711,15 +710,30 @@ const Home = () => {
           {/* HOME ADS */}
           <div style={{ marginBottom: "3rem" }}>
             {adsLoading ? (
-              <div style={{ width: "100%", height: "33rem", borderRadius: "1.75rem", background: "#121212", display: "flex", justifyContent: "center", alignItems: "center", fontSize: "1.5rem", color: "#2196f3", fontWeight: 600 }}>Loading ads...</div>
+              <div style={{ width: "100%", aspectRatio: "21/9", borderRadius: "1.75rem", background: "#121212", display: "flex", justifyContent: "center", alignItems: "center", fontSize: "1.5rem", color: "#2196f3", fontWeight: 600 }}>Loading ads...</div>
             ) : adsError ? (
-              <div style={{ width: "100%", height: "33rem", borderRadius: "1.75rem", background: "#121212", display: "flex", justifyContent: "center", alignItems: "center", fontSize: "1.25rem", color: "rgba(255,255,255,0.6)" }}>{adsError}</div>
+              <div style={{ width: "100%", aspectRatio: "21/9", borderRadius: "1.75rem", background: "#121212", display: "flex", justifyContent: "center", alignItems: "center", fontSize: "1.25rem", color: "rgba(255,255,255,0.6)" }}>{adsError}</div>
             ) : (
-              <div style={{ width: "100%", height: "33rem", borderRadius: "1.75rem", overflow: "hidden", background: "#121212", position: "relative", boxShadow: "0 8px 32px rgba(0,0,0,0.4)" }}>
+              <div style={{ width: "100%", borderRadius: "1.75rem", overflow: "hidden", position: "relative", boxShadow: "0 8px 32px rgba(0,0,0,0.4)" }}>
                 {ads.map((url, index) => (
-                  <div key={index} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: index === activeIndex ? 1 : 0, transition: "opacity 0.8s ease-in-out", zIndex: index === activeIndex ? 1 : 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <img src={url} alt={`ad-${index}`} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center", display: "block" }} />
-                  </div>
+                  <img
+                    key={index}
+                    src={url}
+                    alt={`ad-${index}`}
+                    loading="lazy"
+                    decoding="async"
+                    style={{
+                      width: "100%",
+                      height: "auto",
+                      display: "block",
+                      position: index === activeIndex ? "relative" : "absolute",
+                      top: 0,
+                      left: 0,
+                      opacity: index === activeIndex ? 1 : 0,
+                      transition: "opacity 0.8s ease-in-out",
+                      zIndex: index === activeIndex ? 1 : 0,
+                    }}
+                  />
                 ))}
               </div>
             )}

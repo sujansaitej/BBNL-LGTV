@@ -16,6 +16,7 @@ import { postTrpData } from "../server/modules-api/trpdata";
 import { fetchFreshStream } from "../server/modules-api/StreamApi";
 import { fetchStreamAd } from "../server/modules-api/StreamAdsApi";
 import { useTapAction } from "../Remote/useTapAction";
+import { backFromPlayer } from "../utils/navigation";
 
 // Surf-mode state machine timings (DTH-style hold-to-fast-forward).
 //   HOLD_ARM_MS    — 2nd same-direction keydown within this window after the
@@ -474,10 +475,13 @@ const LivePlayer = () => {
     if (numpadRef.current)          { hideNumpad(); return; }
     if (channelNotFoundRef.current) { setChannelNotFound(""); return; }
     // While parked on a locked channel the info bar is pinned and not
-    // user-dismissible, so skip the hide step and go straight to /home.
+    // user-dismissible, so skip the hide step and go straight to origin.
     if (detailsRef.current && !isLockedParkedRef.current) { hideInfo(); return; }
-    navigate('/home', { replace: true });
-  }, [closeMenu, hideNumpad, hideInfo, navigate]);
+    // Return to the screen that launched the player (LiveChannels with its
+    // filter state, Home, etc.). Falls back to /home if no origin recorded
+    // (cold-launch autoplay, deep-link). See src/utils/navigation.js.
+    backFromPlayer(navigate, location.state);
+  }, [closeMenu, hideNumpad, hideInfo, navigate, location.state]);
 
   // popstate-as-BACK fallback. GlobalBackHandler in App.js re-pushes a guard
   // entry for self-handled routes so this listener still has something to
@@ -824,7 +828,10 @@ const LivePlayer = () => {
           channelNumber={channelNotFound}
           onClose={() => {
             setChannelNotFound("");
-            if (!currentStream) navigate(-1);
+            // Stream is dead and the user has no channel to fall back on —
+            // bounce to the originating screen via the navigation service so
+            // they don't get stuck on a black canvas. See utils/navigation.js.
+            if (!currentStream) backFromPlayer(navigate, location.state);
           }}
         />
       )}

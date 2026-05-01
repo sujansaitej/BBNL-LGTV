@@ -121,13 +121,18 @@ const itemIdxFor = (groups, expandedSet, gIdx, type, chIdxInGroup = 0) => {
 };
 
 // "Where should the menu open?" — single source of truth, called at mount
-// time and on L/R from any zone. Resolution order matches the design doc:
-//   1. Last-persisted tab if the channel exists there.
-//   2. Language tab matching channel.langid.
-//   3. Subscribed tab if the channel is subscribed.
-//   4. All Channels (always succeeds when the channel exists at all).
+// time and on L/R from any zone. Resolution order is purely channel-driven
+// (last-persisted tab is intentionally NOT a priority — it caused the menu
+// to land on a stale tab that didn't reflect what the user is now watching):
+//   1. Language tab matching channel.langid (a language-tagged channel
+//      always opens in its language category — the most context-relevant
+//      view of "what else is on in this language").
+//   2. Subscribed tab if the channel is subscribed (no language match,
+//      e.g. a generic English channel without a langid).
+//   3. All Channels (fallback — covers unsubscribed channels and any
+//      channel that doesn't fit the categories above).
 // Returns { tabIdx, groupIdx, chIdx } or null.
-const locateChannel = (channel, tabs, allChannels, contentCategories, lastTabIdx) => {
+const locateChannel = (channel, tabs, allChannels, contentCategories) => {
   if (!channel || !Array.isArray(tabs) || tabs.length === 0) return null;
 
   const tryTab = (idx) => {
@@ -136,14 +141,7 @@ const locateChannel = (channel, tabs, allChannels, contentCategories, lastTabIdx
     return loc ? { tabIdx: idx, ...loc } : null;
   };
 
-  // 1. Last-persisted tab
-  const lastIdx = Number.isFinite(lastTabIdx)
-    ? Math.max(0, Math.min(lastTabIdx, tabs.length - 1))
-    : 0;
-  const fromLast = tryTab(lastIdx);
-  if (fromLast) return fromLast;
-
-  // 2. Language tab matching channel.langid
+  // 1. Language tab matching channel.langid
   const chLangId = String(channel.langid || "").trim();
   if (chLangId) {
     const langIdx = tabs.findIndex((t) => t.kind === "lang" && String(t.langid || "").trim() === chLangId);
@@ -151,14 +149,15 @@ const locateChannel = (channel, tabs, allChannels, contentCategories, lastTabIdx
     if (fromLang) return fromLang;
   }
 
-  // 3. Subscribed tab if subscribed
+  // 2. Subscribed tab if subscribed
   if (isSubscribed(channel)) {
     const subIdx = tabs.findIndex((t) => t.kind === "subscribed");
     const fromSub = tryTab(subIdx);
     if (fromSub) return fromSub;
   }
 
-  // 4. All Channels
+  // 3. All Channels — fallback for unsubscribed channels without a language
+  // tab match, plus any channel that didn't resolve elsewhere.
   const allIdx = tabs.findIndex((t) => t.kind === "all");
   return tryTab(allIdx);
 };
@@ -486,7 +485,7 @@ const ChannelsSidebar = ({ onChannelSelect, currentChannel, isOpen = true }) => 
     if (tabs.length === 0 || allChannels.length === 0) return;
 
     const cur = currentChannelRef.current;
-    const loc = locateChannel(cur, tabs, allChannels, contentCategories, loadLastTab());
+    const loc = locateChannel(cur, tabs, allChannels, contentCategories);
 
     if (loc) {
       didAutoFocusRef.current = true;

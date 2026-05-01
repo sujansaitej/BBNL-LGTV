@@ -7,6 +7,7 @@ import { isSubscribed } from "../utils/subscription";
 import ChannelTile from "./components/ChannelTile";
 import SearchPill from "./components/SearchPill";
 import { useTapAction } from "../Remote/useTapAction";
+import { goToPlayer } from "../utils/navigation";
 
 const ArrowBackIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" /></svg>;
 
@@ -220,11 +221,11 @@ const LiveChannels = () => {
   const handleChannelSelectRaw = useCallback((ch) => {
     // Always route through /player. LivePlayer owns the subscription gate
     // (mount-time effect surfaces the Subscription Not Available modal when
-    // channelData isn't subscribed, suppressing HLS load). Go Back from the
-    // modal navigates(-1) back here with filters intact.
-    const url = ch.streamlink || ch.stream_link || ch.streamurl || ch.stream_url || ch.url || ch.link || ch.videourl || ch.video_url || ch.hlsurl || ch.hls_url || ch.manifest || ch.manifesturl || "";
-    navigate("/player", { state: { streamlink: url, title: ch.chtitle, channelData: ch } });
-  }, [navigate]);
+    // channelData isn't subscribed, suppressing HLS load). goToPlayer stamps
+    // origin (/live-channels) + originState (filter, language, search) so the
+    // player's BACK key returns here with the same category/language preserved.
+    goToPlayer(navigate, location, ch);
+  }, [navigate, location]);
   const handleChannelSelect = useTapAction(handleChannelSelectRaw);
 
   useEffect(() => { handleChannelSelectRef.current = handleChannelSelect; }, [handleChannelSelect]);

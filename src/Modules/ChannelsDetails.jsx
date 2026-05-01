@@ -35,7 +35,7 @@ const LockBadge = () => (
       background: "rgba(244,191,31,0.14)",
       border: "1px solid rgba(244,191,31,0.45)",
       color: "#F4BF1F",
-      fontSize: "16px",
+      fontSize: "15px",
       fontWeight: 700,
       letterSpacing: "1.4px",
       textTransform: "uppercase",
@@ -44,7 +44,7 @@ const LockBadge = () => (
       verticalAlign: "middle",
     }}
   >
-    <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
       <path
         d="M7 10V8a5 5 0 0 1 10 0v2h1a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h1Zm2 0h6V8a3 3 0 0 0-6 0v2Z"
         fill="currentColor"
@@ -114,7 +114,7 @@ const ChannelsDetails = ({ channel, visible = false, sidebarOpen = false, locked
   };
 
   const labelStyle = {
-    fontSize: "15px",
+    fontSize: "14px",
     fontWeight: 600,
     letterSpacing: "1.8px",
     color: COLOR.label,
@@ -124,7 +124,7 @@ const ChannelsDetails = ({ channel, visible = false, sidebarOpen = false, locked
   };
 
   const valueStyle = {
-    fontSize: "28px",
+    fontSize: "27px",
     fontWeight: 700,
     margin: "10px 0 0",
     color: COLOR.value,
@@ -179,15 +179,22 @@ const ChannelsDetails = ({ channel, visible = false, sidebarOpen = false, locked
         overflow: "hidden",
       }}
     >
-      {/* ── Channel identity (logo + number + name) ── */}
+      {/* ── Channel identity (logo + number + name) ──
+          Fixed-width section so the rest of the bar (stat cells, time/date)
+          doesn't shift between channels with names of different lengths.
+          Long names wrap to a second line within the same horizontal slot
+          (2-line clamp with ellipsis on overflow); short names sit on one
+          line with empty space below. The slot width is constant either way
+          so the surrounding layout stays still. */}
       <div
         style={{
+          width: sidebarOpen ? "300px" : "400px",
           display: "flex",
           alignItems: "center",
-          gap: "20px",
-          padding: sidebarOpen ? "0 24px" : "0 32px",
+          gap: "16px",
+          padding: sidebarOpen ? "0 16px" : "0 22px",
           flexShrink: 0,
-          minWidth: 0,
+          boxSizing: "border-box",
         }}
       >
         <div
@@ -217,10 +224,16 @@ const ChannelsDetails = ({ channel, visible = false, sidebarOpen = false, locked
           />
         </div>
 
-        <div style={{ minWidth: 0, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+        <div style={{
+          flex: 1,
+          minWidth: 0,
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+        }}>
           <p
             style={{
-              fontSize: "36px",
+              fontSize: "35px",
               fontWeight: 700,
               margin: 0,
               color: COLOR.value,
@@ -234,24 +247,34 @@ const ChannelsDetails = ({ channel, visible = false, sidebarOpen = false, locked
           <div
             style={{
               display: "flex",
-              alignItems: "center",
+              alignItems: "flex-start",
+              gap: "10px",
               margin: "10px 0 0",
               minWidth: 0,
             }}
           >
+            {/* 2-line clamp via -webkit-box / -webkit-line-clamp. Channel
+                name expands to fill the remaining width inside the fixed
+                identity slot (flex:1 here, width:auto), wraps when text
+                doesn't fit on one line, and ellipsizes if it overflows the
+                second line. The outer slot width is constant, so even an
+                arbitrarily long name can't push other cells around. */}
             <p
+              title={channelName}
               style={{
-                fontSize: "28px",
+                flex: 1,
+                minWidth: 0,
+                fontSize: "27px",
                 fontWeight: 700,
                 margin: 0,
                 color: COLOR.accentWarm,
-                lineHeight: 1.1,
-                whiteSpace: "nowrap",
+                lineHeight: 1.15,
+                display: "-webkit-box",
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: "vertical",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
-                maxWidth: locked
-                  ? (sidebarOpen ? "150px" : "220px")
-                  : (sidebarOpen ? "240px" : "320px"),
+                wordBreak: "break-word",
               }}
             >
               {channelName}
@@ -277,7 +300,26 @@ const ChannelsDetails = ({ channel, visible = false, sidebarOpen = false, locked
 
         <div style={statCellStyle}>
           <p style={labelStyle}>EXPIRES IN</p>
-          <p style={{ ...valueStyle, color: COLOR.accentWarm }}>{expiryText}</p>
+          {/* 2-line clamp instead of single-line ellipsis: short values
+              like "3 days" still sit on one line, but an unusually long
+              expiry phrase (e.g. "Expired 5 days ago") wraps to a second
+              line within its cell rather than getting clipped. */}
+          <p
+            style={{
+              ...valueStyle,
+              color: COLOR.accentWarm,
+              whiteSpace: "normal",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              wordBreak: "break-word",
+              display: "-webkit-box",
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: "vertical",
+            }}
+            title={expiryText}
+          >
+            {expiryText}
+          </p>
         </div>
 
         <div style={statCellStyle}>
@@ -305,11 +347,22 @@ const ChannelsDetails = ({ channel, visible = false, sidebarOpen = false, locked
 
         <div style={statCellStyle}>
           <p style={labelStyle}>USER ID</p>
+          {/* User ID can be a long opaque string — allow up to 2 lines
+              within the cell instead of single-line ellipsis. wordBreak:
+              break-all gives wrap points on every character so even an
+              unbroken alphanumeric ID can flow onto the second line. */}
           <p
             style={{
               ...valueStyle,
               color: COLOR.accentCool,
-              maxWidth: sidebarOpen ? "200px" : "300px",
+              maxWidth: "none",
+              whiteSpace: "normal",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              wordBreak: "break-all",
+              display: "-webkit-box",
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: "vertical",
             }}
             title={userId}
           >
@@ -333,7 +386,7 @@ const ChannelsDetails = ({ channel, visible = false, sidebarOpen = false, locked
       >
         <p
           style={{
-            fontSize: "40px",
+            fontSize: "39px",
             fontWeight: 700,
             margin: 0,
             color: COLOR.value,
@@ -346,7 +399,7 @@ const ChannelsDetails = ({ channel, visible = false, sidebarOpen = false, locked
         </p>
         <p
           style={{
-            fontSize: "17px",
+            fontSize: "16px",
             color: COLOR.valueDim,
             margin: "10px 0 0",
             fontWeight: 500,
